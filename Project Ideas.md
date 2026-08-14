@@ -1,13 +1,27 @@
-# Project Ideas
+# Project Ideas / 项目创意
 
-**Status:** Internal options for discussion; none is approved scope  
-**Research basis:** [[Brief and Rules]] and [[Track and API Research]]
+**Status / 状态:** Internal options for discussion; none is approved scope. / 供内部讨论的方案；尚未批准任何方案范围。
+**Research basis / 研究依据:** [[Brief and Rules]] and [[Track and API Research]]
 
-## How to read these ideas
+## How to read these ideas / 阅读方式
+
+### 中文
+
+本文件将每个方案按“中文在前、英文在后”的顺序呈现。每个方案都包含一个最小可行演示（MVP）和可选的扩展 API。扩展功能只有在核心流程稳定、API 单位成本明确后才应加入。
+
+### English
+
+Each proposal is presented Chinese first and English second. Every idea includes a smallest defensible MVP and optional API extensions. Add stretch features only after the core flow works and the API unit cost is known.
 
 The event has one listed sponsor, Perfect Corp. Each idea uses a coherent group of APIs from the YouCam suite. The **MVP** column is the smallest defensible demo; the **stretch** column shows how to use more of the sponsor’s API families only after the core flow works.
 
-## 1. Palette Passport
+## Idea 1: Palette Passport｜调色护照
+
+### 中文
+
+用户上传一张自拍并选择一件服装，系统结合 AI Facial Color Tones、AI Skin Analysis、AI Clothes Virtual Try-On 和 AI Makeup Virtual Try-On，生成一个协调的美容与服装购物方案。用户可以比较两个造型，并在需要时加入发色和耳饰扩展。
+
+### English
 
 **Track:** Skin AI + Apparel VTO  
 **User:** A shopper who wants a coordinated look before buying a product or outfit.  
@@ -44,7 +58,13 @@ It connects the Skin and Apparel tracks into one purchase decision, uses more th
 - If outputs cannot be layered reliably, show a coordinated result board rather than pretending the images are one physically accurate composite.
 - Confirm the feature cost of each call before enabling the hair and earring extensions.
 
-## 2. Capsule Cart
+## Idea 2: Capsule Cart｜胶囊衣橱购物车
+
+### 中文
+
+用户上传一张全身或合适的肖像，选择少量服装、鞋子和包的图片。系统分别运行 Clothes VTO、Shoes VTO 和 Bag VTO，生成一个可比较的胶囊衣橱造型板；配饰和 Photo Background Removal 作为扩展。
+
+### English
 
 **Track:** Apparel Virtual Try-On  
 **User:** An online shopper planning a small wardrobe or travel capsule.  
@@ -81,7 +101,13 @@ It has a direct retail problem, a clear Apparel VTO anchor, visible use of sever
 - Keep the accessory set small because each result may consume units and adds latency.
 - Maintain a fallback catalog card when an accessory call fails.
 
-## 3. Skin-to-Shelf Routine
+## Idea 3: Skin-to-Shelf Routine｜肌肤选购方案
+
+### 中文
+
+用户上传一张经过同意的肖像，系统结合 Skin Analysis、Facial Color Tones 和 Makeup VTO，帮助用户从小型演示目录中选择美容方案；发色、发型、指甲或耳饰作为扩展。
+
+### English
 
 **Track:** Skin AI  
 **User:** A shopper who wants a simple, visual way to explore a beauty routine without navigating a large product catalog.  
@@ -119,7 +145,7 @@ It has a direct Skin AI story, demonstrates several sponsor APIs without requiri
 - Treat optional simulation as a stretch feature, not the main promise.
 - Keep uploaded images temporary and explain the processing flow in the UI.
 
-## Comparison
+## Comparison / 对比
 
 | Idea | Track coverage | Core APIs | Build risk | Retail clarity | Best reason to choose |
 |---|---|---:|---|---|---|
@@ -127,7 +153,9 @@ It has a direct Skin AI story, demonstrates several sponsor APIs without requiri
 | Capsule Cart | Apparel | 3 | Low-Medium | Very high | Fastest path to a visible retail demo. |
 | Skin-to-Shelf Routine | Skin | 3 | Medium | High | Strongest focused Skin AI narrative with a small backend. |
 
-## Working recommendation
+## Working recommendation / 当前建议
+
+如果三次 API 冒烟测试成功且单位成本可接受，优先从 Palette Passport 开始。否则选择 Capsule Cart，以最快速度完成可靠的零售演示。如果服装图片要求或图像合成带来阻碍，则保留 Skin-to-Shelf Routine 作为更稳妥的备用方案。
 
 Start with **Palette Passport** only if the three-call smoke test works and the API unit cost is acceptable. Otherwise choose **Capsule Cart** for the shortest reliable path to a polished demo. Keep **Skin-to-Shelf Routine** as the safer fallback if apparel image requirements or composition create friction.
 
