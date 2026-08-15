@@ -100,14 +100,11 @@ export const RATE_LIMIT_MAX_RETRIES = 3;
 export const RESULT_URL_TTL_HOURS = 2;
 
 // ─────────────────────────────────────────────────────────────
-// Image specs — VERIFIED. Enforced client-side before we spend a call.
+// Image specs — VERIFIED. Enforced client-side before we spend a call, so the
+// definition lives in shared/ where the browser can reach it too.
 // ─────────────────────────────────────────────────────────────
 
-export const IMAGE_SPEC = {
-  maxLongSide: 4096,
-  minShortSideSd: 480,
-  minShortSideHd: 1080,
-} as const;
+export { IMAGE_SPEC } from '@yincol/shared';
 
 // ─────────────────────────────────────────────────────────────
 // Runtime configuration

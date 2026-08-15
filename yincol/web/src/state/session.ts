@@ -1,0 +1,171 @@
+/**
+ * The session state machine.
+ *
+ * One reducer, one shape. There is no database and no account — everything here lives
+ * in memory for the length of one visit and is thrown away when the tab closes, which
+ * is exactly what the consent panel promises.
+ */
+
+import type { AnalyzeResponse, TryOnResponse } from '@yincol/shared';
+
+export type Step =
+  | 'intro'
+  | 'capture'
+  | 'selection'
+  | 'analysis'
+  | 'colors'
+  | 'preview'
+  | 'compare'
+  | 'lookCard';
+
+/** The order screens advance in, used for the back affordance. */
+export const STEP_ORDER: readonly Step[] = [
+  'intro',
+  'capture',
+  'selection',
+  'analysis',
+  'colors',
+  'preview',
+  'compare',
+  'lookCard',
+];
+
+export interface CapturedPortrait {
+  /** An object URL for the chosen file. Never uploaded anywhere in fixture mode. */
+  readonly previewUrl: string;
+  readonly width: number;
+  readonly height: number;
+  readonly note?: string;
+}
+
+/** Which axis the compare screen is showing. */
+export type CompareAxis = 'garments' | 'makeup';
+
+export interface SessionState {
+  readonly step: Step;
+  readonly consentGiven: boolean;
+  readonly portrait: CapturedPortrait | null;
+  /** Exactly two, once selection is complete. */
+  readonly garmentIds: readonly string[];
+  readonly makeupLookId: string | null;
+  readonly analysis: AnalyzeResponse | null;
+  readonly tryOn: TryOnResponse | null;
+  readonly axis: CompareAxis;
+  /** One winner per axis, chosen by tapping a panel. */
+  readonly garmentWinnerId: string | null;
+  readonly makeupWinner: 'bare' | 'madeUp' | null;
+  readonly savedLook: boolean;
+  readonly error: string | null;
+  readonly busy: boolean;
+}
+
+export const initialState: SessionState = {
+  step: 'intro',
+  consentGiven: false,
+  portrait: null,
+  garmentIds: [],
+  makeupLookId: null,
+  analysis: null,
+  tryOn: null,
+  axis: 'garments',
+  garmentWinnerId: null,
+  makeupWinner: null,
+  savedLook: false,
+  error: null,
+  busy: false,
+};
+
+export type SessionAction =
+  | { type: 'giveConsent' }
+  | { type: 'goTo'; step: Step }
+  | { type: 'setPortrait'; portrait: CapturedPortrait }
+  | { type: 'clearPortrait' }
+  | { type: 'toggleGarment'; garmentId: string }
+  | { type: 'chooseMakeup'; lookId: string }
+  | { type: 'analysisStarted' }
+  | { type: 'analysisReady'; analysis: AnalyzeResponse }
+  | { type: 'tryOnReady'; tryOn: TryOnResponse }
+  | { type: 'setAxis'; axis: CompareAxis }
+  | { type: 'pickGarmentWinner'; garmentId: string }
+  | { type: 'pickMakeupWinner'; winner: 'bare' | 'madeUp' }
+  | { type: 'saveLook' }
+  | { type: 'failed'; message: string }
+  | { type: 'dismissError' }
+  | { type: 'startOver' };
+
+/** Selection is complete at exactly two garments and one makeup look. */
+export const selectionComplete = (state: SessionState): boolean =>
+  state.garmentIds.length === 2 && state.makeupLookId !== null;
+
+export function sessionReducer(state: SessionState, action: SessionAction): SessionState {
+  switch (action.type) {
+    case 'giveConsent':
+      return { ...state, consentGiven: true };
+
+    case 'goTo':
+      return { ...state, step: action.step, error: null };
+
+    case 'setPortrait':
+      return { ...state, portrait: action.portrait, error: null };
+
+    case 'clearPortrait':
+      // One-tap delete, as promised on every screen showing the portrait. It clears the
+      // analysis too — keeping a palette derived from a deleted photograph would make
+      // the delete a gesture rather than a deletion.
+      return {
+        ...initialState,
+        consentGiven: state.consentGiven,
+        step: 'capture',
+      };
+
+    case 'toggleGarment': {
+      const already = state.garmentIds.includes(action.garmentId);
+      if (already) {
+        return { ...state, garmentIds: state.garmentIds.filter((id) => id !== action.garmentId) };
+      }
+      // Two is the limit. A third tap replaces the older of the two rather than being
+      // silently ignored, so the control never feels dead.
+      const next =
+        state.garmentIds.length < 2
+          ? [...state.garmentIds, action.garmentId]
+          : [state.garmentIds[1]!, action.garmentId];
+      return { ...state, garmentIds: next };
+    }
+
+    case 'chooseMakeup':
+      return { ...state, makeupLookId: action.lookId };
+
+    case 'analysisStarted':
+      return { ...state, busy: true, error: null, step: 'analysis' };
+
+    case 'analysisReady':
+      return { ...state, analysis: action.analysis };
+
+    case 'tryOnReady':
+      return { ...state, tryOn: action.tryOn, busy: false };
+
+    case 'setAxis':
+      return { ...state, axis: action.axis };
+
+    case 'pickGarmentWinner':
+      return { ...state, garmentWinnerId: action.garmentId };
+
+    case 'pickMakeupWinner':
+      return { ...state, makeupWinner: action.winner };
+
+    case 'saveLook':
+      return { ...state, savedLook: true, step: 'lookCard' };
+
+    case 'failed':
+      return { ...state, error: action.message, busy: false };
+
+    case 'dismissError':
+      return { ...state, error: null };
+
+    case 'startOver':
+      return { ...initialState, consentGiven: state.consentGiven };
+
+    default:
+      return state;
+  }
+}

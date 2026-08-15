@@ -8,5 +8,6 @@
 
 export * from './domain/types.js';
 export * from './domain/catalog.js';
+export * from './domain/imageSpec.js';
 export * from './domain/api.js';
 export * from './palette/index.js';
