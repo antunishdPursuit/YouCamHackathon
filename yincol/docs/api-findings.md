@@ -86,7 +86,46 @@ in the code and a single config constant that can be changed in one place.
 Assumptions logged during the build. Each has a matching
 `// ASSUMPTION(phase0): …` comment at the relevant line of code.
 
-_(populated as the build proceeds — see the end of this file)_
+### 1. ΔE is CIE76, not CIEDE2000
+`shared/src/palette/color.ts` → `deltaE76`
+
+The brief specifies a fit threshold of **25**. Under CIE76 that reads as "the same colour
+family, allowing for a different shade", which is the intended meaning. Under CIEDE2000
+the just-noticeable difference is about 2.3 and 25 would match nearly anything, so the
+threshold was clearly written for CIE76. CIE76 also has the advantage of being explainable
+in one sentence — it is the straight-line distance between two points in L\*a\*b\* — which
+matters more for a demo whose whole claim is transparency.
+
+**To change:** `deltaE76` is the only distance function, and `FIT_THRESHOLD` in
+`shared/src/palette/fit.ts` is the only threshold. Swapping formulas means changing both.
+
+### 2. Undertone is classified from skin hue angle
+`shared/src/palette/axes.ts` → `classifyUndertone`
+
+The facial colour tone response shape is unverified, so we do not know whether it returns
+an undertone label directly. The fallback classifies from the hue angle of the skin
+reading in L\*a\*b\*: human skin occupies a narrow band around 40°–70°, where a higher
+angle is more yellow relative to red (golden) and a lower angle more red relative to
+yellow (rosy). Boundaries sit at 50° and 60°.
+
+**To change:** `toneAxesFromReading` takes an optional `explicitUndertone` which overrides
+the classifier outright. If the API returns a label, pass it through the adapter and the
+guess is never used.
+
+### 3. Swatch copy is a function of the three axes, not the raw readings
+`shared/src/palette/engine.ts` → `reasonFor`
+
+Two people whose measurements differ but who land in the same three bands receive an
+identical palette, wording included. Raw L\* readings appear exactly once, in the
+derivation notes. This keeps "same input → same output" true of the whole palette object
+rather than only of its hex values.
+
+### 4. Placeholder fixture bytes are synthetic, and labelled as such
+`server/fixtures/` and `web/public/fixtures/`
+
+Committed placeholder fixtures are generated ornamental panels, not API output. They exist
+so the flow runs before a real capture. Every one is watermarked in the UI as a
+placeholder, and `npm run capture-fixtures` overwrites them with genuine API results.
 
 ---
 
