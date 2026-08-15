@@ -185,8 +185,12 @@ export interface Garment {
   /** Dominant colour, used for fit scoring. */
   readonly dominantHex: Hex;
   readonly colorName: string;
-  /** Product image shown in the picker. */
-  readonly imageUrl: string;
+  /**
+   * Product photograph, when the team has shot one. Optional on purpose: the picker
+   * renders an illustrated card from `dominantHex` when there is no photograph, which
+   * is honest — an illustration cannot be mistaken for a product shot we do not have.
+   */
+  readonly imageUrl?: string;
 }
 
 /**

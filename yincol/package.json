@@ -17,7 +17,7 @@
     "dev:web": "npm run dev --workspace @yincol/web",
     "dev:server": "npm run dev --workspace @yincol/server",
     "build": "npm run build --workspace @yincol/web",
-    "test": "npm run test --workspace @yincol/shared",
+    "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "capture-fixtures": "npm run capture-fixtures --workspace @yincol/server"
   },
