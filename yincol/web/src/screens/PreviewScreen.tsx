@@ -13,6 +13,7 @@ import { findGarment, findMakeupLook, scoreGarmentFit } from '@yincol/shared';
 import { PearlDivider, SectionHeading } from '../components/ornament.js';
 import { Button } from '../components/controls.js';
 import { PhotoSlot } from '../components/PhotoSlot.js';
+import { PartialResultsNotice } from '../components/StateNotice.js';
 import { DISPLAY_SLOTS } from '../config/displaySlots.js';
 
 export function PreviewScreen({
@@ -30,11 +31,22 @@ export function PreviewScreen({
 }) {
   const look = makeupLookId ? findMakeupLook(makeupLookId) : undefined;
 
+  // One try-on failing must leave the other three usable. Name what is missing so the
+  // shopper is not left wondering whether to start again.
+  const failedLabels = [
+    ...garmentIds
+      .filter((id) => tryOn.garments[id]?.result.status === 'failed')
+      .map((id) => `the ${findGarment(id)?.name.toLowerCase() ?? 'garment'} preview`),
+    ...(tryOn.makeup.result.status === 'failed' ? ['the makeup preview'] : []),
+  ];
+
   return (
     <div className="animate-soft-fade space-y-6">
       <header className="text-center">
         <SectionHeading>Two ways to wear it</SectionHeading>
       </header>
+
+      <PartialResultsNotice failedLabels={failedLabels} />
 
       <section aria-labelledby="apparel-heading">
         <h3 id="apparel-heading" className="font-display text-2xl text-ink">

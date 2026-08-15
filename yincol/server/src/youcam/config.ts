@@ -110,6 +110,23 @@ export { IMAGE_SPEC } from '@yincol/shared';
 // Runtime configuration
 // ─────────────────────────────────────────────────────────────
 
+/**
+ * Which designed state to force, for demonstrating them without waiting for one to
+ * happen naturally.
+ *
+ * These are not mocks bolted onto the UI — they make the SERVER return exactly what it
+ * would return in that situation, so the front end takes the same code path it would
+ * take for real. Fixture mode only; live mode ignores it.
+ */
+export type SimulatedState = 'none' | 'noFace' | 'partialFailure' | 'skinUnavailable';
+
+const SIMULATED_STATES: readonly SimulatedState[] = [
+  'none',
+  'noFace',
+  'partialFailure',
+  'skinUnavailable',
+];
+
 export interface YouCamConfig {
   readonly baseUrl: string;
   readonly apiKey: string;
@@ -117,6 +134,7 @@ export interface YouCamConfig {
   readonly fixtureMode: boolean;
   /** Base URL the API can fetch source images from (Path B). Capture script only. */
   readonly publicAssetBaseUrl: string;
+  readonly simulate: SimulatedState;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): YouCamConfig {
@@ -124,10 +142,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): YouCamConfig {
   // string "false" leaves it on — a typo must never silently start spending credits.
   const fixtureMode = (env['YINCOL_FIXTURE_MODE'] ?? 'true').toLowerCase() !== 'false';
 
+  const requested = (env['YINCOL_SIMULATE'] ?? 'none') as SimulatedState;
+  const simulate: SimulatedState =
+    fixtureMode && SIMULATED_STATES.includes(requested) ? requested : 'none';
+
   return {
     baseUrl: (env['YINCOL_API_BASE_URL'] ?? DEFAULT_API_BASE_URL).replace(/\/+$/, ''),
     apiKey: env['YINCOL_API_KEY'] ?? '',
     fixtureMode,
     publicAssetBaseUrl: (env['YINCOL_PUBLIC_ASSET_BASE_URL'] ?? '').replace(/\/+$/, ''),
+    simulate,
   };
 }

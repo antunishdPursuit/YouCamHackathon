@@ -6,7 +6,8 @@
  */
 
 import { useCallback, useEffect, useReducer } from 'react';
-import { requestAnalysis, requestTryOn } from './api/client.js';
+import { ApiError, requestAnalysis, requestTryOn } from './api/client.js';
+import { StateNotice } from './components/StateNotice.js';
 import { PrivacyBar } from './components/PrivacyBar.js';
 import { Wordmark } from './components/ornament.js';
 import { Button } from './components/controls.js';
@@ -18,10 +19,36 @@ import { ColorsScreen } from './screens/ColorsScreen.js';
 import { PreviewScreen } from './screens/PreviewScreen.js';
 import { CompareScreen } from './screens/CompareScreen.js';
 import { LookCardScreen } from './screens/LookCardScreen.js';
-import { initialState, sessionReducer } from './state/session.js';
+import { findGarment, findMakeupLook } from '@yincol/shared';
+import { initialState, sessionReducer, type SavedLook, type SessionState } from './state/session.js';
 
 /** Screens that display the portrait, and therefore carry the privacy affordance. */
 const SHOWS_PORTRAIT = new Set(['capture', 'analysis', 'colors', 'preview', 'compare', 'lookCard']);
+
+/**
+ * Condense the current session into the shelf entry.
+ *
+ * The id is the combination itself, so keeping the same pair twice replaces rather than
+ * duplicates — and it needs no clock or random source to be unique.
+ */
+function buildSavedLook(state: SessionState): SavedLook {
+  const garment = findGarment(state.garmentWinnerId ?? '');
+  const look = state.makeupLookId ? findMakeupLook(state.makeupLookId) : undefined;
+  const makeupName = state.makeupWinner === 'bare' ? 'Bare face' : (look?.name ?? 'Makeup look');
+  const swatchHexes =
+    state.analysis?.palette.swatches
+      .filter((swatch) => swatch.role !== 'neutral')
+      .slice(0, 3)
+      .map((swatch) => swatch.hex) ?? [];
+
+  return {
+    id: `${state.garmentWinnerId ?? 'none'}--${state.makeupWinner ?? 'none'}--${state.makeupLookId ?? 'none'}`,
+    garmentName: garment?.name ?? 'A garment',
+    makeupName,
+    swatchHexes,
+    summary: `${garment?.name ?? 'A garment'} with ${makeupName.toLowerCase()}.`,
+  };
+}
 
 export function App() {
   const [state, dispatch] = useReducer(sessionReducer, initialState);
@@ -51,6 +78,7 @@ export function App() {
       dispatch({
         type: 'failed',
         message: error instanceof Error ? error.message : 'Something went wrong.',
+        code: error instanceof ApiError ? error.code : 'general',
       });
     }
   }, [state.garmentIds, state.makeupLookId]);
@@ -67,10 +95,29 @@ export function App() {
   const analysisDone = state.analysis !== null && state.tryOn !== null;
 
   const screen = (() => {
+    // "No face detected" replaces the screen rather than sitting above it — there is
+    // nothing to show behind it, and the shopper's next move is to choose a different
+    // photograph, not to dismiss a banner.
+    if (state.errorCode === 'noFace') {
+      return (
+        <StateNotice
+          tone="attention"
+          title="We could not find a face"
+          body="The colours are read from a face, so this photograph cannot be used. A picture taken face-on, with even light and nothing covering the face, usually works."
+          actionLabel="Choose a different photograph"
+          action={() => {
+            dispatch({ type: 'dismissError' });
+            dispatch({ type: 'goTo', step: 'capture' });
+          }}
+        />
+      );
+    }
+
     switch (state.step) {
       case 'intro':
         return (
           <IntroScreen
+            savedLooks={state.savedLooks}
             onBegin={() => {
               dispatch({ type: 'giveConsent' });
               dispatch({ type: 'goTo', step: 'capture' });
@@ -138,7 +185,7 @@ export function App() {
             onAxisChange={(axis) => dispatch({ type: 'setAxis', axis })}
             onPickGarment={(garmentId) => dispatch({ type: 'pickGarmentWinner', garmentId })}
             onPickMakeup={(winner) => dispatch({ type: 'pickMakeupWinner', winner })}
-            onContinue={() => dispatch({ type: 'saveLook' })}
+            onContinue={() => dispatch({ type: 'saveLook', look: buildSavedLook(state) })}
           />
         ) : null;
 
@@ -182,7 +229,7 @@ export function App() {
           </div>
         ) : null}
 
-        {state.error ? (
+        {state.error && state.errorCode !== 'noFace' ? (
           <div
             role="alert"
             className="mb-4 rounded-card border border-gold/60 bg-powder px-4 py-3 text-sm text-ink"

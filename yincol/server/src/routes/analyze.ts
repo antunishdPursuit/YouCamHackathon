@@ -51,17 +51,27 @@ analyzeRouter.post('/analyze', async (req, res) => {
 
   const [toneSettled, skinSettled] = await Promise.allSettled([
     config.fixtureMode
-      ? fixtureDelay().then<ToneOutcome>(() => ({ reading: FIXTURE_COLOR_TONE }))
+      ? fixtureDelay().then<ToneOutcome>(() => {
+          if (config.simulate === 'noFace') throw new Error('no-face-detected');
+          return { reading: FIXTURE_COLOR_TONE };
+        })
       : readColorToneLive(portraitRef),
     config.fixtureMode
-      ? fixtureDelay().then(() => FIXTURE_SKIN_APPEARANCE)
+      ? fixtureDelay().then(() => {
+          if (config.simulate === 'skinUnavailable') throw new Error('skin-unavailable');
+          return FIXTURE_SKIN_APPEARANCE;
+        })
       : readSkinLive(portraitRef),
   ]);
 
   // Colour tone is the one call we cannot do without — no reading, no palette.
   if (toneSettled.status === 'rejected') {
-    res.status(502).json({
-      error: 'We could not read the colours in that photograph.',
+    const noFace = String(toneSettled.reason).includes('no-face-detected');
+    res.status(422).json({
+      code: noFace ? 'noFace' : 'colorToneFailed',
+      error: noFace
+        ? 'We could not find a face in that photograph.'
+        : 'We could not read the colours in that photograph.',
       detail: String(toneSettled.reason),
     });
     return;

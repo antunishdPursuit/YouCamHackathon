@@ -8,6 +8,7 @@
 
 import { ArchPanel, PearlDivider, Ribbon, SectionHeading, Wordmark } from '../components/ornament.js';
 import { Button } from '../components/controls.js';
+import type { SavedLook } from '../state/session.js';
 
 const SAMPLE_SWATCHES = [
   { hex: '#f6e0da', name: 'Peach Blossom Dusk' },
@@ -15,7 +16,70 @@ const SAMPLE_SWATCHES = [
   { hex: '#c1ae9c', name: 'Ivory Knight' },
 ];
 
-export function IntroScreen({ onBegin }: { onBegin: () => void }) {
+/**
+ * The kept-looks shelf.
+ *
+ * Empty is the normal state, not a failure — there is no database, so a new visitor
+ * always starts here. It is drawn as a designed shelf with nothing on it rather than
+ * hidden, because hiding it would make the feature invisible until it happened to work.
+ */
+function KeptLooks({ savedLooks }: { savedLooks: readonly SavedLook[] }) {
+  return (
+    <section aria-labelledby="kept-heading" className="rounded-card border border-gold/50 bg-ground p-5">
+      <h3 id="kept-heading" className="font-display text-2xl text-ink">
+        Looks you kept
+      </h3>
+
+      {savedLooks.length === 0 ? (
+        <div className="mt-3 rounded-card border border-dashed border-gold/50 px-4 py-6 text-center">
+          <svg viewBox="0 0 60 60" aria-hidden="true" className="mx-auto h-10 w-10 text-gold">
+            <path
+              d="M 14 46 L 14 22 a 16 16 0 0 1 32 0 L 46 46 Z"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+            />
+            <circle cx="30" cy="18" r="2.4" fill="currentColor" opacity="0.6" />
+          </svg>
+          <p className="mt-2 text-base text-ink">Nothing kept yet.</p>
+          <p className="mt-1 text-sm text-ink-soft">
+            Looks you keep will sit here for as long as this tab stays open.
+          </p>
+        </div>
+      ) : (
+        <ul className="mt-3 space-y-2">
+          {savedLooks.map((look) => (
+            <li
+              key={look.id}
+              className="flex items-center gap-3 rounded-card border border-gold/40 bg-surface px-3 py-2.5"
+            >
+              <span className="flex shrink-0 gap-1" aria-hidden="true">
+                {look.swatchHexes.map((hex) => (
+                  <span
+                    key={hex}
+                    className="h-5 w-5 rounded-full border border-gold/50"
+                    style={{ backgroundColor: hex }}
+                  />
+                ))}
+              </span>
+              <span className="flex-1 text-sm text-ink">
+                <span className="font-semibold">{look.garmentName}</span> · {look.makeupName}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+export function IntroScreen({
+  onBegin,
+  savedLooks,
+}: {
+  onBegin: () => void;
+  savedLooks: readonly SavedLook[];
+}) {
   return (
     <div className="animate-soft-fade space-y-6">
       <header className="flex flex-col items-center pt-2 text-center">
@@ -79,6 +143,10 @@ export function IntroScreen({ onBegin }: { onBegin: () => void }) {
           </div>
         </div>
       </section>
+
+      <PearlDivider />
+
+      <KeptLooks savedLooks={savedLooks} />
 
       <PearlDivider />
 

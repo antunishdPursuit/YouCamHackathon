@@ -41,6 +41,21 @@ export interface CapturedPortrait {
 /** Which axis the compare screen is showing. */
 export type CompareAxis = 'garments' | 'makeup';
 
+/**
+ * A look the shopper kept, held in memory only.
+ *
+ * There is no database, so "saved" means "for as long as this tab is open" — which is
+ * exactly what the consent panel promises, and why the empty state is the honest
+ * default rather than a bug.
+ */
+export interface SavedLook {
+  readonly id: string;
+  readonly garmentName: string;
+  readonly makeupName: string;
+  readonly swatchHexes: readonly string[];
+  readonly summary: string;
+}
+
 export interface SessionState {
   readonly step: Step;
   readonly consentGiven: boolean;
@@ -55,7 +70,10 @@ export interface SessionState {
   readonly garmentWinnerId: string | null;
   readonly makeupWinner: 'bare' | 'madeUp' | null;
   readonly savedLook: boolean;
+  readonly savedLooks: readonly SavedLook[];
   readonly error: string | null;
+  /** Distinguishes "no face" from a generic failure, so the copy can differ. */
+  readonly errorCode: 'noFace' | 'general' | null;
   readonly busy: boolean;
 }
 
@@ -71,7 +89,9 @@ export const initialState: SessionState = {
   garmentWinnerId: null,
   makeupWinner: null,
   savedLook: false,
+  savedLooks: [],
   error: null,
+  errorCode: null,
   busy: false,
 };
 
@@ -88,8 +108,8 @@ export type SessionAction =
   | { type: 'setAxis'; axis: CompareAxis }
   | { type: 'pickGarmentWinner'; garmentId: string }
   | { type: 'pickMakeupWinner'; winner: 'bare' | 'madeUp' }
-  | { type: 'saveLook' }
-  | { type: 'failed'; message: string }
+  | { type: 'saveLook'; look: SavedLook }
+  | { type: 'failed'; message: string; code?: 'noFace' | 'general' }
   | { type: 'dismissError' }
   | { type: 'startOver' };
 
@@ -110,8 +130,9 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
 
     case 'clearPortrait':
       // One-tap delete, as promised on every screen showing the portrait. It clears the
-      // analysis too — keeping a palette derived from a deleted photograph would make
-      // the delete a gesture rather than a deletion.
+      // analysis AND any kept looks — a look card carries a portrait thumbnail and a
+      // palette read from that face, so keeping either would make the delete a gesture
+      // rather than a deletion.
       return {
         ...initialState,
         consentGiven: state.consentGiven,
@@ -153,17 +174,31 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
     case 'pickMakeupWinner':
       return { ...state, makeupWinner: action.winner };
 
-    case 'saveLook':
-      return { ...state, savedLook: true, step: 'lookCard' };
+    case 'saveLook': {
+      // Re-saving the same combination replaces it rather than stacking duplicates.
+      const others = state.savedLooks.filter((look) => look.id !== action.look.id);
+      return {
+        ...state,
+        savedLook: true,
+        savedLooks: [...others, action.look],
+        step: 'lookCard',
+      };
+    }
 
     case 'failed':
-      return { ...state, error: action.message, busy: false };
+      return { ...state, error: action.message, errorCode: action.code ?? 'general', busy: false };
 
     case 'dismissError':
-      return { ...state, error: null };
+      return { ...state, error: null, errorCode: null };
 
     case 'startOver':
-      return { ...initialState, consentGiven: state.consentGiven };
+      // Kept looks survive starting over — they are the one thing the shopper chose to
+      // hold on to. The photograph does not.
+      return {
+        ...initialState,
+        consentGiven: state.consentGiven,
+        savedLooks: state.savedLooks,
+      };
 
     default:
       return state;

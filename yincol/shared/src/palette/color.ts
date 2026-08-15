@@ -210,3 +210,26 @@ export function deltaE76(first: Lab, second: Lab): number {
   const db = first.b - second.b;
   return roundTo(Math.sqrt(dl * dl + da * da + db * db), 2);
 }
+
+// ─────────────────────────────────────────────────────────────
+// Contrast — WCAG 2.2
+// ─────────────────────────────────────────────────────────────
+
+/** Relative luminance per WCAG. Note this is NOT the same as L* in L*a*b*. */
+export function relativeLuminance(hex: Hex): number {
+  const { r, g, b } = parseHex(hex);
+  const linear = (channel: number): number => srgbToLinear(channel);
+  return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
+}
+
+/**
+ * WCAG contrast ratio between two colours, 1 (identical) to 21 (black on white).
+ *
+ * AA wants 4.5:1 for body text, 3:1 for large text (18.66px bold or 24px) and for
+ * meaningful non-text elements such as focus indicators and control boundaries.
+ */
+export function contrastRatio(foreground: Hex, background: Hex): number {
+  const lighter = Math.max(relativeLuminance(foreground), relativeLuminance(background));
+  const darker = Math.min(relativeLuminance(foreground), relativeLuminance(background));
+  return roundTo((lighter + 0.05) / (darker + 0.05), 2);
+}

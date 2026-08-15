@@ -94,6 +94,16 @@ tryOnRouter.post('/try-on', async (req, res) => {
     const garments: Record<string, TryOnPanel> = {};
     garmentIds.forEach((garmentId, index) => {
       const garment = findGarment(garmentId);
+
+      // One panel failing while the other three stay usable is a first-class state,
+      // not an outage. Fail garment B so the asymmetry is visible.
+      if (config.simulate === 'partialFailure' && index === 1) {
+        garments[garmentId] = {
+          result: tryOnFailure('This try-on did not complete. The other previews are unaffected.'),
+          provenance: 'placeholder',
+        };
+        return;
+      }
       // Slot A is the first garment chosen, slot B the second — that is all the
       // placeholder key decides, and it only matters for which caption is drawn on it.
       const image = resolveFixtureImage(

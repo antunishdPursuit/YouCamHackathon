@@ -17,6 +17,7 @@ import { findGarment, findMakeupLook, scoreGarmentFit } from '@yincol/shared';
 import { Chip, Segmented, Button } from '../components/controls.js';
 import { Ribbon, SectionHeading } from '../components/ornament.js';
 import { PhotoSlot } from '../components/PhotoSlot.js';
+import { PartialResultsNotice } from '../components/StateNotice.js';
 import { DISPLAY_SLOTS, type DisplaySlotConfig } from '../config/displaySlots.js';
 import type { CompareAxis } from '../state/session.js';
 import type { TryOnPanel } from '@yincol/shared';
@@ -116,6 +117,12 @@ export function CompareScreen({
   ];
 
   const panels = axis === 'garments' ? garmentPanels : makeupPanels;
+
+  // Only report what is missing on the axis currently on screen — a failed makeup
+  // preview is not news while the shopper is comparing garments.
+  const failedLabels = panels
+    .filter((entry) => entry.panel?.result.status === 'failed')
+    .map((entry) => `the ${entry.title.toLowerCase()} preview`);
   const lockedLabel =
     axis === 'garments'
       ? `Makeup locked: ${look?.name ?? 'none'}`
@@ -152,6 +159,8 @@ export function CompareScreen({
           {lockedLabel}
         </Chip>
       </div>
+
+      <PartialResultsNotice failedLabels={failedLabels} />
 
       {/*
         Both panels are the same component at the same width inside the same grid, so
