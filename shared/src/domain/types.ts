@@ -237,7 +237,11 @@ export type DisplaySlotId = 'portrait' | 'garmentA' | 'garmentB' | 'makeupOn';
 export type AppearanceBand = 'soft' | 'balanced' | 'bright';
 
 export interface SkinAppearanceSignal {
-  readonly id: 'hydrationAppearance' | 'toneEvenness' | 'textureAppearance';
+  readonly id:
+    | 'hydrationAppearance'
+    | 'toneEvenness'
+    | 'textureAppearance'
+    | 'finishAppearance';
   readonly label: string;
   readonly band: AppearanceBand;
   /** Plain sentence explaining what this means for choosing colour. Never advice. */

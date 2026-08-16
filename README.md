@@ -73,7 +73,7 @@ lives client-side and triggers on any photograph that fails the size check in
 ### Checks
 
 ```bash
-npm test          # 108 tests — 74 in shared/, 34 in server/
+npm test          # 110 tests — 74 in shared/, 36 in server/
 npm run typecheck # all three workspaces
 npm run contrast-audit --workspace @yincol/web
 ```
@@ -100,6 +100,10 @@ The selected JPEG or PNG remains in browser memory, is sent as bounded base64 JS
 `POST /api/skin-analysis`, uploaded through the verified File API path, and mapped back
 to YINCOL appearance context. The palette and try-on screens remain fixture-backed in
 this mode. No portrait is persisted.
+
+The live adapter reads score records from YouCam's `output` array and normalizes the
+whole-face `skin_type` value into a colour-only "finish appearance" signal. It ignores
+vendor fields such as masks, overall scores, skin age, and concern names.
 
 Three things are still open on the live path, and they are listed here rather than
 discovered later:
@@ -296,9 +300,10 @@ token until the number goes green. A **new** failure fails the run.
 ## A note on language
 
 YINCOL describes appearance, never health. Skin signals are framed as context for
-choosing colour — "hydration appearance", "even-looking tone", "texture appearance" — and
-never as an assessment of the person. There are no diagnoses, conditions, treatments, or
-severity grades anywhere in this repository, including in type and field names.
+choosing colour — "hydration appearance", "even-looking tone", "texture appearance", and
+"finish appearance" — and never as an assessment of the person. There are no diagnoses,
+conditions, treatments, or severity grades anywhere in this repository, including in type
+and field names.
 
 ---
 

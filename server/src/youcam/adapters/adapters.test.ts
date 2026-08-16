@@ -119,6 +119,54 @@ describe('skin analysis adapter', () => {
     expect(appearance.signals[0]!.band).toBe('bright');
   });
 
+  it('reads documented score records inside the output array', () => {
+    const appearance = adaptSkinAnalysis({
+      status: 200,
+      data: {
+        error: null,
+        results: {
+          output: [
+            { ui_score: 71, raw_score: 64.9, type: 'texture' },
+            { score: 30, type: 'skin_age' },
+            { type: 'resize_image', mask_urls: ['https://cdn.example/mask.png'] },
+          ],
+        },
+      },
+    });
+
+    expect(appearance.signals.map((signal) => signal.id)).toEqual(['textureAppearance']);
+    expect(appearance.signals[0]!.band).toBe('bright');
+  });
+
+  it('normalizes the whole-face skin type into finish appearance context', () => {
+    const appearance = adaptSkinAnalysis({
+      status: 200,
+      data: {
+        results: {
+          output: [
+            { type: 'skin_type', region: 'whole', skin_type: 'Oily' },
+            { type: 'skin_type', region: 't_zone', skin_type: 'Oily' },
+            { type: 'skin_type', region: 'u_zone', skin_type: 'Oily' },
+            { score: 0, type: 'all' },
+            { score: 30, type: 'skin_age' },
+          ],
+        },
+      },
+    });
+
+    expect(appearance.signals).toEqual([
+      {
+        id: 'finishAppearance',
+        label: 'Finish appearance',
+        band: 'bright',
+        note: 'Light-reflecting colours may echo the natural light in this finish.',
+      },
+    ]);
+    const prose = JSON.stringify(appearance).toLowerCase();
+    expect(prose).not.toContain('oily');
+    expect(prose).not.toContain('skin_age');
+  });
+
   it('returns no signals at all for an unrecognisable payload', () => {
     expect(adaptSkinAnalysis({ result: { something_else: 'x' } }).signals).toEqual([]);
   });

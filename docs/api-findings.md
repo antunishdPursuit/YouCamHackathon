@@ -14,11 +14,15 @@ an opt-in Skin Analysis-only path; this record still does not claim a complete l
 and try-on flow.
 
 The browser-shaped fixture request and the opt-in live request both pass locally. The live
-request completed the metadata, upload, task, and polling steps. The current adapter
-returned zero allowed appearance signals for that response, so vendor-output mapping is
-still open even though the API task itself succeeds. An earlier 401 was traced to the
-workspace server not loading the repository-root `.env`; `server/src/loadEnv.ts` now loads
-that file explicitly.
+request completed the metadata, upload, task, and polling steps. The adapter now reads the
+documented `data.results.output` records, maps safe appearance scores, and normalizes a
+whole-face `skin_type` record into colour-only finish context. An earlier 401 was traced
+to the workspace server not loading the repository-root `.env`; `server/src/loadEnv.ts`
+now loads that file explicitly.
+
+After the adapter update, the same close-up portrait returned `mode: "live"` with
+`textureAppearance` and `finishAppearance` signals. The vendor's `Oily` value was
+normalized into the latter signal and was not returned to the browser.
 
 **Check these four first, in this order.** They are the ones that stop a live call from
 working at all, and the rest can be discovered from a successful response:
@@ -48,7 +52,13 @@ working at all, and the rest can be discovered from a successful response:
   Path B.**
 - **Skin Analysis task payload.** The verified request uses `src_file_id` (or
   `src_file_url`), `dst_actions`, and `format: "json"`. The browser route sends the
-  documented SD action set `wrinkle`, `pore`, `texture`, and `acne`.
+  documented SD action set `wrinkle`, `pore`, `texture`, `acne`, and `skin_type`.
+- **Skin Analysis result mapping.** The observed response puts result records under
+  `data.results.output`. YINCOL reads numeric records whose `type` is a safe appearance
+  key, preferring `ui_score` and falling back to `score` or `raw_score`. A whole-face
+  `skin_type` value of `Oily`, `Dry`, `Normal`, or `Combination` becomes the internal
+  colour-only `finishAppearance` signal. Mask URLs, `all`, `skin_age`, and other vendor
+  concern names are ignored.
 - **Polling.** 2-second interval, cap ~120 attempts. Rate limits are 250 requests per 300
   seconds, enforced per IP and per token, ~5 QPS recommended. Our concurrency is far below
   that, so a simple backoff on 429 is sufficient.
@@ -107,9 +117,6 @@ working at all, and the rest can be discovered from a successful response:
       image URLs under `result.data[].url` for image features and a JSON payload for
       analysis features. Every adapter tolerates several shapes and logs what it actually
       received.
-- [ ] **Skin analysis output vocabulary.** We only consume appearance-level signals
-      (hydration appearance, evenness of tone, texture appearance). Confirm which keys the
-      API actually returns so the mapping in `adapters/skinAnalysis.ts` is exact.
 - [ ] **Webhook option.** Docs mention webhooks as an alternative to polling. Not used —
       polling is simpler for a local demo and works behind venue wifi with no ingress.
 
@@ -170,8 +177,7 @@ start, polling, and adapter mapping. Set `YINCOL_LIVE_SKIN_ANALYSIS=true` while 
 `YINCOL_FIXTURE_MODE=true` to test this path without enabling the still-unverified live
 palette/try-on flow. The resulting skin appearance context is labelled as live in the UI;
 the palette and previews remain fixtures in that mode. The current live response completes
-successfully but does not yet populate the three YINCOL appearance signals, so the adapter
-mapping needs one more response-shape pass.
+successfully and now yields the safe appearance context that the adapter can read.
 
 **To change:** once Facial Color Tone is confirmed, add a separate live palette increment
 that accepts the same browser-held portrait. Do not treat the current fixture palette as a

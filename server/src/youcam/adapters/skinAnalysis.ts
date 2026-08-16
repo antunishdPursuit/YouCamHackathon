@@ -5,9 +5,10 @@
  * that give context for choosing colour. It does not produce an assessment of a person.
  *
  * Whatever the vendor calls its fields, nothing named for a condition, a severity, a
- * problem or a flaw crosses this boundary. The three signals we surface are hydration
- * appearance, tone evenness and texture appearance, each mapped to a soft/balanced/
- * bright band and paired with a sentence about colour — never about the person.
+ * problem or a flaw crosses this boundary. The signals we surface are hydration
+ * appearance, tone evenness, texture appearance and finish appearance, each mapped to
+ * a soft/balanced/bright band and paired with a sentence about colour — never about the
+ * person.
  */
 
 import type { AppearanceBand, SkinAppearance, SkinAppearanceSignal } from '@yincol/shared';
@@ -19,10 +20,8 @@ const asRecord = (value: unknown): Unknown | undefined =>
   value && typeof value === 'object' && !Array.isArray(value) ? (value as Unknown) : undefined;
 
 /**
- * TODO(phase0): verify in API Playground. The output vocabulary is unconfirmed. We look
- * for a 0–100 score under a handful of plausible spellings and ignore everything else —
- * deliberately reading less than the API offers, because the only thing this screen is
- * allowed to do is help choose a colour.
+ * These are the only numeric output categories that may become YINCOL context. The
+ * vendor also returns concern, age and mask records; those remain outside this type.
  */
 const SIGNAL_SOURCES = [
   {
@@ -62,19 +61,73 @@ const SIGNAL_SOURCES = [
   notes: Record<AppearanceBand, string>;
 }[];
 
+const FINISH_BY_SKIN_TYPE: Readonly<
+  Record<string, { readonly band: AppearanceBand; readonly note: string }>
+> = {
+  oily: {
+    band: 'bright',
+    note: 'Light-reflecting colours may echo the natural light in this finish.',
+  },
+  dry: {
+    band: 'soft',
+    note: 'Soft, powdery colour finishes can keep the overall look gentle.',
+  },
+  normal: {
+    band: 'balanced',
+    note: 'Both matte and luminous colour finishes are available.',
+  },
+  combination: {
+    band: 'balanced',
+    note: 'Both matte and luminous colour finishes are available.',
+  },
+};
+
+const normaliseToken = (value: string): string => value.toLowerCase().replace(/[\s-]+/g, '_');
+
+function readScore(record: Unknown): number | undefined {
+  // Prefer the UI score when the API supplies one. It is already on the 0–100
+  // scale used by the bands; raw_score remains a fallback for alternate responses.
+  for (const key of ['ui_score', 'score', 'raw_score', 'value']) {
+    const value = record[key];
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+  }
+  return undefined;
+}
+
 /** Find a 0–100 number under any of several key spellings, at any depth. */
 function findScore(source: Unknown, keys: readonly string[]): number | undefined {
-  for (const key of Object.keys(source)) {
-    const normalised = key.toLowerCase();
-    if (keys.some((candidate) => normalised.includes(candidate))) {
-      const value = source[key];
+  const matches = (value: string): boolean => {
+    const normalised = normaliseToken(value);
+    return keys.some((candidate) => normalised.includes(normaliseToken(candidate)));
+  };
+
+  for (const [key, value] of Object.entries(source)) {
+    if (matches(key)) {
       if (typeof value === 'number' && Number.isFinite(value)) return value;
       const nested = asRecord(value);
-      const score = nested?.['score'] ?? nested?.['value'] ?? nested?.['raw_score'];
-      if (typeof score === 'number' && Number.isFinite(score)) return score;
+      const score = nested ? readScore(nested) : undefined;
+      if (score !== undefined) return score;
+    }
+
+    // The documented response uses records such as
+    // `{ type: "texture", ui_score: 71, raw_score: 64.9 }`.
+    if (key === 'type' && typeof value === 'string' && matches(value)) {
+      const score = readScore(source);
+      if (score !== undefined) return score;
     }
   }
+
   for (const value of Object.values(source)) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const nested = asRecord(item);
+        if (nested) {
+          const found = findScore(nested, keys);
+          if (found !== undefined) return found;
+        }
+      }
+      continue;
+    }
     const nested = asRecord(value);
     if (nested) {
       const found = findScore(nested, keys);
@@ -82,6 +135,59 @@ function findScore(source: Unknown, keys: readonly string[]): number | undefined
     }
   }
   return undefined;
+}
+
+/**
+ * Read only the whole-face skin type. This is an inference boundary: a vendor
+ * `skin_type` label becomes colour-finish context and is never shown as a personal
+ * assessment. Regional T-zone/U-zone values are ignored when a whole-face value exists.
+ */
+function findWholeSkinType(source: Unknown): string | undefined {
+  let regionalFallback: string | undefined;
+
+  const visit = (node: unknown): string | undefined => {
+    if (Array.isArray(node)) {
+      for (const item of node) {
+        const found = visit(item);
+        if (found !== undefined) return found;
+      }
+      return undefined;
+    }
+
+    const record = asRecord(node);
+    if (!record) return undefined;
+
+    const type = typeof record['type'] === 'string' ? normaliseToken(record['type']) : '';
+    const skinType = typeof record['skin_type'] === 'string' ? record['skin_type'] : undefined;
+    if (skinType && (type === 'skin_type' || 'skin_type' in record)) {
+      const region = typeof record['region'] === 'string' ? normaliseToken(record['region']) : '';
+      if (region === 'whole') return skinType;
+      regionalFallback ??= skinType;
+    }
+
+    for (const value of Object.values(record)) {
+      const found = visit(value);
+      if (found !== undefined) return found;
+    }
+    return undefined;
+  };
+
+  return visit(source) ?? regionalFallback;
+}
+
+function finishSignal(source: Unknown): SkinAppearanceSignal | undefined {
+  const skinType = findWholeSkinType(source);
+  if (!skinType) return undefined;
+
+  const finish = FINISH_BY_SKIN_TYPE[normaliseToken(skinType)];
+  if (!finish) return undefined;
+
+  return {
+    id: 'finishAppearance',
+    label: 'Finish appearance',
+    band: finish.band,
+    note: finish.note,
+  };
 }
 
 /**
@@ -108,6 +214,9 @@ export function adaptSkinAnalysis(raw: RawTaskResult): SkinAppearance {
     const band = toBand(score);
     signals.push({ id: source.id, label: source.label, band, note: source.notes[band] });
   }
+
+  const finish = finishSignal(body);
+  if (finish) signals.push(finish);
 
   return { signals };
 }

@@ -48,7 +48,7 @@ export const buildFacialColorTonePayload = (portrait: ImageReference): unknown =
 /** VERIFIED in the Skin Analysis API reference. SD actions cannot be mixed with HD. */
 export const buildSkinAnalysisPayload = (portrait: ImageReference): unknown => ({
   ...imageField(portrait),
-  dst_actions: ['wrinkle', 'pore', 'texture', 'acne'],
+  dst_actions: ['wrinkle', 'pore', 'texture', 'acne', 'skin_type'],
   format: 'json',
 });
 
