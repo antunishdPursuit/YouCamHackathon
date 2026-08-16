@@ -84,18 +84,17 @@ npm run contrast-audit --workspace @yincol/web
 cp .env.example .env
 ```
 
-Then set `YINCOL_API_KEY`, set `YINCOL_FIXTURE_MODE=false`, and set
-`YINCOL_PUBLIC_ASSET_BASE_URL` to somewhere the API can reach over the public internet.
-That last one is not optional in live mode: we take the public-URL input path, so the API
-fetches the images itself and a `localhost` URL means nothing to it.
+Then set `YINCOL_API_KEY` and set `YINCOL_FIXTURE_MODE=false`. The server-side File API
+upload primitive now handles the verified Skin Analysis upload path, so
+`YINCOL_PUBLIC_ASSET_BASE_URL` is needed only by the existing public-URL fixture capture
+path, not by the new upload path.
 
 Three things are still open on the live path, and they are listed here rather than
 discovered later:
 
-1. **The front end always sends `fixture:portrait` as the portrait reference**
-   (`web/src/App.tsx`). Live mode needs the uploaded photograph published to a public URL
-   first — there is no upload-to-hosting step, because Path A (the File API) is defined as
-   an interface and left unimplemented on purpose.
+1. **The front end still sends `fixture:portrait` as the portrait reference**
+   (`web/src/App.tsx`). The server-side Skin Analysis File API primitive is implemented and
+   locally verified, but the browser upload and live route wiring are the next increment.
 2. **Catalogue garments carry no `imageUrl`** (`shared/src/domain/catalog.ts`), so live
    clothes try-on returns a clean "no product image is on file" failure for every garment
    rather than a broken request. Product image URLs are the missing input.

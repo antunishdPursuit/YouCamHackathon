@@ -68,14 +68,24 @@ export const TASK_PATH_VERIFIED: Readonly<Record<FeatureId, boolean>> = {
 export const GARMENT_CATEGORIES = ['upper_body', 'lower_body', 'full_body'] as const;
 export type GarmentCategoryValue = (typeof GARMENT_CATEGORIES)[number];
 
+/** VERIFIED in the live v2.0 Skin Analysis test. */
+export const SKIN_ANALYSIS_FILE_PATH = '/s2s/v2.0/file/skin-analysis';
+
 /**
- * File API path, per feature.
- *
- * TODO(phase0): verify in API Playground. It is unknown whether a single upload can be
- * reused across features. Unused while we take Path B (public URL), and kept only so the
- * shape of Path A is written down.
+ * File API paths are kept separate from task paths because the vendor's feature slugs are
+ * not the same as our internal feature ids. Only Skin Analysis is verified in this phase.
  */
-export const filePathFor = (feature: FeatureId): string => `/s2s/v2.0/file/${feature}`;
+const VERIFIED_FILE_PATHS: Partial<Record<FeatureId, string>> = {
+  skinAnalysis: SKIN_ANALYSIS_FILE_PATH,
+};
+
+export const filePathFor = (feature: FeatureId): string => {
+  const path = VERIFIED_FILE_PATHS[feature];
+  if (!path) {
+    throw new Error(`The File API path is not verified for ${feature}.`);
+  }
+  return path;
+};
 
 // ─────────────────────────────────────────────────────────────
 // Polling and rate limits — VERIFIED

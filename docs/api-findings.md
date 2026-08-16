@@ -7,9 +7,10 @@ Nothing marked unverified below should be repeated as fact in a demo, a README, 
 judge. Every unverified item has a matching `// TODO(phase0): verify in API Playground`
 in the code and a single config constant that can be changed in one place.
 
-Nothing here was confirmed against a live endpoint — the whole build ran in fixture mode,
-which is what the brief asked for. So every checkbox below is still unchecked, and the
-first live call is the moment they start getting ticked.
+The original build ran in fixture mode. On 2026-08-16, a local live smoke test confirmed
+the configured host, Skin Analysis File API metadata response, pre-signed `PUT`, task start,
+polling, and result-mask download with the selected close-up portrait. Browser wiring is
+still pending, so this record does not claim an end-to-end application flow yet.
 
 **Check these four first, in this order.** They are the ones that stop a live call from
 working at all, and the rest can be discovered from a successful response:
@@ -33,8 +34,8 @@ working at all, and the rest can be discovered from a successful response:
 - **Two image-input paths.** Path A is File API + a self-performed `PUT` of the bytes;
   calling the File API alone uploads nothing, and skipping the `PUT` surfaces later as a
   misleading `500 unknowninternalerror` or a `404`. Path B passes a publicly reachable
-  image URL directly on task start. **We use Path B.** Path A exists as an interface with
-  no implementation.
+  image URL directly on task start. **Path A is implemented for Skin Analysis in
+  `server/src/youcam/imageInput.ts`; existing capture and try-on callers still use Path B.**
 - **Polling.** 2-second interval, cap ~120 attempts. Rate limits are 250 requests per 300
   seconds, enforced per IP and per token, ~5 QPS recommended. Our concurrency is far below
   that, so a simple backoff on 429 is sufficient.
@@ -54,6 +55,7 @@ working at all, and the rest can be discovered from a successful response:
 
 | Feature | Method + path | Notes |
 | --- | --- | --- |
+| Skin Analysis file metadata | `POST /s2s/v2.0/file/skin-analysis` | response provides `file_id` and a pre-signed `PUT` request |
 | Clothes VTO | `POST /s2s/v2.0/task/cloth` | payload includes `garment_category` and `change_shoes` |
 | Makeup transfer | `POST /s2s/v2.0/task/mu-transfer` | `GET /s2s/v2.0/task/mu-transfer/{task_id}` |
 | Skin analysis | `POST /s2s/v2.0/task/skin-analysis` | |
@@ -80,9 +82,9 @@ working at all, and the rest can be discovered from a successful response:
       `garment_image` / `reference_image`. The names are inferred, not cited.
       → `imageField` in `server/src/youcam/features.ts` is the only place the portrait key
       appears; the two secondary keys sit in the payload builders directly below it.
-- [ ] **File API reuse across features.** The File API endpoint appears per-feature (e.g.
-      `/s2s/v2.0/file/skin-analysis`). Whether one upload is reusable across features is
-      unknown. Moot while we use Path B.
+- [ ] **File API reuse across features.** Skin Analysis metadata and upload are verified.
+      Whether one upload is reusable across the other features is unknown; their File API
+      paths remain outside this increment.
 - [ ] **Clothes VTO `garment_category` vocabulary.** We assume `upper_body`, `lower_body`,
       `full_body`. Confirm the accepted enum.
       → `GARMENT_CATEGORIES` in `server/src/youcam/config.ts`.
