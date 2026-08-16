@@ -38,8 +38,7 @@ Fixture mode is the default. The app runs end to end with **zero network access 
 API credits** — the demo has to survive venue wifi.
 
 ```bash
-cd yincol
-npm install
+npm ci
 npm run dev
 ```
 
