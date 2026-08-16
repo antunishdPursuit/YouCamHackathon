@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: theme('colors.ground');
+    color: theme('colors.ink');
+    /* 16px minimum body size — never smaller. */
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Visible focus ring everywhere. Never remove it. */
+  :focus-visible {
+    outline: 2px solid theme('colors.ink');
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+}
+
+/* Soft and slow, or nothing at all. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

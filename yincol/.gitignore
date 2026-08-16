@@ -1,0 +1,25 @@
+# Secrets — never commit. Use .env.example as the template.
+.env
+.env.local
+.env.*.local
+
+# Dependencies and build output
+node_modules/
+dist/
+build/
+.vite/
+coverage/
+
+# Source imagery is supplied per-team and carries likeness rights.
+# See assets/README.md. Real faces must never enter version control.
+assets/source/
+
+# Build brief — kept local, not part of the deliverable.
+PROMPT.md
+
+# Editor / OS noise
+.DS_Store
+Thumbs.db
+*.log
+.idea/
+.vscode/
