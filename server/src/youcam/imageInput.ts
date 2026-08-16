@@ -16,10 +16,11 @@
  *   skip the upload entirely.
  *
  * ★ Existing capture and try-on callers still use PATH B. PATH A is implemented below for
- *   the verified Skin Analysis file flow; browser wiring is the next increment.
+ *   the verified Skin Analysis file flow and is used by the browser Skin Analysis route.
  */
 
 import { authHeader, filePathFor, type FeatureId, type YouCamConfig } from './config.js';
+import { IMAGE_SPEC } from '@yincol/shared';
 
 /** What a task payload needs in order to refer to an image. */
 export type ImageReference =
@@ -65,7 +66,7 @@ export const publicUrlStrategy: ImageInputStrategy = {
  * The API rejects files at or above 10 MB. Keep this guard here so the server never creates
  * an upload slot for a file that cannot be accepted.
  */
-export const MAX_FILE_BYTES = 10_000_000;
+export const MAX_FILE_BYTES = IMAGE_SPEC.maxFileBytesExclusive;
 export const SUPPORTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png']);
 
 export class ImageUploadError extends Error {

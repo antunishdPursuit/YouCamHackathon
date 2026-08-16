@@ -142,6 +142,8 @@ export interface YouCamConfig {
   readonly apiKey: string;
   /** Fixture mode is the default. Live mode is opt-in. */
   readonly fixtureMode: boolean;
+  /** Explicitly enables live Skin Analysis while the rest of the demo stays on fixtures. */
+  readonly liveSkinAnalysis: boolean;
   /** Base URL the API can fetch source images from (Path B). Capture script only. */
   readonly publicAssetBaseUrl: string;
   readonly simulate: SimulatedState;
@@ -155,11 +157,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): YouCamConfig {
   const requested = (env['YINCOL_SIMULATE'] ?? 'none') as SimulatedState;
   const simulate: SimulatedState =
     fixtureMode && SIMULATED_STATES.includes(requested) ? requested : 'none';
+  const liveSkinAnalysis =
+    !fixtureMode || (env['YINCOL_LIVE_SKIN_ANALYSIS'] ?? '').toLowerCase() === 'true';
 
   return {
     baseUrl: (env['YINCOL_API_BASE_URL'] ?? DEFAULT_API_BASE_URL).replace(/\/+$/, ''),
     apiKey: env['YINCOL_API_KEY'] ?? '',
     fixtureMode,
+    liveSkinAnalysis,
     publicAssetBaseUrl: (env['YINCOL_PUBLIC_ASSET_BASE_URL'] ?? '').replace(/\/+$/, ''),
     simulate,
   };

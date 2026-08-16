@@ -7,7 +7,7 @@
  */
 
 import { useRef, useState } from 'react';
-import { checkImageDimensions, type ImageCheck } from '@yincol/shared';
+import { checkImageDimensions, IMAGE_SPEC, type ImageCheck } from '@yincol/shared';
 import { ArchPanel, PearlDivider, SectionHeading } from '../components/ornament.js';
 import { Button } from '../components/controls.js';
 import { PhotoSlot } from '../components/PhotoSlot.js';
@@ -16,6 +16,7 @@ import type { CapturedPortrait } from '../state/session.js';
 
 const GUIDANCE = [
   'One person, upper body in frame.',
+  'Face fills most of the frame — more than 60% of the image width.',
   'A plain, uncluttered background.',
   'Even light from the front — no strong shadow across the face.',
   'A bare face, so the makeup preview has somewhere to go.',
@@ -37,6 +38,25 @@ export function CaptureScreen({
 
   const handleFile = (file: File | undefined) => {
     if (!file) return;
+
+    if (file.type !== 'image/jpeg' && file.type !== 'image/png') {
+      setCheck({
+        code: 'unsupportedType',
+        usable: false,
+        message: 'Please choose a JPEG or PNG photograph for live analysis.',
+      });
+      return;
+    }
+
+    if (file.size >= IMAGE_SPEC.maxFileBytesExclusive) {
+      setCheck({
+        code: 'fileTooLarge',
+        usable: false,
+        message: 'That file is too large. Please choose an image smaller than 10 MB.',
+      });
+      return;
+    }
+
     setReading(true);
 
     const previewUrl = URL.createObjectURL(file);
@@ -56,6 +76,7 @@ export function CaptureScreen({
 
       onPortrait({
         previewUrl,
+        file,
         width: image.naturalWidth,
         height: image.naturalHeight,
         ...(verdict.code === 'belowHd' ? { note: verdict.message } : {}),
@@ -121,14 +142,14 @@ export function CaptureScreen({
         <input
           ref={fileInput}
           type="file"
-          accept="image/*"
+          accept="image/jpeg,image/png"
           className="sr-only"
           onChange={(event) => handleFile(event.target.files?.[0])}
         />
         <input
           ref={cameraInput}
           type="file"
-          accept="image/*"
+          accept="image/jpeg,image/png"
           capture="user"
           className="sr-only"
           onChange={(event) => handleFile(event.target.files?.[0])}

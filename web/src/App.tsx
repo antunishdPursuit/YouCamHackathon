@@ -2,11 +2,12 @@
  * The shell: one reducer, one screen at a time.
  *
  * Everything runs on fixtures by default, so the whole nine-screen flow is walkable
- * with no network and no credits.
+ * with no network and no credits. The selected portrait can optionally pass through
+ * the isolated live Skin Analysis route without changing the palette/try-on mode.
  */
 
 import { useCallback, useEffect, useReducer } from 'react';
-import { ApiError, requestAnalysis, requestTryOn } from './api/client.js';
+import { ApiError, requestAnalysis, requestSkinAnalysis, requestTryOn } from './api/client.js';
 import { StateNotice } from './components/StateNotice.js';
 import { PrivacyBar } from './components/PrivacyBar.js';
 import { Wordmark } from './components/ornament.js';
@@ -63,10 +64,27 @@ export function App() {
   const beginAnalysis = useCallback(async () => {
     dispatch({ type: 'analysisStarted' });
     const portraitRef = 'fixture:portrait';
+    const portrait = state.portrait;
 
     try {
-      const analysis = await requestAnalysis(portraitRef);
-      dispatch({ type: 'analysisReady', analysis });
+      const [analysis, skinAnalysis] = await Promise.all([
+        requestAnalysis(portraitRef),
+        portrait
+          ? requestSkinAnalysis(portrait).catch(() => null)
+          : Promise.resolve(null),
+      ]);
+      const combinedAnalysis = skinAnalysis
+        ? { ...analysis, skin: skinAnalysis.skin, skinMode: skinAnalysis.mode }
+        : portrait
+          ? {
+              ...analysis,
+              skin: undefined,
+              skinMode: undefined,
+              skinUnavailableReason:
+                'Skin appearance context is unavailable for this photograph. Your palette is unaffected.',
+            }
+          : analysis;
+      dispatch({ type: 'analysisReady', analysis: combinedAnalysis });
 
       const tryOn = await requestTryOn(
         portraitRef,

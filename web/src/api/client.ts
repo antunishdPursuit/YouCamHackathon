@@ -6,7 +6,14 @@
  * the browser — that is the entire reason the Express layer exists.
  */
 
-import type { AnalyzeResponse, TryOnResponse } from '@yincol/shared';
+import type {
+  AnalyzeResponse,
+  SkinAnalysisRequest,
+  SkinAnalysisResponse,
+  TryOnResponse,
+} from '@yincol/shared';
+import { IMAGE_SPEC } from '@yincol/shared';
+import type { CapturedPortrait } from '../state/session.js';
 
 const API_BASE = '/api';
 
@@ -49,6 +56,40 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 
 export const requestAnalysis = (portraitRef: string): Promise<AnalyzeResponse> =>
   post<AnalyzeResponse>('/analyze', { portraitRef });
+
+async function fileAsBase64(file: File): Promise<string> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = '';
+  const chunkSize = 0x8000;
+
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+  }
+
+  return btoa(binary);
+}
+
+/** Sends the selected browser file to the dedicated Skin Analysis route. */
+export async function requestSkinAnalysis(
+  portrait: CapturedPortrait,
+): Promise<SkinAnalysisResponse> {
+  if (portrait.file.size >= IMAGE_SPEC.maxFileBytesExclusive) {
+    throw new ApiError('That file is too large. Please choose an image smaller than 10 MB.', 'general');
+  }
+  if (portrait.file.type !== 'image/jpeg' && portrait.file.type !== 'image/png') {
+    throw new ApiError('Please choose a JPEG or PNG photograph for live analysis.', 'general');
+  }
+
+  const body: SkinAnalysisRequest = {
+    image: {
+      data: await fileAsBase64(portrait.file),
+      contentType: portrait.file.type,
+      fileName: portrait.file.name || 'portrait',
+    },
+  };
+
+  return post<SkinAnalysisResponse>('/skin-analysis', body);
+}
 
 export const requestTryOn = (
   portraitRef: string,

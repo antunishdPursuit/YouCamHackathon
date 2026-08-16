@@ -73,7 +73,7 @@ lives client-side and triggers on any photograph that fails the size check in
 ### Checks
 
 ```bash
-npm test          # 97 tests — 74 in shared/, 23 in server/
+npm test          # 106 tests — 74 in shared/, 32 in server/
 npm run typecheck # all three workspaces
 npm run contrast-audit --workspace @yincol/web
 ```
@@ -89,12 +89,25 @@ upload primitive now handles the verified Skin Analysis upload path, so
 `YINCOL_PUBLIC_ASSET_BASE_URL` is needed only by the existing public-URL fixture capture
 path, not by the new upload path.
 
+To test only the browser-to-Skin-Analysis increment while keeping the rest of the demo
+safe on fixtures, leave `YINCOL_FIXTURE_MODE=true` and set:
+
+```bash
+YINCOL_LIVE_SKIN_ANALYSIS=true
+```
+
+The selected JPEG or PNG remains in browser memory, is sent as bounded base64 JSON to
+`POST /api/skin-analysis`, uploaded through the verified File API path, and mapped back
+to YINCOL appearance context. The palette and try-on screens remain fixture-backed in
+this mode. No portrait is persisted.
+
 Three things are still open on the live path, and they are listed here rather than
 discovered later:
 
-1. **The front end still sends `fixture:portrait` as the portrait reference**
-   (`web/src/App.tsx`). The server-side Skin Analysis File API primitive is implemented and
-   locally verified, but the browser upload and live route wiring are the next increment.
+1. **The live Skin Analysis increment is now wired** (`web/src/App.tsx`,
+   `server/src/routes/skinAnalysis.ts`). The browser upload is opt-in with
+   `YINCOL_LIVE_SKIN_ANALYSIS=true`; the full live palette is still blocked on the
+   unverified Facial Color Tone task path below.
 2. **Catalogue garments carry no `imageUrl`** (`shared/src/domain/catalog.ts`), so live
    clothes try-on returns a clean "no product image is on file" failure for every garment
    rather than a broken request. Product image URLs are the missing input.

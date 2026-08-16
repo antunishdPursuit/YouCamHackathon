@@ -9,8 +9,14 @@ in the code and a single config constant that can be changed in one place.
 
 The original build ran in fixture mode. On 2026-08-16, a local live smoke test confirmed
 the configured host, Skin Analysis File API metadata response, pre-signed `PUT`, task start,
-polling, and result-mask download with the selected close-up portrait. Browser wiring is
-still pending, so this record does not claim an end-to-end application flow yet.
+polling, and result-mask download with the selected close-up portrait. The browser now has
+an opt-in Skin Analysis-only path; this record still does not claim a complete live palette
+and try-on flow.
+
+The browser-shaped fixture request passes locally. A later live browser-route attempt
+reached the metadata endpoint but received HTTP 401 from the current configured credential,
+before an upload slot or task was created. Refresh or re-enter the credential before the
+next paid smoke test.
 
 **Check these four first, in this order.** They are the ones that stop a live call from
 working at all, and the rest can be discovered from a successful response:
@@ -35,7 +41,9 @@ working at all, and the rest can be discovered from a successful response:
   calling the File API alone uploads nothing, and skipping the `PUT` surfaces later as a
   misleading `500 unknowninternalerror` or a `404`. Path B passes a publicly reachable
   image URL directly on task start. **Path A is implemented for Skin Analysis in
-  `server/src/youcam/imageInput.ts`; existing capture and try-on callers still use Path B.**
+  `server/src/youcam/imageInput.ts`; the browser uses it through
+  `server/src/routes/skinAnalysis.ts`, while existing capture and try-on callers still use
+  Path B.**
 - **Polling.** 2-second interval, cap ~120 attempts. Rate limits are 250 requests per 300
   seconds, enforced per IP and per token, ~5 QPS recommended. Our concurrency is far below
   that, so a simple backoff on 429 is sufficient.
@@ -48,8 +56,9 @@ working at all, and the rest can be discovered from a successful response:
   task succeeds.
 - **Makeup transfer is reference-image based.** The API extracts a look from a reference
   photo of a made-up face and transfers it. It does not accept shade values or SKUs.
-- **Image specs.** Long side ≤ 4096px, short side ≥ 480px (SD) or ≥ 1080px (HD). One
-  person, upper body clearly visible, uncluttered background.
+- **Image specs.** Long side ≤ 4096px, short side ≥ 480px (SD) or ≥ 1080px (HD), and
+  the face should occupy more than 60% of the image width. Use one person, upper body
+  clearly visible, and an uncluttered background.
 
 ## Verified endpoints
 
@@ -146,22 +155,19 @@ Committed placeholder fixtures are generated ornamental panels, not API output. 
 so the flow runs before a real capture. Every one is watermarked in the UI as a
 placeholder, and `npm run capture-fixtures` overwrites them with genuine API results.
 
-### 5. The live path is written but not reachable from the UI
-`web/src/App.tsx` → `beginAnalysis`
+### 5. The live Skin Analysis path is isolated from the live palette path
+`web/src/App.tsx` → `requestSkinAnalysis` and `server/src/routes/skinAnalysis.ts`
 
-The front end always sends `'fixture:portrait'` as the portrait reference. In live mode
-the server would pass that string to the API as a public image URL, which is meaningless
-to it. Publishing the shopper's uploaded photograph to a public URL is the missing step,
-and it is missing on purpose: Path A (the File API) is defined as an interface and left
-unimplemented per the brief, so there is nowhere to upload to.
+The browser keeps the selected JPEG or PNG in memory and sends it as base64 JSON to the
+dedicated route. The server performs the verified metadata request, signed `PUT`, task
+start, polling, and adapter mapping. Set `YINCOL_LIVE_SKIN_ANALYSIS=true` while leaving
+`YINCOL_FIXTURE_MODE=true` to test this path without enabling the still-unverified live
+palette/try-on flow. The resulting skin appearance context is labelled as live in the UI;
+the palette and previews remain fixtures in that mode.
 
-The live code path itself is complete and exercised by the capture script, which supplies
-real public URLs from `YINCOL_PUBLIC_ASSET_BASE_URL`. That is the supported way to spend
-credits.
-
-**To change:** either implement Path A in `server/src/youcam/imageInput.ts` (the interface
-is already there), or add a small upload-to-public-host step and pass the resulting URL
-as `portraitRef`.
+**To change:** once Facial Color Tone is confirmed, add a separate live palette increment
+that accepts the same browser-held portrait. Do not treat the current fixture palette as a
+live result.
 
 ### 6. Catalogue garments carry no product image URL
 `shared/src/domain/catalog.ts` → `GARMENTS`

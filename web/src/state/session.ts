@@ -31,8 +31,10 @@ export const STEP_ORDER: readonly Step[] = [
 ];
 
 export interface CapturedPortrait {
-  /** An object URL for the chosen file. Never uploaded anywhere in fixture mode. */
+  /** An object URL for the chosen file, revoked when the portrait is replaced or cleared. */
   readonly previewUrl: string;
+  /** The selected bytes stay in memory until this session ends; they are never persisted. */
+  readonly file: File;
   readonly width: number;
   readonly height: number;
   readonly note?: string;

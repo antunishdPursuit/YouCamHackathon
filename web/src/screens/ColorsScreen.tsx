@@ -17,7 +17,7 @@ export function ColorsScreen({
   analysis: AnalyzeResponse;
   onContinue: () => void;
 }) {
-  const { palette, skin, skinUnavailableReason } = analysis;
+  const { palette, skin, skinMode, skinUnavailableReason } = analysis;
   const { derivation } = palette;
 
   return (
@@ -105,6 +105,12 @@ export function ColorsScreen({
           <h3 id="appearance-heading" className="font-display text-2xl text-ink">
             A little more context
           </h3>
+          {skinMode === 'live' ? (
+            <p className="mt-2 text-xs text-ink-soft">
+              Skin appearance context from the live Skin Analysis API. The palette and previews
+              remain fixture-backed until Facial Color Tone is verified.
+            </p>
+          ) : null}
           <ul className="mt-3 space-y-3">
             {skin.signals.map((signal) => (
               <li key={signal.id}>

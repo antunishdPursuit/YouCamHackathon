@@ -19,6 +19,13 @@ describe('config', () => {
     expect(loadConfig({ YINCOL_FIXTURE_MODE: 'FALSE' }).fixtureMode).toBe(false);
   });
 
+  it('keeps live Skin Analysis opt-in while the demo remains on fixtures', () => {
+    expect(loadConfig({}).liveSkinAnalysis).toBe(false);
+    expect(loadConfig({ YINCOL_LIVE_SKIN_ANALYSIS: 'true' }).liveSkinAnalysis).toBe(true);
+    expect(loadConfig({ YINCOL_FIXTURE_MODE: 'false' }).liveSkinAnalysis).toBe(true);
+    expect(loadConfig({ YINCOL_LIVE_SKIN_ANALYSIS: 'TRUE' }).liveSkinAnalysis).toBe(true);
+  });
+
   it('strips trailing slashes so path joining never doubles up', () => {
     expect(loadConfig({ YINCOL_API_BASE_URL: 'https://example.com//' }).baseUrl).toBe(
       'https://example.com',

@@ -11,17 +11,21 @@ import cors from 'cors';
 import { GARMENTS, MAKEUP_LOOKS } from '@yincol/shared';
 import { loadConfig, TASK_PATH_VERIFIED } from './youcam/config.js';
 import { analyzeRouter } from './routes/analyze.js';
+import { skinAnalysisRouter } from './routes/skinAnalysis.js';
 import { tryOnRouter } from './routes/tryOn.js';
 
 const app = express();
 app.use(cors({ origin: true }));
-app.use(express.json({ limit: '12mb' }));
+// A 10 MB image becomes roughly 13.4 MB when sent as base64 JSON, plus a small
+// envelope. The route still rejects files at or above the provider's 10 MB limit.
+app.use(express.json({ limit: '14mb' }));
 
 app.get('/api/health', (_req, res) => {
   const config = loadConfig();
   res.json({
     ok: true,
     mode: config.fixtureMode ? 'fixture' : 'live',
+    liveSkinAnalysis: config.liveSkinAnalysis,
     // Never echo the key itself, only whether one is present.
     hasApiKey: config.apiKey.length > 0,
     verifiedTaskPaths: TASK_PATH_VERIFIED,
@@ -34,6 +38,7 @@ app.get('/api/catalog', (_req, res) => {
 });
 
 app.use('/api', analyzeRouter);
+app.use('/api', skinAnalysisRouter);
 app.use('/api', tryOnRouter);
 
 // Anything unhandled becomes a plain message, never a stack trace with a key in it.

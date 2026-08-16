@@ -9,9 +9,17 @@ export const IMAGE_SPEC = {
   maxLongSide: 4096,
   minShortSideSd: 480,
   minShortSideHd: 1080,
+  /** The File API rejects files at or above 10 MB. */
+  maxFileBytesExclusive: 10_000_000,
 } as const;
 
-export type ImageCheckCode = 'tooSmall' | 'belowHd' | 'tooLarge' | 'ok';
+export type ImageCheckCode =
+  | 'tooSmall'
+  | 'belowHd'
+  | 'tooLarge'
+  | 'fileTooLarge'
+  | 'unsupportedType'
+  | 'ok';
 
 export interface ImageCheck {
   readonly code: ImageCheckCode;

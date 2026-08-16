@@ -22,6 +22,22 @@ export interface AnalyzeRequest {
   readonly portraitRef: string;
 }
 
+/** A browser-held image sent to the dedicated Skin Analysis route. */
+export interface SkinAnalysisRequest {
+  readonly image: {
+    /** Base64-encoded image bytes, without a `data:` URL prefix. */
+    readonly data: string;
+    readonly contentType: string;
+    readonly fileName: string;
+  };
+}
+
+/** The only internal shape returned by the Skin Analysis route. */
+export interface SkinAnalysisResponse {
+  readonly skin: SkinAppearance;
+  readonly mode: 'fixture' | 'live';
+}
+
 /**
  * Analysis runs through `Promise.allSettled`, so skin analysis failing cannot take the
  * palette down with it. The palette is required; `skin` is optional context that may
@@ -30,6 +46,8 @@ export interface AnalyzeRequest {
 export interface AnalyzeResponse {
   readonly palette: Palette;
   readonly skin?: SkinAppearance;
+  /** Whether the optional appearance context came from fixtures or the live API. */
+  readonly skinMode?: SkinAnalysisResponse['mode'];
   /** Present when skin analysis failed — shown quietly, never as an error banner. */
   readonly skinUnavailableReason?: string;
   readonly mode: 'fixture' | 'live';
