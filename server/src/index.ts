@@ -5,14 +5,16 @@
  * auth, no accounts — there is nothing to store, because nothing is kept.
  */
 
-import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { GARMENTS, MAKEUP_LOOKS } from '@yincol/shared';
+import { loadRootEnv } from './loadEnv.js';
 import { loadConfig, TASK_PATH_VERIFIED } from './youcam/config.js';
 import { analyzeRouter } from './routes/analyze.js';
 import { skinAnalysisRouter } from './routes/skinAnalysis.js';
 import { tryOnRouter } from './routes/tryOn.js';
+
+loadRootEnv();
 
 const app = express();
 app.use(cors({ origin: true }));

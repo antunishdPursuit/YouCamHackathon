@@ -13,17 +13,19 @@ polling, and result-mask download with the selected close-up portrait. The brows
 an opt-in Skin Analysis-only path; this record still does not claim a complete live palette
 and try-on flow.
 
-The browser-shaped fixture request passes locally. A later live browser-route attempt
-reached the metadata endpoint but received HTTP 401 from the current configured credential,
-before an upload slot or task was created. Refresh or re-enter the credential before the
-next paid smoke test.
+The browser-shaped fixture request and the opt-in live request both pass locally. The live
+request completed the metadata, upload, task, and polling steps. The current adapter
+returned zero allowed appearance signals for that response, so vendor-output mapping is
+still open even though the API task itself succeeds. An earlier 401 was traced to the
+workspace server not loading the repository-root `.env`; `server/src/loadEnv.ts` now loads
+that file explicitly.
 
 **Check these four first, in this order.** They are the ones that stop a live call from
 working at all, and the rest can be discovered from a successful response:
 
-1. Base URL — one of two hosts.
+1. Base URL — one of two documented hosts.
 2. Facial colour tone task path — the single most likely thing to 404.
-3. Image field name on a task-start payload.
+3. Facial colour tone payload fields.
 4. Result field names on success.
 
 ---
@@ -44,6 +46,9 @@ working at all, and the rest can be discovered from a successful response:
   `server/src/youcam/imageInput.ts`; the browser uses it through
   `server/src/routes/skinAnalysis.ts`, while existing capture and try-on callers still use
   Path B.**
+- **Skin Analysis task payload.** The verified request uses `src_file_id` (or
+  `src_file_url`), `dst_actions`, and `format: "json"`. The browser route sends the
+  documented SD action set `wrinkle`, `pore`, `texture`, and `acne`.
 - **Polling.** 2-second interval, cap ~120 attempts. Rate limits are 250 requests per 300
   seconds, enforced per IP and per token, ~5 QPS recommended. Our concurrency is far below
   that, so a simple backoff on 429 is sufficient.
@@ -86,11 +91,12 @@ working at all, and the rest can be discovered from a successful response:
       **skin L\*** and **hair L\*** specifically, since contrast is measured as the L\*
       difference between them.
       → normalisation is isolated in `server/src/youcam/adapters/facialColorTone.ts`.
-- [ ] **Image field name on a task-start payload.** Taking Path B, we pass the image as
-      `src_url` on the start payload, and the garment and makeup reference as
-      `garment_image` / `reference_image`. The names are inferred, not cited.
-      → `imageField` in `server/src/youcam/features.ts` is the only place the portrait key
-      appears; the two secondary keys sit in the payload builders directly below it.
+- [ ] **Non-Skin task payload fields.** Skin Analysis now uses the documented
+      `src_file_id` / `src_file_url` fields. The facial colour tone payload remains
+      unverified, and the garment and makeup reference fields still need their own
+      Playground confirmation.
+      → `imageField` in `server/src/youcam/features.ts` is the shared portrait field;
+      feature-specific fields remain in the payload builders below it.
 - [ ] **File API reuse across features.** Skin Analysis metadata and upload are verified.
       Whether one upload is reusable across the other features is unknown; their File API
       paths remain outside this increment.
@@ -163,7 +169,9 @@ dedicated route. The server performs the verified metadata request, signed `PUT`
 start, polling, and adapter mapping. Set `YINCOL_LIVE_SKIN_ANALYSIS=true` while leaving
 `YINCOL_FIXTURE_MODE=true` to test this path without enabling the still-unverified live
 palette/try-on flow. The resulting skin appearance context is labelled as live in the UI;
-the palette and previews remain fixtures in that mode.
+the palette and previews remain fixtures in that mode. The current live response completes
+successfully but does not yet populate the three YINCOL appearance signals, so the adapter
+mapping needs one more response-shape pass.
 
 **To change:** once Facial Color Tone is confirmed, add a separate live palette increment
 that accepts the same browser-held portrait. Do not treat the current fixture palette as a

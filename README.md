@@ -73,7 +73,7 @@ lives client-side and triggers on any photograph that fails the size check in
 ### Checks
 
 ```bash
-npm test          # 106 tests — 74 in shared/, 32 in server/
+npm test          # 108 tests — 74 in shared/, 34 in server/
 npm run typecheck # all three workspaces
 npm run contrast-audit --workspace @yincol/web
 ```

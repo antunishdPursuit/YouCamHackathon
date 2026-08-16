@@ -27,25 +27,29 @@ export const FEATURES: Readonly<Record<FeatureId, TaskFeature>> = {
 
 export const isTaskPathVerified = (id: FeatureId): boolean => TASK_PATH_VERIFIED[id];
 
-/** Path B puts the image straight in the payload; Path A would send a `file_id`. */
+/** The task API accepts either a public source URL or a File API `file_id`. */
 const imageField = (reference: ImageReference): Record<string, string> =>
-  reference.kind === 'publicUrl' ? { src_url: reference.url } : { file_id: reference.fileId };
+  reference.kind === 'publicUrl'
+    ? { src_file_url: reference.url }
+    : { src_file_id: reference.fileId };
 
 // ─────────────────────────────────────────────────────────────
 // Start payloads
 // ─────────────────────────────────────────────────────────────
 
 /**
- * TODO(phase0): verify in API Playground. The image field name on a Path B start
- * payload is inferred. If the Playground shows a different key, change `imageField`
- * above — it is the only place the name appears.
+ * The source field names are shared by the verified Skin Analysis task and the other
+ * task builders. Feature-specific fields remain beside their payload builders.
  */
 export const buildFacialColorTonePayload = (portrait: ImageReference): unknown => ({
   ...imageField(portrait),
 });
 
+/** VERIFIED in the Skin Analysis API reference. SD actions cannot be mixed with HD. */
 export const buildSkinAnalysisPayload = (portrait: ImageReference): unknown => ({
   ...imageField(portrait),
+  dst_actions: ['wrinkle', 'pore', 'texture', 'acne'],
+  format: 'json',
 });
 
 /** VERIFIED: the cloth payload includes `garment_category` and `change_shoes`. */

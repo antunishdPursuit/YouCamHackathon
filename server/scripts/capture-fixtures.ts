@@ -18,9 +18,9 @@
  * fetches the source images itself, so localhost will not do.
  */
 
-import 'dotenv/config';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { loadRootEnv } from '../src/loadEnv.js';
 import { loadConfig, RESULT_URL_TTL_HOURS } from '../src/youcam/config.js';
 import {
   FEATURES,
@@ -37,6 +37,8 @@ import { adaptSkinAnalysis } from '../src/youcam/adapters/skinAnalysis.js';
 import { adaptTryOnUrl } from '../src/youcam/adapters/tryOn.js';
 import { CAPTURE_TARGETS, FIXTURE_PUBLIC_DIR } from '../src/fixtures/index.js';
 import { findGarment } from '@yincol/shared';
+
+loadRootEnv();
 
 const config = loadConfig();
 
