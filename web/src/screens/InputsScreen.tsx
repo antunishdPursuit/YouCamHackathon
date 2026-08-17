@@ -51,7 +51,11 @@ const SLOT_COPY: Record<
 function InputPreview({ image, alt }: { image: CapturedImage; alt: string }) {
   return (
     <div className="overflow-hidden rounded-card border border-gold/50 bg-ground">
-      <img src={image.previewUrl} alt={alt} className="block aspect-[4/3] h-auto w-full object-cover" />
+      <img
+        src={image.previewUrl}
+        alt={alt}
+        className="block h-auto w-full object-contain"
+      />
     </div>
   );
 }
@@ -130,7 +134,7 @@ function ImagePickerCard({
   };
 
   return (
-    <GildedFrame as="article" className="flex h-full flex-col bg-surface p-4 sm:p-5">
+    <GildedFrame as="article" className="flex flex-col bg-surface p-4 sm:p-5">
       <div>
         {image ? (
           <div className="relative">
@@ -183,12 +187,12 @@ function ImagePickerCard({
 
       <div aria-live="polite" className="mt-3 min-h-[1.5rem]">
         {reading ? <p className="text-xs text-ink-soft">Checking image size…</p> : null}
-        {check && !reading ? (
+        {check && !reading && check.code !== 'belowHd' ? (
           <p className={`text-xs ${check.usable ? 'text-ink-soft' : 'text-ink'}`}>
             {check.usable && check.code === 'ok' ? 'Image size looks good.' : check.message}
           </p>
         ) : null}
-        {image?.note ? <p className="text-xs text-ink-soft">{image.note}</p> : null}
+        {image?.note && check?.code === 'belowHd' ? <p className="text-xs text-ink-soft">{image.note}</p> : null}
       </div>
     </GildedFrame>
   );
@@ -290,7 +294,7 @@ export function InputsScreen({
         </YincolCard>
 
         <section aria-label="Portrait and garment inputs">
-          <div className="grid gap-5 lg:grid-cols-3">
+          <div className="grid items-start gap-5 lg:grid-cols-3">
             <ImagePickerCard
               slot="portrait"
               image={portrait}
