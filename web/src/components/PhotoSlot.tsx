@@ -46,12 +46,15 @@ export function PhotoSlot({
   slot,
   result,
   provenance,
+  showProvenance = true,
   className = '',
 }: {
   slot: DisplaySlotConfig;
   /** `undefined` means the slot has not been filled yet — the same as a designed empty. */
   result?: TryOnResult;
   provenance?: Provenance;
+  /** Hide per-image fixture labels when a parent notice already covers the whole set. */
+  showProvenance?: boolean;
   className?: string;
 }) {
   const isReady = result?.status === 'ready';
@@ -89,17 +92,17 @@ export function PhotoSlot({
         Provenance sits under the frame, never across the picture. `placeholder` has to
         say so plainly — a stand-in presented as an API result is a lie told to a judge.
       */}
-      {provenance === 'placeholder' && isReady ? (
+      {showProvenance && provenance === 'placeholder' && isReady ? (
         <figcaption className="mt-2 text-sm text-ink-soft">
           Placeholder image — not an API result.
         </figcaption>
       ) : null}
-      {provenance === 'captured' && isReady ? (
+      {showProvenance && provenance === 'captured' && isReady ? (
         <figcaption className="mt-2 text-sm text-ink-soft">
           Pre-captured result from the live API.
         </figcaption>
       ) : null}
-      {provenance === 'live' && isReady ? (
+      {showProvenance && provenance === 'live' && isReady ? (
         <figcaption className="mt-2 text-sm text-ink-soft">
           Live YouCam result — generated from your upload.
         </figcaption>

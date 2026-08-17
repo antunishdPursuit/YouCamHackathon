@@ -64,21 +64,6 @@ export type CapturedPortrait = CapturedImage;
 /** Which axis the results workspace is showing. */
 export type CompareAxis = 'garments' | 'makeup';
 
-/**
- * A look the shopper kept, held in memory only.
- *
- * There is no database, so "saved" means "for as long as this tab is open" — which is
- * exactly what the consent panel promises, and why the empty state is the honest
- * default rather than a bug.
- */
-export interface SavedLook {
-  readonly id: string;
-  readonly garmentName: string;
-  readonly makeupName: string;
-  readonly swatchHexes: readonly string[];
-  readonly summary: string;
-}
-
 export interface SessionState {
   readonly step: Step;
   readonly consentGiven: boolean;
@@ -98,11 +83,9 @@ export interface SessionState {
   readonly analysis: AnalyzeResponse | null;
   readonly tryOn: TryOnResponse | null;
   readonly axis: CompareAxis;
-  /** One winner per axis, chosen by tapping a panel. */
-  readonly garmentWinnerId: string | null;
-  readonly makeupWinner: 'bare' | 'madeUp' | null;
-  readonly savedLook: boolean;
-  readonly savedLooks: readonly SavedLook[];
+  /** Items the user kept in the current comparison; more than one may be kept. */
+  readonly keptGarmentIds: readonly string[];
+  readonly keptMakeupWinners: readonly ('bare' | 'madeUp')[];
   readonly error: string | null;
   /** Distinguishes "no face" from a generic failure, so the copy can differ. */
   readonly errorCode: 'noFace' | 'general' | null;
@@ -122,10 +105,8 @@ export const initialState: SessionState = {
   analysis: null,
   tryOn: null,
   axis: 'garments',
-  garmentWinnerId: null,
-  makeupWinner: null,
-  savedLook: false,
-  savedLooks: [],
+  keptGarmentIds: [],
+  keptMakeupWinners: [],
   error: null,
   errorCode: null,
   busy: false,
@@ -147,9 +128,8 @@ export type SessionAction =
   | { type: 'analysisReady'; analysis: AnalyzeResponse }
   | { type: 'tryOnReady'; tryOn: TryOnResponse }
   | { type: 'setAxis'; axis: CompareAxis }
-  | { type: 'pickGarmentWinner'; garmentId: string }
-  | { type: 'pickMakeupWinner'; winner: 'bare' | 'madeUp' }
-  | { type: 'saveLook'; look: SavedLook }
+  | { type: 'toggleGarmentKept'; garmentId: string }
+  | { type: 'toggleMakeupKept'; winner: 'bare' | 'madeUp' }
   | { type: 'failed'; message: string; code?: 'noFace' | 'general' }
   | { type: 'dismissError' }
   | { type: 'startOver' };
@@ -178,13 +158,19 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
       return { ...state, setting: action.setting, error: null };
 
     case 'setPortrait':
-      return { ...state, portrait: action.portrait, demoInputs: false, error: null };
+      return {
+        ...state,
+        portrait: action.portrait,
+        keptGarmentIds: [],
+        keptMakeupWinners: [],
+        demoInputs: false,
+        error: null,
+      };
 
     case 'clearPortrait':
       // One-tap delete, as promised on every screen showing the portrait. It clears the
-      // analysis AND any kept looks — a look card carries a portrait thumbnail and a
-      // palette read from that face, so keeping either would make the delete a gesture
-      // rather than a deletion.
+      // analysis AND any kept options — they were derived from this face, so keeping
+      // either would make the delete a gesture rather than a deletion.
       return {
         ...initialState,
         consentGiven: state.consentGiven,
@@ -200,6 +186,8 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         ...state,
         garmentInputs: { ...state.garmentInputs, [action.slot]: action.image },
         garmentIds: action.slot === 'a' ? [fixtureId, otherId] : [otherId, fixtureId],
+        keptGarmentIds: [],
+        keptMakeupWinners: [],
         demoInputs: false,
         error: null,
       };
@@ -212,6 +200,8 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         garmentIds: state.garmentIds.filter((_id, index) =>
           action.slot === 'a' ? index !== 0 : index !== 1,
         ),
+        keptGarmentIds: [],
+        keptMakeupWinners: [],
         error: null,
       };
 
@@ -222,6 +212,8 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         setting: 'indoor',
         garmentIds: ['rosewater-cardigan', 'sage-linen-shirt'],
         makeupLookId: 'rose-veil',
+        keptGarmentIds: [],
+        keptMakeupWinners: [],
         demoInputs: true,
         error: null,
       };
@@ -233,16 +225,20 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         analysis: null,
         tryOn: null,
         axis: 'garments',
-        garmentWinnerId: null,
-        makeupWinner: null,
-        savedLook: false,
         error: null,
         errorCode: null,
         busy: false,
       };
 
     case 'chooseMakeup':
-      return { ...state, makeupLookId: action.lookId, demoInputs: false, error: null };
+      return {
+        ...state,
+        makeupLookId: action.lookId,
+        keptGarmentIds: [],
+        keptMakeupWinners: [],
+        demoInputs: false,
+        error: null,
+      };
 
     case 'analysisStarted':
       return { ...state, busy: true, error: null, step: 'generate' };
@@ -256,19 +252,23 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
     case 'setAxis':
       return { ...state, axis: action.axis };
 
-    case 'pickGarmentWinner':
-      return { ...state, garmentWinnerId: action.garmentId };
-
-    case 'pickMakeupWinner':
-      return { ...state, makeupWinner: action.winner };
-
-    case 'saveLook': {
-      // Re-saving the same combination replaces it rather than stacking duplicates.
-      const others = state.savedLooks.filter((look) => look.id !== action.look.id);
+    case 'toggleGarmentKept': {
+      const kept = state.keptGarmentIds.includes(action.garmentId);
       return {
         ...state,
-        savedLook: true,
-        savedLooks: [...others, action.look],
+        keptGarmentIds: kept
+          ? state.keptGarmentIds.filter((garmentId) => garmentId !== action.garmentId)
+          : [...state.keptGarmentIds, action.garmentId],
+      };
+    }
+
+    case 'toggleMakeupKept': {
+      const kept = state.keptMakeupWinners.includes(action.winner);
+      return {
+        ...state,
+        keptMakeupWinners: kept
+          ? state.keptMakeupWinners.filter((winner) => winner !== action.winner)
+          : [...state.keptMakeupWinners, action.winner],
       };
     }
 
@@ -279,12 +279,11 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
       return { ...state, error: null, errorCode: null };
 
     case 'startOver':
-      // Kept looks survive starting over — they are the one thing the shopper chose to
-      // hold on to. The photograph does not.
+      // A new look starts a new comparison session. The photograph and kept options do
+      // not cross that boundary.
       return {
         ...initialState,
         consentGiven: state.consentGiven,
-        savedLooks: state.savedLooks,
       };
 
     default:

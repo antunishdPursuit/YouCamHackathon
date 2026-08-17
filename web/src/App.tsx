@@ -17,14 +17,10 @@ import { IntroScreen } from './screens/IntroScreen.js';
 import { InputsScreen } from './screens/InputsScreen.js';
 import { AnalysisScreen } from './screens/AnalysisScreen.js';
 import { ResultsScreen } from './screens/ResultsScreen.js';
-import { findMakeupLook } from '@yincol/shared';
 import {
   initialState,
-  OCCASION_LABELS,
   sessionReducer,
   STEP_ORDER,
-  type SavedLook,
-  type SessionState,
   type Step,
 } from './state/session.js';
 
@@ -64,39 +60,6 @@ function StageProgress({ step }: { step: Step }) {
       </ol>
     </nav>
   );
-}
-
-/**
- * Condense the current session into the shelf entry.
- *
- * The id is the combination itself, so keeping the same pair twice replaces rather than
- * duplicates — and it needs no clock or random source to be unique.
- */
-function buildSavedLook(state: SessionState): SavedLook {
-  const garmentIndex = state.garmentIds.indexOf(state.garmentWinnerId ?? '');
-  const garmentName = garmentIndex === 0 ? 'Garment A' : garmentIndex === 1 ? 'Garment B' : 'A garment';
-  const look = state.makeupLookId ? findMakeupLook(state.makeupLookId) : undefined;
-  const makeupName = state.makeupWinner === 'bare' ? 'Bare face' : (look?.name ?? 'Makeup look');
-  const occasionName = state.occasion === 'other'
-    ? 'your occasion'
-    : state.occasion
-      ? state.occasion === 'wedding'
-        ? 'your wedding'
-        : OCCASION_LABELS[state.occasion].toLowerCase()
-      : 'your occasion';
-  const swatchHexes =
-    state.analysis?.palette.swatches
-      .filter((swatch) => swatch.role !== 'neutral')
-      .slice(0, 3)
-      .map((swatch) => swatch.hex) ?? [];
-
-  return {
-    id: `${state.garmentWinnerId ?? 'none'}--${state.makeupWinner ?? 'none'}--${state.makeupLookId ?? 'none'}`,
-    garmentName,
-    makeupName,
-    swatchHexes,
-    summary: `${garmentName} with ${makeupName.toLowerCase()} for ${occasionName}.`,
-  };
 }
 
 export function App() {
@@ -200,7 +163,10 @@ export function App() {
       case 'intro':
         return (
           <IntroScreen
-            savedLooks={state.savedLooks}
+            garmentIds={state.garmentIds}
+            keptGarmentIds={state.keptGarmentIds}
+            keptMakeupWinners={state.keptMakeupWinners}
+            makeupLookId={state.makeupLookId}
             onBegin={() => {
               dispatch({ type: 'giveConsent' });
               dispatch({ type: 'goTo', step: 'inputs' });
@@ -247,13 +213,11 @@ export function App() {
             garmentIds={state.garmentIds}
             makeupLookId={state.makeupLookId}
             axis={state.axis}
-            garmentWinnerId={state.garmentWinnerId}
-            makeupWinner={state.makeupWinner}
-            savedLook={state.savedLook}
+            keptGarmentIds={state.keptGarmentIds}
+            keptMakeupWinners={state.keptMakeupWinners}
             onAxisChange={(axis) => dispatch({ type: 'setAxis', axis })}
-            onPickGarment={(garmentId) => dispatch({ type: 'pickGarmentWinner', garmentId })}
-            onPickMakeup={(winner) => dispatch({ type: 'pickMakeupWinner', winner })}
-            onSave={() => dispatch({ type: 'saveLook', look: buildSavedLook(state) })}
+            onToggleGarment={(garmentId) => dispatch({ type: 'toggleGarmentKept', garmentId })}
+            onToggleMakeup={(winner) => dispatch({ type: 'toggleMakeupKept', winner })}
             onEditInputs={() => dispatch({ type: 'editInputs' })}
             onStartOver={() => dispatch({ type: 'startOver' })}
           />

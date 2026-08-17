@@ -8,22 +8,44 @@
 
 import { SectionHeading, YincolCard } from '../components/ornament.js';
 import { Button } from '../components/controls.js';
-import type { SavedLook } from '../state/session.js';
+import { findMakeupLook } from '@yincol/shared';
 
 /**
- * The kept-looks shelf.
+ * The kept-options shelf.
  *
  * Empty is the normal state, not a failure — there is no database, so a new visitor
  * always starts here. It stays visible as a compact session shelf so a returning user
- * can find a kept combination without searching through the page.
+ * can find kept options without searching through the page.
  */
 function KeptLooks({
-  savedLooks,
+  garmentIds,
+  keptGarmentIds,
+  keptMakeupWinners,
+  makeupLookId,
   className = '',
 }: {
-  savedLooks: readonly SavedLook[];
+  garmentIds: readonly string[];
+  keptGarmentIds: readonly string[];
+  keptMakeupWinners: readonly ('bare' | 'madeUp')[];
+  makeupLookId: string | null;
   className?: string;
 }) {
+  const keptOptions = [
+    ...keptGarmentIds.map((garmentId) => {
+      const index = garmentIds.indexOf(garmentId);
+      return {
+        id: `garment:${garmentId}`,
+        label: index === 0 ? 'Garment A' : index === 1 ? 'Garment B' : 'Garment option',
+      };
+    }),
+    ...keptMakeupWinners.map((winner) => ({
+      id: `makeup:${winner}`,
+      label: winner === 'bare'
+        ? 'Bare face'
+        : (makeupLookId ? findMakeupLook(makeupLookId)?.name : undefined) ?? 'Makeup look',
+    })),
+  ];
+
   return (
     <YincolCard
       aria-labelledby="kept-heading"
@@ -32,9 +54,9 @@ function KeptLooks({
       <h3 id="kept-heading" className="font-display text-2xl text-ink">
         Looks kept
       </h3>
-      <p className="mt-1 text-sm text-ink-soft">Your combinations for this session.</p>
+      <p className="mt-1 text-sm text-ink-soft">Your kept options for this session.</p>
 
-      {savedLooks.length === 0 ? (
+      {keptOptions.length === 0 ? (
         <div className="mt-6 rounded-card border border-dashed border-gold/50 px-4 py-8 text-center">
           <svg viewBox="0 0 60 60" aria-hidden="true" className="mx-auto h-10 w-10 text-gold">
             <path
@@ -46,26 +68,18 @@ function KeptLooks({
             <circle cx="30" cy="18" r="2.4" fill="currentColor" opacity="0.6" />
           </svg>
           <p className="mt-2 text-base text-ink">Nothing kept in this session.</p>
-          <p className="mt-1 text-sm text-ink-soft">Choose a combination and it will appear here while this tab stays open.</p>
+          <p className="mt-1 text-sm text-ink-soft">Keep an option and it will appear here while this tab stays open.</p>
         </div>
       ) : (
         <ul className="mt-5 space-y-3">
-          {savedLooks.map((look) => (
+          {keptOptions.map((option) => (
             <li
-              key={look.id}
+              key={option.id}
               className="flex items-center gap-3 rounded-card border border-gold/40 bg-surface px-4 py-3"
             >
-              <span className="flex shrink-0 gap-1" aria-hidden="true">
-                {look.swatchHexes.map((hex) => (
-                  <span
-                    key={hex}
-                    className="h-5 w-5 rounded-full border border-gold/50"
-                    style={{ backgroundColor: hex }}
-                  />
-                ))}
-              </span>
+              <span aria-hidden="true" className="text-gold">✓</span>
               <span className="flex-1 text-sm text-ink">
-                <span className="font-semibold">{look.garmentName}</span> · {look.makeupName}
+                {option.label}
               </span>
             </li>
           ))}
@@ -99,7 +113,7 @@ function WhatYouGet() {
         </li>
         <li className="flex gap-3">
           <span aria-hidden="true" className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gold" />
-          One combination you can keep for this session.
+          Options you can keep individually for this session.
         </li>
       </ul>
     </YincolCard>
@@ -116,7 +130,7 @@ function ComparisonGuide() {
         How you&apos;ll compare
       </SectionHeading>
       <p className="mt-3 text-base text-ink-soft">
-        Your portrait stays the same while one choice changes at a time.
+        Your portrait stays the same while you compare one choice at a time.
       </p>
 
       <div className="mt-6 space-y-3 text-base" aria-label="Comparison structure">
@@ -126,12 +140,12 @@ function ComparisonGuide() {
         </div>
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
           <span className="rounded-card border border-gold/40 px-3 py-3 text-center text-ink">Garment A</span>
-          <span aria-hidden="true" className="text-gold">or</span>
+          <span aria-hidden="true" className="text-gold">or both</span>
           <span className="rounded-card border border-gold/40 px-3 py-3 text-center text-ink">Garment B</span>
         </div>
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
           <span className="rounded-card border border-gold/40 px-3 py-3 text-center text-ink">Bare face</span>
-          <span aria-hidden="true" className="text-gold">or</span>
+          <span aria-hidden="true" className="text-gold">or both</span>
           <span className="rounded-card border border-gold/40 px-3 py-3 text-center text-ink">Makeup look</span>
         </div>
       </div>
@@ -145,10 +159,16 @@ function ComparisonGuide() {
 
 export function IntroScreen({
   onBegin,
-  savedLooks,
+  garmentIds,
+  keptGarmentIds,
+  keptMakeupWinners,
+  makeupLookId,
 }: {
   onBegin: () => void;
-  savedLooks: readonly SavedLook[];
+  garmentIds: readonly string[];
+  keptGarmentIds: readonly string[];
+  keptMakeupWinners: readonly ('bare' | 'madeUp')[];
+  makeupLookId: string | null;
 }) {
   return (
     <div className="animate-soft-fade space-y-8">
@@ -213,7 +233,13 @@ export function IntroScreen({
           <ComparisonGuide />
         </aside>
 
-        <KeptLooks savedLooks={savedLooks} className="xl:col-start-1 xl:row-start-1" />
+        <KeptLooks
+          garmentIds={garmentIds}
+          keptGarmentIds={keptGarmentIds}
+          keptMakeupWinners={keptMakeupWinners}
+          makeupLookId={makeupLookId}
+          className="xl:col-start-1 xl:row-start-1"
+        />
       </div>
     </div>
   );
