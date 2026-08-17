@@ -1,41 +1,36 @@
 /**
- * POST /api/try-on — the three generated previews plus the bare portrait.
+ * POST /api/try-on — two garment previews, two complete looks, and the portrait.
  *
- * `Promise.allSettled` again, and for the same reason: one try-on failing must leave
- * the other three usable. That is an explicit product state, not an accident.
+ * Each selected garment runs its own sequence: the garment task first, then the makeup
+ * task applied to what the garment task returned. The sequencing itself lives in
+ * `youcam/completeLook.ts`; this route decides which garments to run and settles them
+ * independently.
  *
- * Apparel and makeup are requested separately and returned separately. Nothing here
- * composites them, and nothing downstream is given the pieces to.
+ * `Promise.allSettled`, not `Promise.all`, and for the usual reason: one garment failing
+ * must leave the other one usable. That is an explicit product state, not an accident.
  */
 
 import { Router } from 'express';
-import type { Provenance, TryOnImageInput, TryOnPanel, TryOnRequest, TryOnResponse } from '@yincol/shared';
+import type {
+  Provenance,
+  TryOnImageInput,
+  TryOnPanel,
+  TryOnRequest,
+  TryOnResponse,
+} from '@yincol/shared';
 import { findGarment, findMakeupLook } from '@yincol/shared';
 import { loadConfig } from '../youcam/config.js';
-import {
-  FEATURES,
-  buildClothesVtoPayload,
-  buildMakeupVtoPayload,
-  makeupEffectsForLook,
-} from '../youcam/features.js';
-import { runTask } from '../youcam/taskRunner.js';
+import { runCompleteLookSequence, type CompleteLookOutcome } from '../youcam/completeLook.js';
 import {
   MAX_FILE_BYTES,
   SUPPORTED_IMAGE_TYPES,
   fileUploadStrategy,
   type ImageSource,
 } from '../youcam/imageInput.js';
-import { adaptTryOnLive, tryOnFailure } from '../youcam/adapters/tryOn.js';
-import {
-  capturedGarmentFixture,
-  capturedMakeupFixture,
-  fixtureDelay,
-  resolveFixtureImage,
-} from '../fixtures/index.js';
+import { tryOnFailure } from '../youcam/adapters/tryOn.js';
+import { fixtureCompleteLook, fixtureDelay, resolveFixtureImage } from '../fixtures/index.js';
 
 export const tryOnRouter = Router();
-
-const livePanel = (result: TryOnPanel['result']): TryOnPanel => ({ result, provenance: 'live' });
 
 interface ParsedLiveImage extends ImageSource {
   readonly bytes: Buffer;
@@ -69,48 +64,6 @@ function parseLiveImage(value: unknown): ParsedLiveImage | undefined {
 const imageDataUrl = (image: ParsedLiveImage): string =>
   `data:${image.contentType};base64,${image.bytes.toString('base64')}`;
 
-async function garmentLive(
-  portrait: ParsedLiveImage,
-  garmentInput: ParsedLiveImage | undefined,
-  garmentId: string,
-): Promise<TryOnPanel> {
-  const garment = findGarment(garmentId);
-  if (!garment) return livePanel(tryOnFailure(`Unknown garment "${garmentId}".`));
-  if (!garmentInput) {
-    return livePanel(
-      tryOnFailure(`Add a garment reference for ${garment.name} before generating live previews.`),
-    );
-  }
-
-  const config = loadConfig();
-  const portraitImage = await fileUploadStrategy.prepare(portrait, 'clothesVto', config);
-  const garmentImage = await fileUploadStrategy.prepare(garmentInput, 'clothesVto', config);
-  const { raw } = await runTask(
-    config,
-    FEATURES.clothesVto,
-    buildClothesVtoPayload(portraitImage, garmentImage, garment.category),
-  );
-  return livePanel(
-    await adaptTryOnLive(raw, 'clothesVto', `You wearing the ${garment.name.toLowerCase()}`),
-  );
-}
-
-async function makeupLive(portrait: ParsedLiveImage, lookId: string): Promise<TryOnPanel> {
-  const look = findMakeupLook(lookId);
-  if (!look) return livePanel(tryOnFailure(`Unknown makeup look "${lookId}".`));
-
-  const config = loadConfig();
-  const portraitImage = await fileUploadStrategy.prepare(portrait, 'makeupVto', config);
-  const { raw } = await runTask(
-    config,
-    FEATURES.makeupVto,
-    buildMakeupVtoPayload(portraitImage, makeupEffectsForLook(look)),
-  );
-  return livePanel(
-    await adaptTryOnLive(raw, 'makeupVto', `You wearing the ${look.name} makeup look`),
-  );
-}
-
 const failedPanel = (reason: unknown, provenance: Provenance = 'live'): TryOnPanel => ({
   result: tryOnFailure(
     (reason instanceof Error ? reason.message : 'This preview could not be generated.')
@@ -119,50 +72,42 @@ const failedPanel = (reason: unknown, provenance: Provenance = 'live'): TryOnPan
   provenance,
 });
 
+/** Both panels fail together only when the sequence never started for this garment. */
+const failedOutcome = (reason: unknown): CompleteLookOutcome => ({
+  garmentOnly: failedPanel(reason),
+  completeLook: failedPanel(reason),
+});
+
 tryOnRouter.post('/try-on', async (req, res) => {
   const config = loadConfig();
   const body = req.body as Partial<TryOnRequest>;
-  const portraitRef = String(body?.portraitRef ?? '');
   const garmentIds = Array.isArray(body?.garmentIds) ? body.garmentIds.slice(0, 2) : [];
   const makeupLookId = String(body?.makeupLookId ?? '');
+  const look = findMakeupLook(makeupLookId);
 
   if (config.fixtureMode && !config.liveTryOn) {
     await fixtureDelay();
 
     const garments: Record<string, TryOnPanel> = {};
-    garmentIds.forEach((garmentId, index) => {
-      const garment = findGarment(garmentId);
+    const completeLooks: Record<string, TryOnPanel> = {};
 
-      // One panel failing while the other three stay usable is a first-class state,
-      // not an outage. Fail garment B so the asymmetry is visible.
-      if (config.simulate === 'partialFailure' && index === 1) {
-        garments[garmentId] = {
-          result: tryOnFailure('This try-on did not complete. The other previews are unaffected.'),
-          provenance: 'placeholder',
-        };
-        return;
-      }
-      // Slot A is the first garment chosen, slot B the second — that is all the
-      // placeholder key decides, and it only matters for which caption is drawn on it.
-      const image = resolveFixtureImage(
-        capturedGarmentFixture(garmentId),
-        index === 0 ? 'garmentA' : 'garmentB',
-        `You wearing the ${garment?.name.toLowerCase() ?? garmentId}`,
-      );
-      garments[garmentId] = { result: image.result, provenance: image.provenance };
+    garmentIds.forEach((garmentId, index) => {
+      const outcome = fixtureCompleteLook({
+        garmentId,
+        index,
+        garmentName: findGarment(garmentId)?.name ?? garmentId,
+        lookName: look?.name ?? 'chosen',
+        simulate: config.simulate,
+      });
+      garments[garmentId] = outcome.garmentOnly;
+      completeLooks[garmentId] = outcome.completeLook;
     });
 
-    const look = findMakeupLook(makeupLookId);
-    const makeupImage = resolveFixtureImage(
-      capturedMakeupFixture(makeupLookId),
-      'makeupOn',
-      `You wearing the ${look?.name ?? makeupLookId} makeup look`,
-    );
     const portraitImage = resolveFixtureImage(undefined, 'portrait', 'Your portrait, bare face');
 
     const response: TryOnResponse = {
       garments,
-      makeup: { result: makeupImage.result, provenance: makeupImage.provenance },
+      completeLooks,
       portrait: { result: portraitImage.result, provenance: portraitImage.provenance },
       mode: 'fixture',
     };
@@ -170,6 +115,7 @@ tryOnRouter.post('/try-on', async (req, res) => {
     return;
   }
 
+  // ── Live ─────────────────────────────────────────────────────
   let portrait: ParsedLiveImage;
   try {
     const parsed = parseLiveImage(body.portrait);
@@ -196,24 +142,59 @@ tryOnRouter.post('/try-on', async (req, res) => {
     return;
   }
 
-  // Live mode. Every panel settles independently.
-  const settled = await Promise.allSettled([
-    ...garmentIds.map((id) => garmentLive(portrait, garmentImages[id], id)),
-    makeupLive(portrait, makeupLookId),
-  ]);
+  if (!look) {
+    res.status(400).json({ error: 'Choose a makeup look before generating live previews.' });
+    return;
+  }
+
+  // Each garment runs the full sequence on its own. Nothing is shared between them, so
+  // one garment's failure cannot reach the other's result.
+  const settled = await Promise.allSettled(
+    garmentIds.map(async (garmentId): Promise<CompleteLookOutcome> => {
+      const garment = findGarment(garmentId);
+      if (!garment) return failedOutcome(new Error(`Unknown garment "${garmentId}".`));
+
+      const garmentInput = garmentImages[garmentId];
+      if (!garmentInput) {
+        return failedOutcome(
+          new Error(
+            `Add a garment reference for ${garment.name} before generating live previews.`,
+          ),
+        );
+      }
+
+      // Uploaded here rather than once outside the loop: an upload failure then belongs
+      // to one garment and settles as that garment's failure, leaving the other alone.
+      const [portraitRef, garmentRef] = await Promise.all([
+        fileUploadStrategy.prepare(portrait, 'clothesVto', config),
+        fileUploadStrategy.prepare(garmentInput, 'clothesVto', config),
+      ]);
+
+      return runCompleteLookSequence({
+        config,
+        portrait: portraitRef,
+        garment: garmentRef,
+        garmentCategory: garment.category,
+        look,
+        garmentName: garment.name,
+      });
+    }),
+  );
 
   const garments: Record<string, TryOnPanel> = {};
-  garmentIds.forEach((id, index) => {
+  const completeLooks: Record<string, TryOnPanel> = {};
+
+  garmentIds.forEach((garmentId, index) => {
     const outcome = settled[index];
-    garments[id] =
-      outcome?.status === 'fulfilled' ? outcome.value : failedPanel(outcome?.reason);
+    const resolved =
+      outcome?.status === 'fulfilled' ? outcome.value : failedOutcome(outcome?.reason);
+    garments[garmentId] = resolved.garmentOnly;
+    completeLooks[garmentId] = resolved.completeLook;
   });
 
-  const makeupOutcome = settled[garmentIds.length];
   const response: TryOnResponse = {
     garments,
-    makeup:
-      makeupOutcome?.status === 'fulfilled' ? makeupOutcome.value : failedPanel(makeupOutcome?.reason),
+    completeLooks,
     portrait: {
       result: { status: 'ready', imageUrl: imageDataUrl(portrait), alt: 'Your portrait, bare face' },
       provenance: 'live',

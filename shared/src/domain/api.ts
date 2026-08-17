@@ -71,15 +71,32 @@ export interface TryOnRequest {
   readonly garmentImages?: Readonly<Record<string, TryOnImageInput>>;
 }
 
+/**
+ * Which tasks actually produced an image.
+ *
+ * `completeLook` is the load-bearing one. The server sets it at exactly one place — the
+ * point where the makeup task was handed the garment task's returned image — and the UI
+ * is only allowed to use the words "complete look" where it is present. Anything else
+ * would be describing a picture as something it is not.
+ */
+export type LookStage = 'garmentOnly' | 'completeLook';
+
 export interface TryOnPanel {
   readonly result: TryOnResult;
   readonly provenance: Provenance;
+  /** Absent for the portrait, which no task produced. */
+  readonly stage?: LookStage;
 }
 
 export interface TryOnResponse {
-  /** Keyed by garment id. */
+  /** Garment-only previews — the garment task's own output. Keyed by garment id. */
   readonly garments: Readonly<Record<string, TryOnPanel>>;
-  readonly makeup: TryOnPanel;
+  /**
+   * The same garments after the makeup effects were applied to the garment result.
+   * Keyed by the same garment ids, so each garment carries its own complete look and one
+   * garment's failure cannot erase the other's.
+   */
+  readonly completeLooks: Readonly<Record<string, TryOnPanel>>;
   readonly portrait: TryOnPanel;
   readonly mode: 'fixture' | 'live';
 }

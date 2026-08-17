@@ -1,9 +1,18 @@
 /**
  * Generates the shipped placeholder fixtures.
  *
- * These are ORNAMENT, not API output. Each one draws its own caption and the word
- * "placeholder" into the image itself, so it cannot be mistaken for a real result even
- * if it escapes the app and ends up in a slide deck.
+ * These are ORNAMENT, not API output. The panel carries no text of its own — the caption
+ * is drawn by the UI beside the frame, so the two cannot say different things. What marks
+ * it as a stand-in is `provenance: 'placeholder'`, which the server attaches and the
+ * Results screen surfaces.
+ *
+ * ⚠ Worth knowing: an image with nothing written on it is only labelled while it is inside
+ * the app. Screenshot one into a slide deck and the label does not travel with it. That
+ * was a deliberate call — the in-image caption duplicated the panel title — but if these
+ * ever leave the app on their own, the watermark should come back.
+ *
+ * The `caption` argument survives because it names the file and titles the SVG, which is
+ * what a screen reader and a file listing see.
  *
  * Run with: npm run make-placeholders --workspace @yincol/server
  * `npm run capture-fixtures` overwrites the corresponding real captures alongside them.
@@ -56,8 +65,6 @@ function placeholderSvg(caption: string, motif: string): string {
       .join('\n    ')}
   </g>
 
-  <text x="${width / 2}" y="${height / 2 + 152}" text-anchor="middle" font-family="Cormorant Garamond, Georgia, serif" font-size="34" fill="${INK}">${caption}</text>
-  <text x="${width / 2}" y="${height / 2 + 190}" text-anchor="middle" font-family="Nunito Sans, system-ui, sans-serif" font-size="17" fill="${INK}" opacity="0.72">Placeholder — not an API result</text>
 </svg>
 `;
 }
@@ -85,7 +92,11 @@ const PLACEHOLDERS = [
   { file: 'placeholder-portrait.svg', caption: 'Portrait', motif: MIRROR_MOTIF },
   { file: 'placeholder-garment-a.svg', caption: 'Garment A', motif: COMPACT_MOTIF },
   { file: 'placeholder-garment-b.svg', caption: 'Garment B', motif: COMPACT_MOTIF },
-  { file: 'placeholder-makeup-on.svg', caption: 'Makeup look', motif: RIBBON_MOTIF },
+  // The complete-look slots get the ribbon, which already marks a kept or finished thing
+  // elsewhere in the design, so the two pairs read as different kinds of panel at a
+  // glance rather than as four variations of the same one.
+  { file: 'placeholder-complete-look-a.svg', caption: 'Complete look A', motif: RIBBON_MOTIF },
+  { file: 'placeholder-complete-look-b.svg', caption: 'Complete look B', motif: RIBBON_MOTIF },
 ];
 
 mkdirSync(FIXTURE_PUBLIC_DIR, { recursive: true });

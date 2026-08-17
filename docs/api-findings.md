@@ -1,6 +1,6 @@
 # API findings — Perfect Corp / YouCam S2S v2.0
 
-**Last reviewed:** August 16, 2026
+**Last reviewed:** August 17, 2026
 **Evidence rule:** Official documentation is documented evidence, not live verification.
 Skin Analysis, Clothes VTO, and Makeup VTO have now been verified end to end with our
 account and the selected close-up portrait. Facial Color Tone remains open for a live
@@ -215,6 +215,10 @@ Committed placeholder fixtures are generated ornamental panels, not API output. 
 so the flow runs before a real capture. Every one is watermarked in the UI as a
 placeholder, and `npm run capture-fixtures` overwrites them with genuine API results.
 
+Five of them now, not four: each garment slot gained a complete-look counterpart, and the
+bare-makeup panel went away with the unsequenced path that produced it. A placeholder is
+returned with no `stage`, so it can never describe itself as a complete look.
+
 ### 5. The live Skin Analysis path is isolated from the live palette path
 `web/src/App.tsx` → `requestSkinAnalysis` and `server/src/routes/skinAnalysis.ts`
 
@@ -236,7 +240,7 @@ live result.
 
 When `YINCOL_LIVE_TRY_ON=true` and fixture mode remains on, the browser sends its selected
 portrait and garment references as bounded base64 JSON. The server uploads each image
-through the feature-specific File API, runs two Clothes VTO tasks and one Makeup VTO task,
+through the feature-specific File API, runs the complete-look sequence per garment,
 downloads successful result bytes before the vendor URL expires, and returns in-memory data
 URLs. The browser receives only the internal `TryOnResponse` shape; it does not receive the
 API key or vendor response JSON. Missing garment input fails only that garment panel.
@@ -244,6 +248,36 @@ API key or vendor response JSON. Missing garment input fails only that garment p
 The live browser-shaped request passed locally on August 16, 2026 with two temporary shirt
 references. Both garment panels, the makeup panel, and the portrait returned `ready` with
 `provenance: "live"`. The temporary references were not stored.
+
+### 8. The sequenced complete-look path
+`server/src/youcam/completeLook.ts` → `server/src/routes/tryOn.ts`
+
+Each selected garment runs Clothes VTO, then Makeup VTO on the image Clothes VTO returned.
+The second task's portrait input is the first task's downloaded result, uploaded through
+the Makeup VTO File API — there is nowhere public to put an image that exists only in
+server memory, so step 2 always takes Path A regardless of how step 1's inputs arrived.
+
+**Cost.** A fully successful generation is now four successful tasks, not three: two
+Clothes and two Makeup. The previous shape ran one Makeup task on the bare portrait, which
+was cheaper and was not a complete look. Failed and running tasks still consume nothing,
+and a repeated in-session request is served from the browser's session cache.
+
+**The invariant.** `stage: 'completeLook'` is assigned at exactly one place, immediately
+after the makeup task returns an image it was given the garment result to work from. A
+shipped placeholder gets no stage at all. The UI is only allowed to say "complete look"
+where that stage is present, which is what keeps the claim checkable rather than assumed.
+`server/src/youcam/completeLook.test.ts` asserts the ordering, the chained bytes, and that
+a failed panel carries no stage.
+
+**Failure granularity.** Three outcomes per garment, all local and none fatal to the other
+garment: both panels fail (the garment task never produced an image), the garment panel
+survives and the complete look fails (the makeup step failed), or both succeed.
+`YINCOL_SIMULATE=completeLookFailure` reproduces the middle one on fixtures.
+
+**Not yet verified live.** The sequence itself has been verified by direct local smoke test
+per the handoff note, and the browser route is covered by stubbed-`fetch` tests, but the
+browser route running the sequence against the live API has not been re-run since this
+change. That check is the one thing outstanding before this path is called live-verified.
 
 ### 7. Catalogue garments carry no product image URL
 `shared/src/domain/catalog.ts` → `GARMENTS`

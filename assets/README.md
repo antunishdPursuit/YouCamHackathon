@@ -46,20 +46,29 @@ final authority for feature-specific image suitability.
 
 ---
 
-## RESULT — three images, generated
+## RESULT — four images, generated
 
 `npm run capture-fixtures` runs live tasks against the API and writes the returned bytes
-into `web/public/fixtures/`:
+into `web/public/fixtures/`. Each garment produces two, because the live path produces
+two: the garment task's own output, and that output after the makeup task rendered the
+configured effects onto it.
 
 | Fixture | Produced by |
 | --- | --- |
 | `garment-a-result.jpg` | Clothes virtual try-on, portrait + garment A |
+| `complete-look-a-result.jpg` | Makeup virtual try-on, applied to `garment-a-result.jpg` |
 | `garment-b-result.jpg` | Clothes virtual try-on, portrait + garment B |
-| `makeup-on-result.jpg` | Makeup virtual try-on, portrait + documented effects configuration |
+| `complete-look-b-result.jpg` | Makeup virtual try-on, applied to `garment-b-result.jpg` |
 
-The script downloads the bytes **immediately** after each task succeeds. The download URL
-the API returns is valid for two hours only, so a fixture may never store a URL — only
-bytes committed to the repo survive to demo day.
+The complete-look fixtures use one makeup look (`rose-veil`). Capturing every look against
+every garment would multiply the credit cost for no demo benefit; any other look in the
+picker falls back to the designed placeholder, which says so on its face.
+
+The script runs the same sequence the browser route runs, and downloads the bytes
+**immediately** after each task succeeds — it has to, since the makeup task's input is the
+garment task's downloaded image. The download URL the API returns is valid for two hours
+only, so a fixture may never store a URL; only bytes committed to the repo survive to demo
+day.
 
 ---
 

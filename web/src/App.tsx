@@ -265,6 +265,9 @@ export function App() {
             axis={state.axis}
             keptGarmentIds={state.keptGarmentIds}
             keptMakeupWinners={state.keptMakeupWinners}
+            {...(state.portrait
+              ? { portraitSize: { width: state.portrait.width, height: state.portrait.height } }
+              : {})}
             onAxisChange={(axis) => dispatch({ type: 'setAxis', axis })}
             onToggleGarment={(garmentId) => dispatch({ type: 'toggleGarmentKept', garmentId })}
             onToggleMakeup={(winner) => dispatch({ type: 'toggleMakeupKept', winner })}

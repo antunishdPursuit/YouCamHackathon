@@ -9,7 +9,14 @@
 import type { AnalyzeResponse, TryOnResponse } from '@yincol/shared';
 import type { CapturedImage } from './session.js';
 
-const STORAGE_KEY = 'yincol:generation-cache:v1';
+/**
+ * Bumped to v2 when the try-on response gained its complete-look panels.
+ *
+ * The version belongs in BOTH the storage key and the cache key. A v1 entry left in a
+ * reopened tab would parse cleanly and then render a Results screen with no complete
+ * looks in it — a stale-cache bug that looks exactly like a failed generation.
+ */
+const STORAGE_KEY = 'yincol:generation-cache:v2';
 
 export interface GenerationCacheInput {
   readonly portrait: CapturedImage | null;
@@ -55,7 +62,7 @@ export async function generationCacheKey(input: GenerationCacheInput): Promise<s
     fileFingerprint(input.garmentInputs[1].file),
   ]);
 
-  return JSON.stringify({ version: 1, makeupLookId: input.makeupLookId, fingerprints });
+  return JSON.stringify({ version: 2, makeupLookId: input.makeupLookId, fingerprints });
 }
 
 export function readGenerationCache(key: string): CachedGeneration | null {

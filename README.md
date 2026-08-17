@@ -17,11 +17,44 @@ A shopper walks four stages:
 | 1 | Start | The promise, a concise privacy disclosure, and session-only deletion. |
 | 2 | Add inputs | Upload a portrait and two garment references, then choose one makeup effects preset. Each image gets a client-side quality check before a call is spent. |
 | 3 | Generate | Named progress steps: checking images, reading colour context, generating garment previews, and applying makeup. Never a bare spinner. |
-| 4 | Results | A compact palette, separate garment and makeup previews, one-variable-at-a-time comparison, provenance labels, session-only keep/start-over actions, and reuse of matching completed previews. |
+| 4 | Results | A compact palette, the two complete looks, one-variable-at-a-time comparison, provenance labels, session-only keep/start-over actions, and reuse of matching completed previews. |
 
 Four Perfect Corp features sit behind the fixture flow: facial colour tone, skin analysis,
 clothes virtual try-on, and makeup virtual try-on. The current documented makeup endpoint
 uses an effects configuration, not a makeup reference image.
+
+### The complete-look sequence
+
+Each selected garment runs two tasks in order, and the second one is given the first
+one's result:
+
+```text
+portrait + garment reference
+        │
+        ▼
+   Clothes VTO
+        │ result image bytes
+        ▼
+   Makeup VTO effects
+        │
+        ▼
+  complete-look preview
+```
+
+The two garments run independently, so each produces its own complete look and neither
+can take the other down. Two images survive per garment — the garment task's own output
+and the complete look — which is what the Results screen's two axes compare:
+
+| Axis | Panel 1 | Panel 2 | What is held constant |
+| --- | --- | --- | --- |
+| Garments | Complete look A | Complete look B | the makeup |
+| Makeup | Garment A without makeup | Garment A complete look | the garment |
+
+Only one variable changes on either axis. Nothing is composited: where one image shows a
+garment and makeup together, it is because the makeup task rendered it that way, not
+because two pictures were merged. A panel is described as a complete look only where the
+server recorded that the makeup task actually received the garment task's image —
+`stage: 'completeLook'` is set in exactly one place, in `server/src/youcam/completeLook.ts`.
 
 **What it deliberately is not.** No stylist chat, no catalogue search, no checkout, no
 accounts, no database, no hair colour, no earrings.
@@ -57,7 +90,8 @@ The designed failure states are reachable without waiting for one to happen. Set
 | --- | --- |
 | `none` | Normal flow (default). |
 | `noFace` | The photograph has no readable face. Replaces the screen rather than banner-ing over it. |
-| `partialFailure` | Garment B's try-on fails; the other three panels stay usable. |
+| `partialFailure` | Garment B's garment task fails, so both of its panels fail. Garment A is untouched. |
+| `completeLookFailure` | Garment B's garment task succeeds and its makeup step does not — the sequence's own half-failure. Garment B keeps a usable garment preview. |
 | `skinUnavailable` | Skin appearance context is missing. The palette is unaffected — that is the point of `Promise.allSettled`. |
 
 These make the **server** return exactly what it would return in that situation, so the
@@ -68,7 +102,7 @@ lives client-side and triggers on any photograph that fails the size check in
 ### Checks
 
 ```bash
-npm test          # 112 tests — 74 in shared/, 38 in server/
+npm test          # 125 tests — 74 in shared/, 51 in server/
 npm run typecheck # all three workspaces
 npm run contrast-audit --workspace @yincol/web
 ```
@@ -108,10 +142,19 @@ YINCOL_LIVE_TRY_ON=true
 ```
 
 The browser sends its portrait and selected garment files to `POST /api/try-on`. The
-server uploads them through the feature-specific File APIs, downloads successful result
-bytes immediately, and returns in-memory image data to the browser. This runs two Clothes
-tasks and one Makeup task, so successful tasks consume API units. Use real team-owned or
-licensed source images; do not commit them.
+server uploads them through the feature-specific File APIs, runs the complete-look
+sequence for each garment, downloads successful result bytes immediately, and returns
+in-memory image data to the browser. Signed provider URLs never reach the browser, in
+result payloads or in failure messages.
+
+This runs **two Clothes tasks and two Makeup tasks** — one sequence per garment — so a
+fully successful generation consumes four successful tasks' worth of API units. Failed
+and running tasks consume none. Each step logs one line to the server console with its
+task id and outcome, so a local tester can see exactly what was spent. Repeating the same
+request in the same browser session is served from the session cache and spends nothing;
+see below.
+
+Use real team-owned or licensed source images; do not commit them.
 
 The live adapter reads score records from YouCam's `output` array and normalizes the
 whole-face `skin_type` value into a colour-only "finish appearance" signal. It ignores
@@ -272,11 +315,12 @@ local testing.
 
 Two kinds of picture exist here, and they are never allowed to be confused:
 
-- **Placeholders.** The four SVG panels in `web/public/fixtures/` are designed
+- **Placeholders.** The five SVG panels in `web/public/fixtures/` are designed
   stand-ins — a cream 3:4 panel with a gold hairline frame and a quiet caption. They ship
   with the repo so the flow runs before any capture exists. Every one is labelled
-  `provenance: 'placeholder'` by the server and surfaced as such in the UI. This is what
-  the demo currently runs on.
+  `provenance: 'placeholder'` by the server, carries no `stage`, and is surfaced as a
+  placeholder in the UI. This is what the demo currently runs on: a shipped placeholder
+  can never describe itself as a complete look, because nothing rendered it.
 - **Captured results.** `npm run capture-fixtures` is the only thing in the repository
   that produces a result image. It runs the real API once, downloads the bytes
   immediately — the download URL is dead in two hours, so bytes are what survive to demo
@@ -302,6 +346,13 @@ gitignored because face images carry likeness rights. Full detail is in
 [`assets/README.md`](assets/README.md).
 
 The app runs fully on ornamental placeholders until real photographs land.
+
+**Full-body results are not cropped.** The garment task returns a full-body image, and a
+fixed portrait-card ratio with `object-fit: cover` would quietly cut the legs off it — a
+crop the shopper cannot see is a crop they cannot judge. Result panels therefore scale the
+whole image to fit and take their shape from the portrait the results were generated from,
+clamped between square and 1:2 so two panels still sit side by side. Every panel on a
+screen keeps one shape, because two panels that differ in framing are not a comparison.
 
 ---
 

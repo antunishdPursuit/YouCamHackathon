@@ -21,23 +21,29 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadRootEnv } from '../src/loadEnv.js';
-import { loadConfig, RESULT_URL_TTL_HOURS } from '../src/youcam/config.js';
+import { loadConfig } from '../src/youcam/config.js';
 import {
   FEATURES,
-  buildClothesVtoPayload,
   buildFacialColorTonePayload,
-  buildMakeupVtoPayload,
   buildSkinAnalysisPayload,
   isTaskPathVerified,
-  makeupEffectsForLook,
 } from '../src/youcam/features.js';
-import { downloadResult, runTask, type RawTaskResult } from '../src/youcam/taskRunner.js';
+import { runTask, type RawTaskResult } from '../src/youcam/taskRunner.js';
 import { publicUrlStrategy } from '../src/youcam/imageInput.js';
+import { runCompleteLookSequence } from '../src/youcam/completeLook.js';
 import { adaptColorTone } from '../src/youcam/adapters/facialColorTone.js';
 import { adaptSkinAnalysis } from '../src/youcam/adapters/skinAnalysis.js';
-import { adaptTryOnUrl } from '../src/youcam/adapters/tryOn.js';
 import { CAPTURE_TARGETS, FIXTURE_PUBLIC_DIR } from '../src/fixtures/index.js';
 import { findGarment, findMakeupLook } from '@yincol/shared';
+
+/**
+ * The look the captured complete-look fixtures use.
+ *
+ * One look, because the makeup step runs per garment and capturing every look against
+ * every garment would multiply the credit cost for no demo benefit. Any other look in the
+ * picker falls back to the designed placeholder, which says so.
+ */
+const FIXTURE_MAKEUP_LOOK_ID = 'rose-veil';
 
 loadRootEnv();
 
@@ -71,21 +77,14 @@ function recordShape(name: string, raw: RawTaskResult): void {
   console.log(`  ↳ response shape written to docs/captured-shapes/${name}.json`);
 }
 
-/** Download immediately. Not later. See the two-hour rule at the top of this file. */
-async function captureImage(
-  label: string,
-  raw: RawTaskResult,
-  feature: Parameters<typeof downloadResult>[1],
-  filename: string,
-): Promise<void> {
-  const url = adaptTryOnUrl(raw);
-  if (!url) {
-    console.error(`  ✗ ${label}: task succeeded but no result URL could be read.`);
-    return;
-  }
-
-  console.log(`  ↳ downloading now (URL expires in ~${RESULT_URL_TTL_HOURS}h)`);
-  const { bytes } = await downloadResult(url, feature);
+/**
+ * Write one step's bytes to disk.
+ *
+ * The sequence has already downloaded them — it has to, because step 2's input is step
+ * 1's image — so by the time this runs the two-hour rule has been honoured and there is
+ * nothing left to race.
+ */
+function writeFixture(label: string, filename: string, bytes: Buffer): void {
   mkdirSync(FIXTURE_PUBLIC_DIR, { recursive: true });
   writeFileSync(join(FIXTURE_PUBLIC_DIR, filename), bytes);
   console.log(`  ✓ ${label} → web/public/fixtures/${filename} (${bytes.length} bytes)`);
@@ -117,7 +116,7 @@ async function main(): Promise<void> {
     );
   }
 
-  console.log('\n[1/4] Facial colour tone');
+  console.log('\n[1/3] Facial colour tone');
   try {
     const { raw } = await runTask(config, FEATURES.facialColorTone, buildFacialColorTonePayload(portrait));
     recordShape('facial-color-tone', raw);
@@ -128,7 +127,7 @@ async function main(): Promise<void> {
     console.error(`  ✗ ${(error as Error).message}`);
   }
 
-  console.log('\n[2/4] Skin analysis');
+  console.log('\n[2/3] Skin analysis');
   try {
     const { raw } = await runTask(config, FEATURES.skinAnalysis, buildSkinAnalysisPayload(portrait));
     recordShape('skin-analysis', raw);
@@ -138,42 +137,56 @@ async function main(): Promise<void> {
     console.error(`  ✗ ${(error as Error).message}`);
   }
 
-  // ── garments ───────────────────────────────────────────────
-  console.log('\n[3/4] Clothes try-on');
+  // ── the complete-look sequence, once per garment ───────────
+  //
+  // Two fixtures come out of each garment, because two images come out of the live path:
+  // the garment task's own result, and that result after the makeup task rendered the
+  // effects onto it. Capturing them the same way the browser route generates them is the
+  // point — a fixture that was produced differently from the thing it stands in for is
+  // not much of a fixture.
+  const look = findMakeupLook(FIXTURE_MAKEUP_LOOK_ID);
+  if (!look) throw new Error(`Unknown makeup look ${FIXTURE_MAKEUP_LOOK_ID}.`);
+
+  console.log('\n[3/3] Complete look — clothes, then makeup on the clothes result');
   for (const target of CAPTURE_TARGETS.garments) {
     const garment = findGarment(target.catalogId);
     const label = garment?.name ?? target.catalogId;
+
     try {
       const garmentImage = await publicUrlStrategy.prepare(
         { publicUrl: sourceUrl(target.source) },
         'clothesVto',
       );
-      const { raw } = await runTask(
+
+      // The same function the browser route calls. The script differs only in how the
+      // first step's inputs are prepared — published URLs here, uploaded bytes there —
+      // and in writing each step's bytes down as they arrive.
+      const outcome = await runCompleteLookSequence({
         config,
-        FEATURES.clothesVto,
-        buildClothesVtoPayload(portrait, garmentImage, garment?.category ?? 'upper_body'),
-      );
-      await captureImage(label, raw, 'clothesVto', target.fixture);
+        portrait,
+        garment: garmentImage,
+        garmentCategory: garment?.category ?? 'upper_body',
+        look,
+        garmentName: label,
+        onStep: (step, detail) => {
+          const filename = step === 'garment' ? target.fixture : target.completeLookFixture;
+          const stepLabel = step === 'garment' ? label : `${label} + ${look.name}`;
+          recordShape(`${step}-${target.catalogId}`, detail.raw);
+          writeFixture(stepLabel, filename, detail.image.bytes);
+        },
+      });
+
+      for (const [step, panel] of [
+        ['garment', outcome.garmentOnly],
+        ['complete look', outcome.completeLook],
+      ] as const) {
+        if (panel.result.status === 'failed') {
+          console.error(`  ✗ ${label} ${step}: ${panel.result.reason}`);
+        }
+      }
     } catch (error) {
       // A failed task consumes no credits, so a failure here costs nothing but time.
       console.error(`  ✗ ${label}: ${(error as Error).message}`);
-    }
-  }
-
-  // ── makeup ─────────────────────────────────────────────────
-  console.log('\n[4/4] Makeup virtual try-on');
-  for (const target of CAPTURE_TARGETS.makeup) {
-    try {
-      const look = findMakeupLook(target.catalogId);
-      if (!look) throw new Error(`Unknown makeup look ${target.catalogId}.`);
-      const { raw } = await runTask(
-        config,
-        FEATURES.makeupVto,
-        buildMakeupVtoPayload(portrait, makeupEffectsForLook(look)),
-      );
-      await captureImage(target.catalogId, raw, 'makeupVto', target.fixture);
-    } catch (error) {
-      console.error(`  ✗ ${target.catalogId}: ${(error as Error).message}`);
     }
   }
 
