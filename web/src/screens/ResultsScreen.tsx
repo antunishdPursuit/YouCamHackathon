@@ -6,22 +6,22 @@
  * decision, and every image keeps its provider/fixture provenance below the frame.
  */
 
-import type { AnalyzeResponse, Palette, TryOnPanel, TryOnResponse } from '@yincol/shared';
+import type { AnalyzeResponse, TryOnPanel, TryOnResponse } from '@yincol/shared';
 import { findMakeupLook } from '@yincol/shared';
 import { Button, Chip, Segmented } from '../components/controls.js';
 import { PartialResultsNotice } from '../components/StateNotice.js';
 import { PhotoSlot } from '../components/PhotoSlot.js';
-import { DISPLAY_SLOTS, type DisplaySlotConfig } from '../config/displaySlots.js';
+import { DISPLAY_SLOTS, frameAspectRatio, type DisplaySlotConfig } from '../config/displaySlots.js';
 import { SectionHeading, YincolCard } from '../components/ornament.js';
-import {
-  type CompareAxis,
-} from '../state/session.js';
+import type { CompareAxis, MakeupChoice } from '../state/session.js';
 
 interface ResultPanel {
   readonly key: string;
   readonly slot: DisplaySlotConfig;
   readonly panel: TryOnPanel | undefined;
   readonly title: string;
+  /** One line under the title saying which steps produced this image. */
+  readonly subtitle: string;
   readonly chosen: boolean;
   readonly choose: () => void;
 }
@@ -30,6 +30,21 @@ function garmentSlotLabel(index: number): string {
   if (index === 0) return 'Garment A';
   if (index === 1) return 'Garment B';
   return `Garment ${index + 1}`;
+}
+
+/**
+ * What a panel is, said only as far as the server's `stage` allows.
+ *
+ * A panel is described as a complete look ONLY where the server marked it one, which it
+ * does only where the makeup task was handed the garment task's result. Everywhere else
+ * this stops at "garment preview", including for shipped placeholders — which nothing
+ * rendered, and which therefore get no claim at all.
+ */
+function panelSubtitle(panel: TryOnPanel | undefined, lookName: string): string {
+  if (!panel || panel.result.status === 'failed') return 'Not generated';
+  if (panel.stage === 'completeLook') return `Garment and ${lookName} makeup`;
+  if (panel.stage === 'garmentOnly') return 'Garment only, no makeup';
+  return 'Designed stand-in';
 }
 
 function PaletteSummary({ analysis }: { analysis: AnalyzeResponse }) {
@@ -99,6 +114,7 @@ export function ResultsScreen({
   axis,
   keptGarmentIds,
   keptMakeupWinners,
+  portraitSize,
   onAxisChange,
   onToggleGarment,
   onToggleMakeup,
@@ -111,46 +127,65 @@ export function ResultsScreen({
   makeupLookId: string | null;
   axis: CompareAxis;
   keptGarmentIds: readonly string[];
-  keptMakeupWinners: readonly ('bare' | 'madeUp')[];
+  keptMakeupWinners: readonly MakeupChoice[];
+  /** Pixel size of the portrait the results came from, so full-body frames fit the body. */
+  portraitSize?: { readonly width: number; readonly height: number };
   onAxisChange: (axis: CompareAxis) => void;
   onToggleGarment: (garmentId: string) => void;
-  onToggleMakeup: (winner: 'bare' | 'madeUp') => void;
+  onToggleMakeup: (winner: MakeupChoice) => void;
   onEditInputs: () => void;
   onStartOver: () => void;
 }) {
   const look = makeupLookId ? findMakeupLook(makeupLookId) : undefined;
+  const lookName = look?.name ?? 'the chosen';
+  const frame = frameAspectRatio(portraitSize?.width, portraitSize?.height);
 
-  const garmentPanels: ResultPanel[] = garmentIds.map((garmentId, index) => {
-    const panel = tryOn.garments[garmentId];
-    const slotLabel = garmentSlotLabel(index);
-    return {
-      key: garmentId,
-      slot: index === 0 ? DISPLAY_SLOTS.garmentA : DISPLAY_SLOTS.garmentB,
-      panel,
-      title: slotLabel,
-      chosen: keptGarmentIds.includes(garmentId),
-      choose: () => onToggleGarment(garmentId),
-    };
-  });
+  /**
+   * Axis 1 — the two complete looks, side by side.
+   *
+   * Both carry the same makeup, so the garment is the only thing that changes between
+   * them. That is the comparison the whole sequence exists to produce.
+   */
+  const garmentPanels: ResultPanel[] = garmentIds.map((garmentId, index) => ({
+    key: garmentId,
+    slot: index === 0 ? DISPLAY_SLOTS.completeLookA : DISPLAY_SLOTS.completeLookB,
+    panel: tryOn.completeLooks[garmentId],
+    title: `${garmentSlotLabel(index)} complete look`,
+    subtitle: panelSubtitle(tryOn.completeLooks[garmentId], lookName),
+    chosen: keptGarmentIds.includes(garmentId),
+    choose: () => onToggleGarment(garmentId),
+  }));
 
-  const makeupPanels: ResultPanel[] = [
-    {
-      key: 'bare',
-      slot: DISPLAY_SLOTS.portrait,
-      panel: tryOn.portrait,
-      title: 'Bare face',
-      chosen: keptMakeupWinners.includes('bare'),
-      choose: () => onToggleMakeup('bare'),
-    },
-    {
-      key: 'madeUp',
-      slot: DISPLAY_SLOTS.makeupOn,
-      panel: tryOn.makeup,
-      title: look?.name ?? 'Makeup look',
-      chosen: keptMakeupWinners.includes('madeUp'),
-      choose: () => onToggleMakeup('madeUp'),
-    },
-  ];
+  /**
+   * Axis 2 — what the makeup step added, on one garment.
+   *
+   * The garment is held constant and the makeup is the only difference, so this reads as
+   * the effect of the second task rather than as two unrelated pictures. Garment A is the
+   * anchor; the chip says so.
+   */
+  const anchorGarmentId = garmentIds[0];
+  const makeupPanels: ResultPanel[] = anchorGarmentId
+    ? [
+        {
+          key: 'garmentOnly',
+          slot: DISPLAY_SLOTS.garmentA,
+          panel: tryOn.garments[anchorGarmentId],
+          title: 'Without makeup',
+          subtitle: panelSubtitle(tryOn.garments[anchorGarmentId], lookName),
+          chosen: keptMakeupWinners.includes('garmentOnly'),
+          choose: () => onToggleMakeup('garmentOnly'),
+        },
+        {
+          key: 'completeLook',
+          slot: DISPLAY_SLOTS.completeLookA,
+          panel: tryOn.completeLooks[anchorGarmentId],
+          title: `With ${lookName}`,
+          subtitle: panelSubtitle(tryOn.completeLooks[anchorGarmentId], lookName),
+          chosen: keptMakeupWinners.includes('completeLook'),
+          choose: () => onToggleMakeup('completeLook'),
+        },
+      ]
+    : [];
 
   const panels = axis === 'garments' ? garmentPanels : makeupPanels;
   const failedLabels = panels
@@ -158,14 +193,16 @@ export function ResultsScreen({
     .map((entry) => `the ${entry.title.toLowerCase()} preview`);
   const lockedLabel = axis === 'garments'
     ? `Makeup held: ${look?.name ?? 'none'}`
-    : `Garments held: ${garmentIds.map((_id, index) => garmentSlotLabel(index).replace('Garment ', '')).join(' + ') || 'none'}`;
+    : `Garment held: ${garmentIds.length > 0 ? garmentSlotLabel(0) : 'none'}`;
 
   return (
     <div className="animate-soft-fade space-y-8">
       <header className="text-center">
         <SectionHeading className="text-4xl">Your comparison</SectionHeading>
         <p className="mx-auto mt-3 max-w-reading text-base text-ink-soft">
-          Compare the garments or makeup on the same portrait, then keep any options that work for you.
+          Each garment was rendered on your portrait, then the makeup was applied to that
+          result. Compare the two complete looks, or see what the makeup step changed, then
+          keep any options that work for you.
         </p>
       </header>
 
@@ -180,8 +217,8 @@ export function ResultsScreen({
             value={axis}
             onChange={onAxisChange}
             options={[
-              { value: 'garments', label: 'Garments', hint: 'compare garment A with garment B' },
-              { value: 'makeup', label: 'Makeup', hint: 'compare the bare face with the makeup look' },
+              { value: 'garments', label: 'Garments', hint: 'compare the two complete looks' },
+              { value: 'makeup', label: 'Makeup', hint: 'compare garment A with and without the makeup step' },
             ]}
           />
           <Chip tone="locked">
@@ -207,20 +244,30 @@ export function ResultsScreen({
             <article key={entry.key} className="flex flex-col">
               <PhotoSlot
                 slot={entry.slot}
+                aspectRatio={frame}
                 showProvenance={tryOn.mode !== 'fixture'}
-                {...(entry.panel ? { result: entry.panel.result, provenance: entry.panel.provenance } : {})}
+                {...(entry.panel
+                  ? {
+                      result: entry.panel.result,
+                      provenance: entry.panel.provenance,
+                      ...(entry.panel.stage ? { stage: entry.panel.stage } : {}),
+                    }
+                  : {})}
               />
-              <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
-                <h3 className="text-base font-semibold text-ink">{entry.title}</h3>
-                <Button
-                  variant={entry.chosen ? 'primary' : 'quiet'}
-                  aria-pressed={entry.chosen}
-                  onClick={entry.choose}
-                  className="!px-4 text-sm"
-                >
-                  {entry.chosen ? 'Kept' : 'Keep this'}
-                  <span className="sr-only"> — {entry.title}</span>
-                </Button>
+              <div className="mt-3 flex flex-col items-center gap-2">
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  <h3 className="text-base font-semibold text-ink">{entry.title}</h3>
+                  <Button
+                    variant={entry.chosen ? 'primary' : 'quiet'}
+                    aria-pressed={entry.chosen}
+                    onClick={entry.choose}
+                    className="!px-4 text-sm"
+                  >
+                    {entry.chosen ? 'Kept' : 'Keep this'}
+                    <span className="sr-only"> — {entry.title}</span>
+                  </Button>
+                </div>
+                <p className="text-sm text-ink-soft">{entry.subtitle}</p>
               </div>
             </article>
           ))}

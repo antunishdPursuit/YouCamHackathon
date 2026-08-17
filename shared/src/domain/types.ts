@@ -217,8 +217,20 @@ export type TryOnResult =
   | { readonly status: 'ready'; readonly imageUrl: string; readonly alt: string }
   | { readonly status: 'failed'; readonly reason: string };
 
-/** The four photographs the UI can render. */
-export type DisplaySlotId = 'portrait' | 'garmentA' | 'garmentB' | 'makeupOn';
+/**
+ * The photographs the UI can render.
+ *
+ * `garmentA` / `garmentB` are garment-only previews — the Clothes VTO output on its own.
+ * `completeLookA` / `completeLookB` are those same previews after the makeup effects were
+ * applied to them. Two slot ids rather than one because the difference between them is
+ * the comparison the Results screen exists to show.
+ */
+export type DisplaySlotId =
+  | 'portrait'
+  | 'garmentA'
+  | 'garmentB'
+  | 'completeLookA'
+  | 'completeLookB';
 
 // ─────────────────────────────────────────────────────────────
 // Skin appearance — context for colour, never an assessment of a person

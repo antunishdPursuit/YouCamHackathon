@@ -19,8 +19,16 @@
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import type { ColorToneReading, Provenance, SkinAppearance, TryOnResult } from '@yincol/shared';
+import type {
+  ColorToneReading,
+  Provenance,
+  SkinAppearance,
+  TryOnPanel,
+  TryOnResult,
+} from '@yincol/shared';
 import { hexToLab } from '@yincol/shared';
+import type { SimulatedState } from '../youcam/config.js';
+import { tryOnFailure } from '../youcam/adapters/tryOn.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -96,14 +104,27 @@ export const FIXTURE_SKIN_APPEARANCE: SkinAppearance = {
  * picker offers eight garments and five looks. So one pair of garments and one look can
  * have real captured results; everything else renders the designed placeholder. Makeup
  * is configured by the server and has no source image in the current API contract.
+ *
+ * Each garment now has TWO result fixtures, because the live path produces two images
+ * for it: the garment task's own output, and that output after the makeup task rendered
+ * the effects onto it.
  */
 export const CAPTURE_TARGETS = {
   portrait: { source: 'portrait.jpg', fixture: 'portrait.jpg' },
   garments: [
-    { catalogId: 'rosewater-cardigan', source: 'garment-a.jpg', fixture: 'garment-a-result.jpg' },
-    { catalogId: 'sage-linen-shirt', source: 'garment-b.jpg', fixture: 'garment-b-result.jpg' },
+    {
+      catalogId: 'rosewater-cardigan',
+      source: 'garment-a.jpg',
+      fixture: 'garment-a-result.jpg',
+      completeLookFixture: 'complete-look-a-result.jpg',
+    },
+    {
+      catalogId: 'sage-linen-shirt',
+      source: 'garment-b.jpg',
+      fixture: 'garment-b-result.jpg',
+      completeLookFixture: 'complete-look-b-result.jpg',
+    },
   ],
-  makeup: [{ catalogId: 'rose-veil', fixture: 'makeup-on-result.jpg' }],
 } as const;
 
 /** Designed stand-ins that ship with the repo. Clearly marked as such, in the file. */
@@ -111,7 +132,8 @@ const PLACEHOLDER_FILES: Readonly<Record<string, string>> = {
   portrait: 'placeholder-portrait.svg',
   garmentA: 'placeholder-garment-a.svg',
   garmentB: 'placeholder-garment-b.svg',
-  makeupOn: 'placeholder-makeup-on.svg',
+  completeLookA: 'placeholder-complete-look-a.svg',
+  completeLookB: 'placeholder-complete-look-b.svg',
 };
 
 export interface FixtureImage {
@@ -154,10 +176,98 @@ export function resolveFixtureImage(
   };
 }
 
-/** The captured fixture filename for a garment, if that garment is a capture target. */
+/** The captured garment-only fixture for a garment, if that garment is a capture target. */
 export const capturedGarmentFixture = (garmentId: string): string | undefined =>
   CAPTURE_TARGETS.garments.find((target) => target.catalogId === garmentId)?.fixture;
 
-/** The captured fixture filename for a makeup look, if it is a capture target. */
-export const capturedMakeupFixture = (lookId: string): string | undefined =>
-  CAPTURE_TARGETS.makeup.find((target) => target.catalogId === lookId)?.fixture;
+/** The captured complete-look fixture for a garment, if that garment is a capture target. */
+export const capturedCompleteLookFixture = (garmentId: string): string | undefined =>
+  CAPTURE_TARGETS.garments.find((target) => target.catalogId === garmentId)?.completeLookFixture;
+
+// ─────────────────────────────────────────────────────────────
+// The fixture-mode complete look
+// ─────────────────────────────────────────────────────────────
+
+export interface FixtureCompleteLookRequest {
+  readonly garmentId: string;
+  /** 0 is slot A, 1 is slot B. Decides which placeholder caption gets drawn. */
+  readonly index: number;
+  readonly garmentName: string;
+  readonly lookName: string;
+  readonly simulate: SimulatedState;
+}
+
+/**
+ * The two panels fixture mode returns for one garment.
+ *
+ * `stage` is set only for a `captured` fixture, because only a captured fixture came out
+ * of the sequence it would be describing. A shipped placeholder gets no stage at all —
+ * nothing rendered it, so nothing may be claimed of it, and the UI falls back to calling
+ * it what it is.
+ */
+export function fixtureCompleteLook({
+  garmentId,
+  index,
+  garmentName,
+  lookName,
+  simulate,
+}: FixtureCompleteLookRequest): { garmentOnly: TryOnPanel; completeLook: TryOnPanel } {
+  const slotSuffix = index === 0 ? 'A' : 'B';
+
+  // One garment failing while everything else stays usable is a first-class state, not an
+  // outage. Garment B fails so the asymmetry is visible without waiting for one.
+  if (simulate === 'partialFailure' && index === 1) {
+    return {
+      garmentOnly: {
+        result: tryOnFailure('This try-on did not complete. The other previews are unaffected.'),
+        provenance: 'placeholder',
+      },
+      completeLook: {
+        result: tryOnFailure(
+          'The garment preview did not come back, so there was nothing to apply makeup to.',
+        ),
+        provenance: 'placeholder',
+      },
+    };
+  }
+
+  const garmentImage = resolveFixtureImage(
+    capturedGarmentFixture(garmentId),
+    index === 0 ? 'garmentA' : 'garmentB',
+    `You wearing the ${garmentName.toLowerCase()}`,
+  );
+  const garmentOnly: TryOnPanel = {
+    result: garmentImage.result,
+    provenance: garmentImage.provenance,
+    ...(garmentImage.provenance === 'captured' ? { stage: 'garmentOnly' as const } : {}),
+  };
+
+  // The second half of the sequence failing while the first half survives is the state
+  // the sequenced path introduces, so it gets its own switch rather than being inferred.
+  if (simulate === 'completeLookFailure' && index === 1) {
+    return {
+      garmentOnly,
+      completeLook: {
+        result: tryOnFailure(
+          `The makeup step could not be applied to garment ${slotSuffix}. The garment preview itself is unaffected.`,
+        ),
+        provenance: 'placeholder',
+      },
+    };
+  }
+
+  const completeLookImage = resolveFixtureImage(
+    capturedCompleteLookFixture(garmentId),
+    index === 0 ? 'completeLookA' : 'completeLookB',
+    `You wearing the ${garmentName.toLowerCase()} with the ${lookName} makeup look`,
+  );
+
+  return {
+    garmentOnly,
+    completeLook: {
+      result: completeLookImage.result,
+      provenance: completeLookImage.provenance,
+      ...(completeLookImage.provenance === 'captured' ? { stage: 'completeLook' as const } : {}),
+    },
+  };
+}

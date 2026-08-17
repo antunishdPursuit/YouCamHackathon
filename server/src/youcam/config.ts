@@ -136,12 +136,20 @@ export { IMAGE_SPEC } from '@yincol/shared';
  * would return in that situation, so the front end takes the same code path it would
  * take for real. Fixture mode only; live mode ignores it.
  */
-export type SimulatedState = 'none' | 'noFace' | 'partialFailure' | 'skinUnavailable';
+export type SimulatedState =
+  | 'none'
+  | 'noFace'
+  /** The garment task fails for garment B; everything else stays usable. */
+  | 'partialFailure'
+  /** Garment B's garment task succeeds and its makeup step does not — the sequence's own half-failure. */
+  | 'completeLookFailure'
+  | 'skinUnavailable';
 
 const SIMULATED_STATES: readonly SimulatedState[] = [
   'none',
   'noFace',
   'partialFailure',
+  'completeLookFailure',
   'skinUnavailable',
 ];
 

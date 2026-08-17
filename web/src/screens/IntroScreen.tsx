@@ -9,6 +9,7 @@
 import { SectionHeading, YincolCard } from '../components/ornament.js';
 import { Button } from '../components/controls.js';
 import { findMakeupLook } from '@yincol/shared';
+import type { MakeupChoice } from '../state/session.js';
 
 /**
  * The kept-options shelf.
@@ -26,7 +27,7 @@ function KeptLooks({
 }: {
   garmentIds: readonly string[];
   keptGarmentIds: readonly string[];
-  keptMakeupWinners: readonly ('bare' | 'madeUp')[];
+  keptMakeupWinners: readonly MakeupChoice[];
   makeupLookId: string | null;
   className?: string;
 }) {
@@ -40,9 +41,9 @@ function KeptLooks({
     }),
     ...keptMakeupWinners.map((winner) => ({
       id: `makeup:${winner}`,
-      label: winner === 'bare'
-        ? 'Bare face'
-        : (makeupLookId ? findMakeupLook(makeupLookId)?.name : undefined) ?? 'Makeup look',
+      label: winner === 'garmentOnly'
+        ? 'Garment without makeup'
+        : `Complete look — ${(makeupLookId ? findMakeupLook(makeupLookId)?.name : undefined) ?? 'makeup'}`,
     })),
   ];
 
@@ -109,7 +110,7 @@ function WhatYouGet() {
         </li>
         <li className="flex gap-3">
           <span aria-hidden="true" className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gold" />
-          One preview using the configured makeup look.
+          Each of those with the configured makeup applied to it.
         </li>
         <li className="flex gap-3">
           <span aria-hidden="true" className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gold" />
@@ -144,9 +145,9 @@ function ComparisonGuide() {
           <span className="rounded-card border border-gold/40 px-3 py-3 text-center text-ink">Garment B</span>
         </div>
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-          <span className="rounded-card border border-gold/40 px-3 py-3 text-center text-ink">Bare face</span>
+          <span className="rounded-card border border-gold/40 px-3 py-3 text-center text-ink">Without makeup</span>
           <span aria-hidden="true" className="text-gold">or both</span>
-          <span className="rounded-card border border-gold/40 px-3 py-3 text-center text-ink">Makeup look</span>
+          <span className="rounded-card border border-gold/40 px-3 py-3 text-center text-ink">Complete look</span>
         </div>
       </div>
 
@@ -167,7 +168,7 @@ export function IntroScreen({
   onBegin: () => void;
   garmentIds: readonly string[];
   keptGarmentIds: readonly string[];
-  keptMakeupWinners: readonly ('bare' | 'madeUp')[];
+  keptMakeupWinners: readonly MakeupChoice[];
   makeupLookId: string | null;
 }) {
   return (

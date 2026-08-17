@@ -12,7 +12,9 @@ const STEPS = [
   { id: 'images', label: 'Checking your images' },
   { id: 'colour', label: 'Reading your colour context' },
   { id: 'garments', label: 'Generating garment previews' },
-  { id: 'makeup', label: 'Applying your makeup look' },
+  // Second, and on purpose: the makeup step runs on the garment previews, not on the
+  // portrait. The order on screen is the order of the work.
+  { id: 'makeup', label: 'Applying your makeup to each preview' },
 ] as const;
 
 /** Keep the explanation visible while the fixture delay is exercised. */

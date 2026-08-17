@@ -1,17 +1,20 @@
 /**
  * A photograph slot — the only component in the app that renders a photograph.
  *
- * Three rules it exists to enforce:
+ * Four rules it exists to enforce:
  *
- *  1. FIXED FRAMING. Always 3:4, always object-cover, always the same. Two panels that
+ *  1. FIXED FRAMING. Every panel on a screen shares one frame shape. Two panels that
  *     differ in crop or scale are not a comparison.
- *  2. TWO-ZONE COLOUR. The interior is plain cream. No tint, gradient, scrim, glow or
+ *  2. NOTHING IS SILENTLY CROPPED. The image is scaled to fit inside that frame rather
+ *     than filling it, so a full-body garment result arrives with its feet attached. A
+ *     crop the shopper cannot see is a crop they cannot judge.
+ *  3. TWO-ZONE COLOUR. The interior is plain cream. No tint, gradient, scrim, glow or
  *     shadow lies across the image. Ornament frames it from outside.
- *  3. AN EMPTY SLOT IS A DESIGNED STATE. Not a broken image, not a grey box — a cream
+ *  4. AN EMPTY SLOT IS A DESIGNED STATE. Not a broken image, not a grey box — a cream
  *     panel with a gold hairline, a small motif and a quiet caption.
  */
 
-import type { Provenance, TryOnResult } from '@yincol/shared';
+import type { LookStage, Provenance, TryOnResult } from '@yincol/shared';
 import { PHOTO_ASPECT_RATIO, type DisplaySlotConfig } from '../config/displaySlots.js';
 
 /** The centred motif on an empty slot. Mirror arch, in keeping with the vanity table. */
@@ -46,6 +49,8 @@ export function PhotoSlot({
   slot,
   result,
   provenance,
+  stage,
+  aspectRatio = PHOTO_ASPECT_RATIO,
   showProvenance = true,
   className = '',
 }: {
@@ -53,6 +58,10 @@ export function PhotoSlot({
   /** `undefined` means the slot has not been filled yet — the same as a designed empty. */
   result?: TryOnResult;
   provenance?: Provenance;
+  /** What the image actually is. Absent means nothing rendered it, so nothing is claimed. */
+  stage?: LookStage;
+  /** Shared by every panel on a screen; see `frameAspectRatio`. */
+  aspectRatio?: string;
   /** Hide per-image fixture labels when a parent notice already covers the whole set. */
   showProvenance?: boolean;
   className?: string;
@@ -63,14 +72,13 @@ export function PhotoSlot({
     <figure className={`m-0 ${className}`}>
       <div
         className="relative overflow-hidden rounded-card border border-gold/60 bg-ground"
-        style={{ aspectRatio: PHOTO_ASPECT_RATIO }}
+        style={{ aspectRatio }}
       >
         {isReady ? (
           <img
             src={result.imageUrl}
             alt={result.alt}
-            className="h-full w-full object-cover"
-            style={{ aspectRatio: PHOTO_ASPECT_RATIO }}
+            className="h-full w-full object-contain"
           />
         ) : (
           // The designed empty state. A judge could see this without embarrassment.
@@ -92,21 +100,33 @@ export function PhotoSlot({
         Provenance sits under the frame, never across the picture. `placeholder` has to
         say so plainly — a stand-in presented as an API result is a lie told to a judge.
       */}
-      {showProvenance && provenance === 'placeholder' && isReady ? (
+      {showProvenance && isReady && provenanceNote(provenance, stage) ? (
         <figcaption className="mt-2 text-sm text-ink-soft">
-          Placeholder image — not an API result.
-        </figcaption>
-      ) : null}
-      {showProvenance && provenance === 'captured' && isReady ? (
-        <figcaption className="mt-2 text-sm text-ink-soft">
-          Pre-captured result from the live API.
-        </figcaption>
-      ) : null}
-      {showProvenance && provenance === 'live' && isReady ? (
-        <figcaption className="mt-2 text-sm text-ink-soft">
-          Live YouCam result — generated from your upload.
+          {provenanceNote(provenance, stage)}
         </figcaption>
       ) : null}
     </figure>
   );
+}
+
+/**
+ * What this picture is, in one sentence a judge could check.
+ *
+ * The second clause is only added where `stage` says the makeup step actually received
+ * the garment step's image. Without that, the caption stops at what we can prove.
+ */
+function provenanceNote(provenance?: Provenance, stage?: LookStage): string | null {
+  const sequence =
+    stage === 'completeLook' ? ' The makeup effects were applied to the garment result.' : '';
+
+  switch (provenance) {
+    case 'placeholder':
+      return 'Placeholder image — not an API result.';
+    case 'captured':
+      return `Pre-captured result from the live API.${sequence}`;
+    case 'live':
+      return `Live YouCam result — generated from your upload.${sequence}`;
+    default:
+      return null;
+  }
 }

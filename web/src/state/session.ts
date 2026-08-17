@@ -37,6 +37,15 @@ export type CapturedPortrait = CapturedImage;
 /** Which axis the results workspace is showing. */
 export type CompareAxis = 'garments' | 'makeup';
 
+/**
+ * The two panels on the makeup axis.
+ *
+ * Not `bare` and `madeUp` any more: the makeup step now runs on the garment result, so
+ * the honest comparison is the same garment with and without it. The bare portrait is
+ * still on screen, but it is not one of the two things being compared.
+ */
+export type MakeupChoice = 'garmentOnly' | 'completeLook';
+
 export interface SessionState {
   readonly step: Step;
   readonly consentGiven: boolean;
@@ -53,7 +62,7 @@ export interface SessionState {
   readonly axis: CompareAxis;
   /** Items the user kept in the current comparison; more than one may be kept. */
   readonly keptGarmentIds: readonly string[];
-  readonly keptMakeupWinners: readonly ('bare' | 'madeUp')[];
+  readonly keptMakeupWinners: readonly MakeupChoice[];
   readonly error: string | null;
   /** Distinguishes "no face" from a generic failure, so the copy can differ. */
   readonly errorCode: 'noFace' | 'general' | null;
@@ -91,7 +100,7 @@ export type SessionAction =
   | { type: 'tryOnReady'; tryOn: TryOnResponse }
   | { type: 'setAxis'; axis: CompareAxis }
   | { type: 'toggleGarmentKept'; garmentId: string }
-  | { type: 'toggleMakeupKept'; winner: 'bare' | 'madeUp' }
+  | { type: 'toggleMakeupKept'; winner: MakeupChoice }
   | { type: 'failed'; message: string; code?: 'noFace' | 'general' }
   | { type: 'dismissError' }
   | { type: 'startOver' };
