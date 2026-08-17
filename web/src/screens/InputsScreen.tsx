@@ -10,16 +10,10 @@
 import { useRef, useState } from 'react';
 import { checkImageDimensions, IMAGE_SPEC, MAKEUP_LOOKS, type ImageCheck } from '@yincol/shared';
 import { Button } from '../components/controls.js';
-import { GildedFrame, PearlDivider, Ribbon, SectionHeading, YincolCard } from '../components/ornament.js';
+import { GildedFrame, Ribbon, SectionHeading, YincolCard } from '../components/ornament.js';
 import {
-  OCCASION_LABELS,
-  OCCASION_OPTIONS,
-  SETTING_LABELS,
-  SETTING_OPTIONS,
   type CapturedImage,
   type CapturedPortrait,
-  type Occasion,
-  type Setting,
 } from '../state/session.js';
 
 type InputSlot = 'portrait' | 'garmentA' | 'garmentB';
@@ -199,101 +193,39 @@ function ImagePickerCard({
 }
 
 export function InputsScreen({
-  occasion,
-  setting,
   portrait,
   garmentInputs,
   makeupLookId,
-  demoInputs,
-  onOccasion,
-  onSetting,
   onPortrait,
   onGarment,
   onClearGarment,
   onChooseMakeup,
-  onUseDemo,
   onContinue,
   onBack,
 }: {
-  occasion: Occasion | null;
-  setting: Setting | null;
   portrait: CapturedPortrait | null;
   garmentInputs: { readonly a: CapturedImage | null; readonly b: CapturedImage | null };
   makeupLookId: string | null;
-  demoInputs: boolean;
-  onOccasion: (occasion: Occasion) => void;
-  onSetting: (setting: Setting | null) => void;
   onPortrait: (image: CapturedPortrait) => void;
   onGarment: (slot: 'a' | 'b', image: CapturedImage) => void;
   onClearGarment: (slot: 'a' | 'b') => void;
   onChooseMakeup: (lookId: string) => void;
-  onUseDemo: () => void;
   onContinue: () => void;
   onBack: () => void;
 }) {
-  const ready =
-    occasion !== null &&
-    (demoInputs || (portrait !== null && garmentInputs.a !== null && garmentInputs.b !== null && makeupLookId !== null));
+  const ready = portrait !== null && garmentInputs.a !== null && garmentInputs.b !== null && makeupLookId !== null;
 
   return (
     <div className="animate-soft-fade space-y-10">
       <header className="text-center">
         <SectionHeading>Add your inputs</SectionHeading>
-        <p className="mx-auto mt-3 text-lg text-ink-soft">
-          Add one portrait, two garment references, and the makeup direction you want to compare.
+        <p className="mx-auto mt-3 text-base text-ink-soft xl:whitespace-nowrap">
+          Add one portrait, two garment references, and one makeup direction to compare.
         </p>
       </header>
 
       <div className="grid gap-8 xl:grid-cols-[minmax(240px,0.34fr)_minmax(0,1fr)] xl:items-start">
-        <YincolCard aria-labelledby="occasion-heading" tone="surface" className="p-6 sm:p-7">
-          <h3 id="occasion-heading" className="font-display text-2xl text-ink">
-            What are you dressing for?
-          </h3>
-          <p className="mt-2 text-base text-ink-soft">
-            Choose the moment you have in mind so the comparison stays focused. This context stays in this tab and is not sent to YouCam.
-          </p>
-          <div className="mt-4 grid grid-cols-2 gap-3" role="group" aria-label="Occasion">
-            {OCCASION_OPTIONS.map((option) => {
-              const selected = occasion === option;
-              return (
-                <button
-                  key={option}
-                  type="button"
-                  aria-pressed={selected}
-                  onClick={() => onOccasion(option)}
-                  className={`min-h-[44px] rounded-full border px-3 py-2 text-sm font-semibold transition-shadow duration-200 ${
-                    selected ? 'border-gold bg-powder text-ink shadow-emboss' : 'border-gold/50 bg-ground text-ink'
-                  }`}
-                >
-                  {OCCASION_LABELS[option]}
-                </button>
-              );
-            })}
-          </div>
-          <fieldset className="mt-5">
-            <legend className="text-sm font-semibold text-ink">Setting <span className="font-normal text-ink-soft">(optional)</span></legend>
-            <div className="mt-3 flex flex-wrap gap-3">
-              {SETTING_OPTIONS.map((option) => {
-                const selected = setting === option;
-                return (
-                  <button
-                    key={option}
-                    type="button"
-                    aria-pressed={selected}
-                    onClick={() => onSetting(selected ? null : option)}
-                    className={`min-h-[44px] rounded-full border px-4 py-2 text-sm transition-shadow duration-200 ${
-                      selected ? 'border-gold bg-powder text-ink shadow-emboss' : 'border-gold/50 bg-ground text-ink'
-                    }`}
-                  >
-                    {SETTING_LABELS[option]}
-                  </button>
-                );
-              })}
-            </div>
-          </fieldset>
-        </YincolCard>
-
-        <section aria-label="Portrait and garment inputs">
+        <section aria-label="Portrait and garment inputs" className="min-w-0 xl:col-start-2 xl:row-start-1">
           <div className="grid items-start gap-5 lg:grid-cols-3">
             <ImagePickerCard
               slot="portrait"
@@ -314,26 +246,26 @@ export function InputsScreen({
             />
           </div>
           <p className="mt-4 rounded-card border border-gold/40 bg-surface px-4 py-3 text-sm text-ink-soft">
-            Uploads stay in this tab. The local demo uses fixture previews by default. Opt-in
-            live mode sends the portrait and garment files through the verified Clothes VTO,
-            Makeup VTO, and Skin Analysis paths without saving them. The colour direction
-            remains a local guide until Facial Color Tone is verified.
+            Your uploads stay in this tab. The results screen will tell you whether each preview
+            is a live YouCam result or a local fixture.
           </p>
         </section>
-      </div>
 
-      <PearlDivider />
-
-      <section aria-labelledby="makeup-input-heading">
-        <h3 id="makeup-input-heading" className="font-display text-2xl text-ink">
-          Makeup direction
-        </h3>
-        <p className="mt-2 text-base text-ink-soft">
-          Choose a YINCOL preset to send to the Makeup API, or use the local demo inputs.
-        </p>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <YincolCard
+          as="section"
+          aria-labelledby="makeup-input-heading"
+          tone="surface"
+          className="p-6 sm:p-7 xl:col-start-1 xl:row-start-1"
+        >
+          <h3 id="makeup-input-heading" className="font-display text-2xl text-ink">
+            Makeup direction
+          </h3>
+          <p className="mt-2 text-base text-ink-soft">
+            Choose the preset to compare on your portrait.
+          </p>
+          <div className="mt-4 grid gap-3">
           {MAKEUP_LOOKS.map((look) => {
-            const selected = !demoInputs && look.id === makeupLookId;
+            const selected = look.id === makeupLookId;
             return (
               <button
                 key={look.id}
@@ -364,40 +296,18 @@ export function InputsScreen({
               </button>
             );
           })}
-          <button
-            type="button"
-            aria-pressed={demoInputs}
-            onClick={onUseDemo}
-            className={`rounded-card border p-4 text-left transition-shadow duration-200 ${
-              demoInputs ? 'border-gold bg-powder shadow-emboss' : 'border-gold/50 bg-ground'
-            }`}
-          >
-            <span className="flex items-start justify-between gap-3">
-              <span className="font-display text-xl text-ink">Demo inputs</span>
-              {demoInputs ? <Ribbon label="Selected" /> : null}
-            </span>
-            <span className="mt-2 block text-sm text-ink-soft">
-              Use the local portrait, garment references, and Rose Veil look to walk through the flow.
-            </span>
-            <span className="mt-3 block text-xs text-ink-soft">No file selection or API credits.</span>
-          </button>
-        </div>
-      </section>
+          </div>
+        </YincolCard>
+      </div>
 
-      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-wrap items-center justify-start gap-3">
         <Button variant="quiet" className="w-full sm:w-auto" onClick={onBack}>
           Back
         </Button>
-        <div className="flex flex-col items-start gap-2 sm:items-end">
-          {!ready ? (
-            <p className="text-sm text-ink-soft">
-              Select an occasion and add all inputs to continue.
-            </p>
-          ) : null}
-          <Button className="w-full !px-4 text-sm sm:w-auto" disabled={!ready} onClick={onContinue}>
-            Generate previews
-          </Button>
-        </div>
+        <Button className="w-full !px-4 text-sm sm:w-auto" disabled={!ready} onClick={onContinue}>
+          Generate previews
+        </Button>
+        {!ready ? <p className="basis-full text-sm text-ink-soft">Add your portrait, two garments, and a makeup direction to continue.</p> : null}
       </div>
     </div>
   );

@@ -173,7 +173,7 @@ export function IntroScreen({
   return (
     <div className="animate-soft-fade space-y-8">
       <header className="mx-auto max-w-3xl text-center">
-        <SectionHeading className="text-4xl sm:text-5xl">Choose a look for your occasion</SectionHeading>
+        <SectionHeading className="text-4xl sm:text-5xl">Choose a look with confidence</SectionHeading>
         <p className="mx-auto mt-4 max-w-reading text-lg text-ink">
           One portrait, two garments, and a makeup direction — compared in one focused session.
         </p>
@@ -189,7 +189,7 @@ export function IntroScreen({
             Before we begin
           </SectionHeading>
           <p className="mt-3 text-lg text-ink-soft">
-            Add one portrait and two garment references. We&apos;ll use them to make a focused comparison for your occasion.
+            Add one portrait and two garment references. We&apos;ll use them to make a focused comparison.
           </p>
           <dl className="mt-5 space-y-4 text-base">
             <div>

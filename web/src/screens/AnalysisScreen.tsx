@@ -18,14 +18,26 @@ const STEPS = [
 /** Keep the explanation visible while the fixture delay is exercised. */
 const STEP_DURATION_MS = 1_200;
 
-export function AnalysisScreen({ done, onFinished }: { done: boolean; onFinished: () => void }) {
+export function AnalysisScreen({
+  done,
+  cached = false,
+  onFinished,
+}: {
+  done: boolean;
+  cached?: boolean;
+  onFinished: () => void;
+}) {
   const [active, setActive] = useState(0);
 
   useEffect(() => {
+    if (cached) {
+      setActive(STEPS.length);
+      return;
+    }
     if (active >= STEPS.length) return;
     const timer = setTimeout(() => setActive((current) => current + 1), STEP_DURATION_MS);
     return () => clearTimeout(timer);
-  }, [active]);
+  }, [active, cached]);
 
   // Advance only when the work has actually finished AND the three steps have been
   // seen. Neither alone is enough: finishing early would flash past the explanation,
@@ -36,7 +48,9 @@ export function AnalysisScreen({ done, onFinished }: { done: boolean; onFinished
 
   return (
     <div className="animate-soft-fade flex min-h-[60vh] flex-col justify-center space-y-6 text-center">
-      <SectionHeading className="text-4xl">Generating your previews</SectionHeading>
+      <SectionHeading className="text-4xl">
+        {cached ? 'Using your saved previews' : 'Generating your previews'}
+      </SectionHeading>
 
       <PearlDivider />
 
@@ -80,7 +94,9 @@ export function AnalysisScreen({ done, onFinished }: { done: boolean; onFinished
       </ol>
 
       <p className="text-sm text-ink-soft">
-        Your files stay in this tab while the preview work runs.
+        {cached
+          ? 'These previews are reused from this session, so the same inputs are not sent again.'
+          : 'Your files stay in this tab while the preview work runs.'}
       </p>
     </div>
   );

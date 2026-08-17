@@ -7,7 +7,7 @@
  * the server selected.
  */
 
-import { useCallback, useEffect, useReducer } from 'react';
+import { useCallback, useEffect, useReducer, useState } from 'react';
 import { ApiError, requestAnalysis, requestSkinAnalysis, requestTryOn } from './api/client.js';
 import { StateNotice } from './components/StateNotice.js';
 import { PrivacyBar } from './components/PrivacyBar.js';
@@ -23,6 +23,12 @@ import {
   STEP_ORDER,
   type Step,
 } from './state/session.js';
+import {
+  clearGenerationCache,
+  generationCacheKey,
+  readGenerationCache,
+  writeGenerationCache,
+} from './state/generationCache.js';
 
 /** Screens that display the portrait, and therefore carry the privacy affordance. */
 const SHOWS_PORTRAIT = new Set(['inputs', 'generate', 'results']);
@@ -64,6 +70,7 @@ function StageProgress({ step }: { step: Step }) {
 
 export function App() {
   const [state, dispatch] = useReducer(sessionReducer, initialState);
+  const [generationSource, setGenerationSource] = useState<'cache' | 'network' | null>(null);
 
   /**
    * Kick off both calls together when analysis begins.
@@ -73,11 +80,29 @@ export function App() {
    * sent in the same request and uploaded server-side through the feature File APIs.
    */
   const beginAnalysis = useCallback(async () => {
+    setGenerationSource(null);
     dispatch({ type: 'analysisStarted' });
     const portraitRef = 'fixture:portrait';
     const portrait = state.portrait;
+    const garmentInputs = [state.garmentInputs.a, state.garmentInputs.b] as const;
 
     try {
+      const cacheKey = await generationCacheKey({
+        portrait,
+        garmentInputs,
+        makeupLookId: state.makeupLookId,
+      });
+      const cached = cacheKey ? readGenerationCache(cacheKey) : null;
+
+      if (cached) {
+        setGenerationSource('cache');
+        dispatch({ type: 'analysisReady', analysis: cached.analysis });
+        dispatch({ type: 'tryOnReady', tryOn: cached.tryOn });
+        return;
+      }
+
+      setGenerationSource('network');
+
       const [analysis, skinAnalysis] = await Promise.all([
         requestAnalysis(portraitRef),
         portrait
@@ -101,9 +126,17 @@ export function App() {
         portraitRef,
         portrait,
         garmentIds: state.garmentIds,
-        garmentInputs: [state.garmentInputs.a, state.garmentInputs.b],
+        garmentInputs,
         makeupLookId: state.makeupLookId ?? '',
       });
+      if (cacheKey) {
+        writeGenerationCache({
+          key: cacheKey,
+          savedAt: Date.now(),
+          analysis: combinedAnalysis,
+          tryOn,
+        });
+      }
       dispatch({ type: 'tryOnReady', tryOn });
     } catch (error) {
       dispatch({
@@ -112,7 +145,19 @@ export function App() {
         code: error instanceof ApiError ? error.code : 'general',
       });
     }
-  }, [state.garmentIds, state.makeupLookId, state.portrait]);
+  }, [state.garmentIds, state.garmentInputs.a, state.garmentInputs.b, state.makeupLookId, state.portrait]);
+
+  const handleClearPortrait = useCallback(() => {
+    clearGenerationCache();
+    setGenerationSource(null);
+    dispatch({ type: 'clearPortrait' });
+  }, []);
+
+  const handleStartOver = useCallback(() => {
+    clearGenerationCache();
+    setGenerationSource(null);
+    dispatch({ type: 'startOver' });
+  }, []);
 
   // Release the object URL when the portrait is replaced or cleared, so a discarded
   // photograph is genuinely gone rather than lingering in memory.
@@ -177,19 +222,25 @@ export function App() {
       case 'inputs':
         return (
           <InputsScreen
-            occasion={state.occasion}
-            setting={state.setting}
             portrait={state.portrait}
             garmentInputs={state.garmentInputs}
             makeupLookId={state.makeupLookId}
-            demoInputs={state.demoInputs}
-            onOccasion={(occasion) => dispatch({ type: 'setOccasion', occasion })}
-            onSetting={(setting) => dispatch({ type: 'setSetting', setting })}
-            onPortrait={(image) => dispatch({ type: 'setPortrait', portrait: image })}
-            onGarment={(slot, image) => dispatch({ type: 'setGarmentInput', slot, image })}
-            onClearGarment={(slot) => dispatch({ type: 'clearGarmentInput', slot })}
-            onChooseMakeup={(lookId) => dispatch({ type: 'chooseMakeup', lookId })}
-            onUseDemo={() => dispatch({ type: 'useDemoInputs' })}
+            onPortrait={(image) => {
+              clearGenerationCache();
+              dispatch({ type: 'setPortrait', portrait: image });
+            }}
+            onGarment={(slot, image) => {
+              clearGenerationCache();
+              dispatch({ type: 'setGarmentInput', slot, image });
+            }}
+            onClearGarment={(slot) => {
+              clearGenerationCache();
+              dispatch({ type: 'clearGarmentInput', slot });
+            }}
+            onChooseMakeup={(lookId) => {
+              clearGenerationCache();
+              dispatch({ type: 'chooseMakeup', lookId });
+            }}
             onContinue={beginAnalysis}
             onBack={() => dispatch({ type: 'goTo', step: 'intro' })}
           />
@@ -199,6 +250,7 @@ export function App() {
         return (
           <AnalysisScreen
             done={analysisDone}
+            cached={generationSource === 'cache'}
             onFinished={() => dispatch({ type: 'goTo', step: 'results' })}
           />
         );
@@ -206,8 +258,6 @@ export function App() {
       case 'results':
         return state.analysis && state.tryOn ? (
           <ResultsScreen
-            occasion={state.occasion}
-            setting={state.setting}
             analysis={state.analysis}
             tryOn={state.tryOn}
             garmentIds={state.garmentIds}
@@ -219,7 +269,7 @@ export function App() {
             onToggleGarment={(garmentId) => dispatch({ type: 'toggleGarmentKept', garmentId })}
             onToggleMakeup={(winner) => dispatch({ type: 'toggleMakeupKept', winner })}
             onEditInputs={() => dispatch({ type: 'editInputs' })}
-            onStartOver={() => dispatch({ type: 'startOver' })}
+            onStartOver={handleStartOver}
           />
         ) : null;
 
@@ -245,7 +295,7 @@ export function App() {
 
         {SHOWS_PORTRAIT.has(state.step) && state.portrait ? (
           <div className="mb-6">
-            <PrivacyBar onDelete={() => dispatch({ type: 'clearPortrait' })} />
+            <PrivacyBar onDelete={handleClearPortrait} />
           </div>
         ) : null}
 

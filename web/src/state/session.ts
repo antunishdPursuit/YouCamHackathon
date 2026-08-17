@@ -1,9 +1,9 @@
 /**
  * The session state machine.
  *
- * One reducer, one shape. There is no database and no account — everything here lives
- * in memory for the length of one visit and is thrown away when the tab closes, which
- * is exactly what the consent panel promises.
+ * One reducer, one shape. There is no database and no account — source uploads live in
+ * memory, while completed generated results may be reused from sessionStorage until the
+ * tab closes, which is exactly what the consent panel promises.
  */
 
 import type { AnalyzeResponse, TryOnResponse } from '@yincol/shared';
@@ -13,33 +13,6 @@ export type Step =
   | 'inputs'
   | 'generate'
   | 'results';
-
-export type Occasion = 'wedding' | 'work' | 'dinner' | 'celebration' | 'other';
-
-export const OCCASION_OPTIONS: readonly Occasion[] = [
-  'wedding',
-  'work',
-  'dinner',
-  'celebration',
-  'other',
-];
-
-export const OCCASION_LABELS: Readonly<Record<Occasion, string>> = {
-  wedding: 'Wedding',
-  work: 'Work',
-  dinner: 'Dinner',
-  celebration: 'Celebration',
-  other: 'Other occasion',
-};
-
-export type Setting = 'indoor' | 'outdoor';
-
-export const SETTING_OPTIONS: readonly Setting[] = ['indoor', 'outdoor'];
-
-export const SETTING_LABELS: Readonly<Record<Setting, string>> = {
-  indoor: 'Indoor',
-  outdoor: 'Outdoor',
-};
 
 /** The order screens advance in, used for the back affordance. */
 export const STEP_ORDER: readonly Step[] = [
@@ -52,7 +25,7 @@ export const STEP_ORDER: readonly Step[] = [
 export interface CapturedImage {
   /** An object URL for the chosen file, revoked when the portrait is replaced or cleared. */
   readonly previewUrl: string;
-  /** The selected bytes stay in memory until this session ends; they are never persisted. */
+  /** The selected source bytes stay in memory until this session ends; they are never persisted. */
   readonly file: File;
   readonly width: number;
   readonly height: number;
@@ -67,9 +40,6 @@ export type CompareAxis = 'garments' | 'makeup';
 export interface SessionState {
   readonly step: Step;
   readonly consentGiven: boolean;
-  /** A user-selected context for the comparison; it does not go to the provider APIs. */
-  readonly occasion: Occasion | null;
-  readonly setting: Setting | null;
   readonly portrait: CapturedPortrait | null;
   readonly garmentInputs: {
     readonly a: CapturedImage | null;
@@ -78,8 +48,6 @@ export interface SessionState {
   /** Fixture catalog ids used only to keep the current local result pipeline working. */
   readonly garmentIds: readonly string[];
   readonly makeupLookId: string | null;
-  /** Explicit local-only path; it never claims that placeholder inputs are API inputs. */
-  readonly demoInputs: boolean;
   readonly analysis: AnalyzeResponse | null;
   readonly tryOn: TryOnResponse | null;
   readonly axis: CompareAxis;
@@ -95,13 +63,10 @@ export interface SessionState {
 export const initialState: SessionState = {
   step: 'intro',
   consentGiven: false,
-  occasion: null,
-  setting: null,
   portrait: null,
   garmentInputs: { a: null, b: null },
   garmentIds: [],
   makeupLookId: null,
-  demoInputs: false,
   analysis: null,
   tryOn: null,
   axis: 'garments',
@@ -115,13 +80,10 @@ export const initialState: SessionState = {
 export type SessionAction =
   | { type: 'giveConsent' }
   | { type: 'goTo'; step: Step }
-  | { type: 'setOccasion'; occasion: Occasion }
-  | { type: 'setSetting'; setting: Setting | null }
   | { type: 'setPortrait'; portrait: CapturedPortrait }
   | { type: 'clearPortrait' }
   | { type: 'setGarmentInput'; slot: 'a' | 'b'; image: CapturedImage }
   | { type: 'clearGarmentInput'; slot: 'a' | 'b' }
-  | { type: 'useDemoInputs' }
   | { type: 'editInputs' }
   | { type: 'chooseMakeup'; lookId: string }
   | { type: 'analysisStarted' }
@@ -134,14 +96,12 @@ export type SessionAction =
   | { type: 'dismissError' }
   | { type: 'startOver' };
 
-/** Inputs are complete when the user supplied three images or explicitly chose demo inputs. */
+/** Inputs are complete when the user supplied the portrait, both garments, and one makeup look. */
 export const inputsComplete = (state: SessionState): boolean =>
-  state.occasion !== null &&
-  (state.demoInputs ||
-    (state.portrait !== null &&
-      state.garmentInputs.a !== null &&
-      state.garmentInputs.b !== null &&
-      state.makeupLookId !== null));
+  state.portrait !== null &&
+  state.garmentInputs.a !== null &&
+  state.garmentInputs.b !== null &&
+  state.makeupLookId !== null;
 
 export function sessionReducer(state: SessionState, action: SessionAction): SessionState {
   switch (action.type) {
@@ -151,19 +111,12 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
     case 'goTo':
       return { ...state, step: action.step, error: null };
 
-    case 'setOccasion':
-      return { ...state, occasion: action.occasion, error: null };
-
-    case 'setSetting':
-      return { ...state, setting: action.setting, error: null };
-
     case 'setPortrait':
       return {
         ...state,
         portrait: action.portrait,
         keptGarmentIds: [],
         keptMakeupWinners: [],
-        demoInputs: false,
         error: null,
       };
 
@@ -188,7 +141,6 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         garmentIds: action.slot === 'a' ? [fixtureId, otherId] : [otherId, fixtureId],
         keptGarmentIds: [],
         keptMakeupWinners: [],
-        demoInputs: false,
         error: null,
       };
     }
@@ -202,19 +154,6 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         ),
         keptGarmentIds: [],
         keptMakeupWinners: [],
-        error: null,
-      };
-
-    case 'useDemoInputs':
-      return {
-        ...state,
-        occasion: 'celebration',
-        setting: 'indoor',
-        garmentIds: ['rosewater-cardigan', 'sage-linen-shirt'],
-        makeupLookId: 'rose-veil',
-        keptGarmentIds: [],
-        keptMakeupWinners: [],
-        demoInputs: true,
         error: null,
       };
 
@@ -236,7 +175,6 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         makeupLookId: action.lookId,
         keptGarmentIds: [],
         keptMakeupWinners: [],
-        demoInputs: false,
         error: null,
       };
 

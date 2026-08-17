@@ -14,11 +14,7 @@ import { PhotoSlot } from '../components/PhotoSlot.js';
 import { DISPLAY_SLOTS, type DisplaySlotConfig } from '../config/displaySlots.js';
 import { SectionHeading, YincolCard } from '../components/ornament.js';
 import {
-  OCCASION_LABELS,
-  SETTING_LABELS,
   type CompareAxis,
-  type Occasion,
-  type Setting,
 } from '../state/session.js';
 
 interface ResultPanel {
@@ -96,8 +92,6 @@ function PaletteSummary({ analysis }: { analysis: AnalyzeResponse }) {
 }
 
 export function ResultsScreen({
-  occasion,
-  setting,
   analysis,
   tryOn,
   garmentIds,
@@ -111,8 +105,6 @@ export function ResultsScreen({
   onEditInputs,
   onStartOver,
 }: {
-  occasion: Occasion | null;
-  setting: Setting | null;
   analysis: AnalyzeResponse;
   tryOn: TryOnResponse;
   garmentIds: readonly string[];
@@ -126,15 +118,6 @@ export function ResultsScreen({
   onEditInputs: () => void;
   onStartOver: () => void;
 }) {
-  const occasionLabel = occasion ? OCCASION_LABELS[occasion] : 'Your occasion';
-  const resultHeading = occasion === 'other'
-    ? 'Your look for this occasion'
-    : occasion
-      ? `Your ${occasionLabel.toLowerCase()} look`
-      : 'Your results';
-  const contextLabel = setting
-    ? `${occasionLabel} · ${SETTING_LABELS[setting]}`
-    : occasionLabel;
   const look = makeupLookId ? findMakeupLook(makeupLookId) : undefined;
 
   const garmentPanels: ResultPanel[] = garmentIds.map((garmentId, index) => {
@@ -180,13 +163,10 @@ export function ResultsScreen({
   return (
     <div className="animate-soft-fade space-y-8">
       <header className="text-center">
-        <SectionHeading className="text-4xl">{resultHeading}</SectionHeading>
+        <SectionHeading className="text-4xl">Your comparison</SectionHeading>
         <p className="mx-auto mt-3 max-w-reading text-base text-ink-soft">
-          Compare the options for this moment, then keep any that work for you.
+          Compare the garments or makeup on the same portrait, then keep any options that work for you.
         </p>
-        <div className="mt-4 flex justify-center">
-          <Chip>{contextLabel}</Chip>
-        </div>
       </header>
 
       <div className="grid gap-8 xl:grid-cols-[minmax(260px,0.34fr)_minmax(0,1fr)] xl:items-start">
