@@ -156,7 +156,6 @@ function ImagePickerCard({
             </svg>
             <p className="mt-2 font-display text-xl text-ink">{copy.title}</p>
             <p className="mt-2 max-w-[28ch] text-sm text-ink-soft">{copy.description}</p>
-            <p className="mt-3 text-sm text-ink-soft">Add an image to compare it.</p>
           </div>
         )}
       </div>
@@ -236,7 +235,7 @@ export function InputsScreen({
     <div className="animate-soft-fade space-y-10">
       <header className="text-center">
         <SectionHeading>Add your inputs</SectionHeading>
-        <p className="mx-auto mt-3 max-w-reading text-lg text-ink-soft">
+        <p className="mx-auto mt-3 text-lg text-ink-soft">
           Add one portrait, two garment references, and the makeup direction you want to compare.
         </p>
       </header>
@@ -326,11 +325,11 @@ export function InputsScreen({
           Makeup direction
         </h3>
         <p className="mt-2 text-base text-ink-soft">
-          Choose the effect preset to send to the Makeup API. You do not need a makeup reference photo here.
+          Choose a YINCOL preset to send to the Makeup API, or use the local demo inputs.
         </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {MAKEUP_LOOKS.map((look) => {
-            const selected = look.id === makeupLookId;
+            const selected = !demoInputs && look.id === makeupLookId;
             return (
               <button
                 key={look.id}
@@ -361,24 +360,25 @@ export function InputsScreen({
               </button>
             );
           })}
+          <button
+            type="button"
+            aria-pressed={demoInputs}
+            onClick={onUseDemo}
+            className={`rounded-card border p-4 text-left transition-shadow duration-200 ${
+              demoInputs ? 'border-gold bg-powder shadow-emboss' : 'border-gold/50 bg-ground'
+            }`}
+          >
+            <span className="flex items-start justify-between gap-3">
+              <span className="font-display text-xl text-ink">Demo inputs</span>
+              {demoInputs ? <Ribbon label="Selected" /> : null}
+            </span>
+            <span className="mt-2 block text-sm text-ink-soft">
+              Use the local portrait, garment references, and Rose Veil look to walk through the flow.
+            </span>
+            <span className="mt-3 block text-xs text-ink-soft">No file selection or API credits.</span>
+          </button>
         </div>
       </section>
-
-      <YincolCard aria-labelledby="demo-inputs-heading" tone="surface" className="p-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 id="demo-inputs-heading" className="font-display text-xl text-ink">
-              Need to see the flow first?
-            </h3>
-            <p className="mt-2 text-base text-ink-soft">
-              Use the local demo inputs to walk through generation without selecting files or spending API credits.
-            </p>
-          </div>
-          <Button variant="quiet" className="self-start !px-4 text-sm sm:shrink-0" onClick={onUseDemo}>
-            Use demo inputs
-          </Button>
-        </div>
-      </YincolCard>
 
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Button variant="quiet" className="w-full sm:w-auto" onClick={onBack}>
@@ -390,7 +390,7 @@ export function InputsScreen({
               Select an occasion and add all inputs to continue.
             </p>
           ) : null}
-          <Button className="w-full sm:w-auto" disabled={!ready} onClick={onContinue}>
+          <Button className="w-full !px-4 text-sm sm:w-auto" disabled={!ready} onClick={onContinue}>
             Generate previews
           </Button>
         </div>

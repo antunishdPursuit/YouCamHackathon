@@ -12,7 +12,7 @@ import { Button, Chip, Segmented } from '../components/controls.js';
 import { PartialResultsNotice } from '../components/StateNotice.js';
 import { PhotoSlot } from '../components/PhotoSlot.js';
 import { DISPLAY_SLOTS, type DisplaySlotConfig } from '../config/displaySlots.js';
-import { PearlDivider, Ribbon, SectionHeading, YincolCard } from '../components/ornament.js';
+import { Ribbon, SectionHeading, YincolCard } from '../components/ornament.js';
 import {
   OCCASION_LABELS,
   SETTING_LABELS,
@@ -43,33 +43,33 @@ function PaletteSummary({ analysis }: { analysis: AnalyzeResponse }) {
   const { derivation } = palette;
 
   return (
-    <YincolCard aria-labelledby="palette-heading" tone="surface" className="p-6 sm:p-7">
+    <YincolCard aria-labelledby="palette-heading" tone="surface" className="p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <SectionHeading id="palette-heading" className="text-3xl">
+          <SectionHeading id="palette-heading" className="text-2xl">
             Your colour direction
           </SectionHeading>
-          <p className="mt-2 text-base text-ink-soft">
+          <p className="mt-2 text-sm text-ink-soft">
             Six colours chosen from your portrait by a visible rule.
           </p>
         </div>
         <Chip>{derivation.axes.undertone} · {derivation.axes.depth} · {derivation.axes.contrast} contrast</Chip>
       </div>
 
-      <ul className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <ul className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-2">
         {palette.swatches.map((swatch) => (
           <li key={swatch.id} className="overflow-hidden rounded-card border border-gold/40 bg-ground">
-            <span aria-hidden="true" className="block h-14" style={{ backgroundColor: swatch.hex }} />
-            <span className="block px-3 py-2.5">
-              <span className="block text-sm font-semibold leading-tight text-ink">{swatch.name}</span>
-              <span className="mt-1 block font-mono text-[11px] uppercase text-ink-soft">{swatch.hex}</span>
+            <span aria-hidden="true" className="block h-10" style={{ backgroundColor: swatch.hex }} />
+            <span className="block px-2.5 py-2">
+              <span className="block text-xs font-semibold leading-tight text-ink">{swatch.name}</span>
+              <span className="mt-1 block font-mono text-[10px] uppercase text-ink-soft">{swatch.hex}</span>
             </span>
           </li>
         ))}
       </ul>
 
-      <details className="mt-5 rounded-card border border-gold/40 bg-ground px-4 py-3">
-        <summary className="cursor-pointer text-base font-semibold text-ink">How this was chosen</summary>
+      <details className="mt-4 rounded-card border border-gold/40 bg-ground px-3 py-2.5">
+        <summary className="cursor-pointer text-sm font-semibold text-ink">How this was chosen</summary>
         <div className="mt-3 space-y-3 text-sm text-ink-soft">
           <ul className="space-y-2">
             {derivation.notes.map((note) => (
@@ -217,11 +217,10 @@ export function ResultsScreen({
         </div>
       </header>
 
-      <PaletteSummary analysis={analysis} />
+      <div className="grid gap-8 xl:grid-cols-[minmax(260px,0.34fr)_minmax(0,1fr)] xl:items-start">
+        <PaletteSummary analysis={analysis} />
 
-      <PearlDivider />
-
-      <section aria-labelledby="previews-heading" className="space-y-5">
+        <section aria-labelledby="previews-heading" className="min-w-0 space-y-5">
         <div>
           <SectionHeading id="previews-heading" className="text-3xl">Generated previews</SectionHeading>
           <p className="mt-1 text-sm text-ink-soft">These are separate garment and makeup generations of the same portrait.</p>
@@ -256,7 +255,7 @@ export function ResultsScreen({
 
         <PartialResultsNotice failedLabels={failedLabels} />
 
-        <div className="grid grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
           {panels.map((entry) => (
             <article key={entry.key} className="flex flex-col">
               <PhotoSlot
@@ -269,7 +268,7 @@ export function ResultsScreen({
                 variant={entry.chosen ? 'primary' : 'quiet'}
                 aria-pressed={entry.chosen}
                 onClick={entry.choose}
-                className="mt-2 w-full !px-3 text-sm"
+                className="mt-2 self-start !px-4 text-sm"
               >
                 {entry.chosen ? 'Kept' : 'Keep this'}
                 <span className="sr-only"> — {entry.chooseLabel}</span>
@@ -279,32 +278,35 @@ export function ResultsScreen({
           ))}
         </div>
 
-        <p aria-live="polite" className="text-center text-sm text-ink-soft">
-          {garmentWinnerId
-            ? `Garment kept: ${garmentSlotLabel(garmentIds.indexOf(garmentWinnerId))}.`
-            : 'No garment kept yet.'}{' '}
-          {makeupWinner
-            ? `Makeup kept: ${makeupWinner === 'bare' ? 'bare face' : (look?.name ?? 'the look')}.`
-            : 'No makeup choice kept yet.'}
+        <p aria-live="polite" className="sr-only">
+          {garmentWinnerId && makeupWinner
+            ? `Garment ${garmentSlotLabel(garmentIds.indexOf(garmentWinnerId))} and ${makeupWinner === 'bare' ? 'bare face' : (look?.name ?? 'the makeup look')} selected.`
+            : 'Choose one garment and one makeup option to keep your combination.'}
         </p>
 
         <p className="rounded-card border border-gold/50 bg-surface px-4 py-3 text-sm text-ink">
           Apparel and makeup previews are generated separately.
         </p>
-      </section>
+        </section>
+      </div>
 
-      <section className="space-y-3">
-        <Button className="w-full" disabled={!garmentWinnerId || !makeupWinner} onClick={onSave}>
-          {savedLook ? 'Look kept for this session' : garmentWinnerId && makeupWinner ? 'Keep this combination' : 'Keep one from each comparison'}
+      <section className="flex flex-col items-center gap-3">
+        {!savedLook && (!garmentWinnerId || !makeupWinner) ? (
+          <p className="text-center text-sm text-ink-soft">
+            Choose one garment and one makeup option to keep your combination.
+          </p>
+        ) : null}
+        <Button className="w-full sm:w-auto" disabled={!garmentWinnerId || !makeupWinner} onClick={onSave}>
+          {savedLook ? 'Look kept for this session' : 'Keep this combination'}
         </Button>
         {savedLook ? (
           <p className="text-center text-sm text-ink-soft" role="status">
             Your choice is held in this tab only. You can edit the inputs or start a new look.
           </p>
         ) : null}
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Button variant="quiet" className="w-full sm:flex-1" onClick={onEditInputs}>Back to inputs</Button>
-          <Button variant="link" className="w-full sm:flex-1" onClick={onStartOver}>Start a new look</Button>
+        <div className="flex w-full flex-col items-center gap-2 sm:flex-row sm:justify-center">
+          <Button variant="quiet" className="w-full sm:w-auto" onClick={onEditInputs}>Back to inputs</Button>
+          <Button variant="link" className="w-full sm:w-auto" onClick={onStartOver}>Start a new look</Button>
         </div>
       </section>
     </div>
