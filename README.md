@@ -1,6 +1,6 @@
 # YINCOL
 
-One selfie, two garments, one makeup look — and one coordinated decision you can save.
+One selfie, two garments, one configured makeup look — and one coordinated decision you can keep for this session.
 
 YINCOL turns a single photograph into a personal colour palette derived from a
 transparent rule, then shows the shopper the same face two ways at a time, so the choice
@@ -10,22 +10,18 @@ is a comparison rather than a guess.
 
 ## What it does
 
-A shopper walks nine screens:
+A shopper walks four stages:
 
-| # | Screen | What happens |
+| # | Stage | What happens |
 | --- | --- | --- |
-| 1 | Intro | The promise, a sample look card, and an explicit consent panel — what is analysed, where it is stored, and a one-tap delete. |
-| 2 | Capture | Upload or camera, with framing guidance and a client-side quality check **before** a call is spent. |
-| 3 | Selection | Eight garments and five makeup looks. Pick two garments and one look; the picker holds a visible "2 of 2 chosen" state. |
-| 4 | Analysis | Three named steps — "Reading your undertone", "Measuring contrast", "Composing your palette". Never a bare spinner. |
-| 5 | Your colours | Six swatches plus the "how these were chosen" card, rendered from the palette's own derivation trace rather than from copy. |
-| 6 | Preview | Apparel and makeup results as two separately labelled panels, carrying the honesty label *"Apparel and makeup previews are generated separately."* |
-| 7 | Two ways to wear it | A segmented control over two axes — garment A vs B with makeup locked, and bare vs made-up with the garment locked. The locked variable sits in a persistent chip; one tap picks a winner per axis. |
-| 8 | The look you kept | The saved artifact: wordmark, portrait, winning garment, winning makeup, three swatches, a one-line summary, a provenance note, and a visibly empty row reserved for hair and accessories. |
-| 9 | States | Low-quality image · no face detected · one try-on failed while the other three stay usable · empty saved-looks. |
+| 1 | Start | The promise, a concise privacy disclosure, and session-only deletion. |
+| 2 | Add inputs | Choose an occasion, optionally choose an indoor or outdoor setting, upload a portrait and two garment references, then choose one makeup effects preset. Each image gets a client-side quality check before a call is spent. |
+| 3 | Generate | Named progress steps: checking images, reading colour context, generating garment previews, and applying makeup. Never a bare spinner. |
+| 4 | Results | A compact palette, separate garment and makeup previews, one-variable-at-a-time comparison, provenance labels, and session-only keep/start-over actions. |
 
-Four Perfect Corp features sit behind it: facial colour tone, skin analysis, clothes
-virtual try-on, and makeup transfer.
+Four Perfect Corp features sit behind the fixture flow: facial colour tone, skin analysis,
+clothes virtual try-on, and makeup virtual try-on. The current documented makeup endpoint
+uses an effects configuration, not a makeup reference image.
 
 **What it deliberately is not.** No stylist chat, no catalogue search, no checkout, no
 accounts, no database, no hair colour, no earrings.
@@ -48,14 +44,13 @@ on <http://localhost:8787>.
 No `.env` is needed. Fixture mode is on unless `YINCOL_FIXTURE_MODE` is set to exactly
 the string `false`, so a typo can never silently start spending credits.
 
-A deliberate ~1.2s delay sits in front of each fixture response. It is not a simulation
-of latency for its own sake — it keeps the three-step analysis animation exercised every
-time anyone runs the app, because a loading state nobody ever sees is a loading state
-nobody maintains.
+A deliberate ~1.2s delay sits in front of each fixture response. It keeps the four-step
+generation progress visible every time anyone runs the app, because a loading state
+nobody ever sees is a loading state nobody maintains.
 
 ### Showing the designed states
 
-The four states in screen 9 are reachable without waiting for one to happen. Set
+The designed failure states are reachable without waiting for one to happen. Set
 `YINCOL_SIMULATE` and restart the server:
 
 | Value | What you get |
@@ -73,7 +68,7 @@ lives client-side and triggers on any photograph that fails the size check in
 ### Checks
 
 ```bash
-npm test          # 110 tests — 74 in shared/, 36 in server/
+npm test          # 112 tests — 74 in shared/, 38 in server/
 npm run typecheck # all three workspaces
 npm run contrast-audit --workspace @yincol/web
 ```
@@ -84,8 +79,12 @@ npm run contrast-audit --workspace @yincol/web
 cp .env.example .env
 ```
 
-Then set `YINCOL_API_KEY` and set `YINCOL_FIXTURE_MODE=false`. The server-side File API
-upload primitive now handles the verified Skin Analysis upload path, so
+Then set `YINCOL_API_KEY`. For the currently verified live paths, keep
+`YINCOL_FIXTURE_MODE=true` and enable only the opt-in flags below. Do not set
+`YINCOL_FIXTURE_MODE=false` yet: the Facial Color Tones Analyzer input and response
+contract still needs verification before the palette can run live. The server-side
+File API upload primitive handles the verified Skin Analysis, Clothes VTO, and Makeup
+VTO paths, so
 `YINCOL_PUBLIC_ASSET_BASE_URL` is needed only by the existing public-URL fixture capture
 path, not by the new upload path.
 
@@ -101,22 +100,32 @@ The selected JPEG or PNG remains in browser memory, is sent as bounded base64 JS
 to YINCOL appearance context. The palette and try-on screens remain fixture-backed in
 this mode. No portrait is persisted.
 
+To test the verified live Clothes and Makeup VTO path while keeping the palette on its
+fixture-backed color engine, leave `YINCOL_FIXTURE_MODE=true` and also set:
+
+```bash
+YINCOL_LIVE_TRY_ON=true
+```
+
+The browser sends its portrait and selected garment files to `POST /api/try-on`. The
+server uploads them through the feature-specific File APIs, downloads successful result
+bytes immediately, and returns in-memory image data to the browser. This runs two Clothes
+tasks and one Makeup task, so successful tasks consume API units. Use real team-owned or
+licensed source images; do not commit them.
+
 The live adapter reads score records from YouCam's `output` array and normalizes the
 whole-face `skin_type` value into a colour-only "finish appearance" signal. It ignores
 vendor fields such as masks, overall scores, skin age, and concern names.
 
-Three things are still open on the live path, and they are listed here rather than
-discovered later:
+The remaining live-path gaps are listed here rather than discovered later:
 
 1. **The live Skin Analysis increment is now wired** (`web/src/App.tsx`,
    `server/src/routes/skinAnalysis.ts`). The browser upload is opt-in with
    `YINCOL_LIVE_SKIN_ANALYSIS=true`; the full live palette is still blocked on the
-   unverified Facial Color Tone task path below.
-2. **Catalogue garments carry no `imageUrl`** (`shared/src/domain/catalog.ts`), so live
-   clothes try-on returns a clean "no product image is on file" failure for every garment
-   rather than a broken request. Product image URLs are the missing input.
-3. **The facial colour tone task path is a guess.** If live mode 404s on the first call,
-   that is where to look — see below.
+   unverified Facial Color Tone input, File API, and response contract below.
+2. **The Facial Color Tone task path is recorded but not enabled.** The read-only
+   feature-cost response lists `/s2s/v2.0/task/skin-tone-analysis`; the full task
+   contract still needs a live check before it can replace the local palette.
 
 Fixture capture is the supported way to spend credits:
 
@@ -218,36 +227,48 @@ Four decisions worth knowing before reading the code:
 ## What is verified about the API, and what is not
 
 This matters more than it sounds. Some of what follows is confirmed from Perfect Corp's
-documentation; some is a reasonable guess that has to be checked in the API Playground
-before anyone relies on it. The full list, with every open question, lives in
+documentation; some is verified locally; and some is a reasonable guess that has to be
+checked in the API Playground before anyone relies on it. The full list, with every open
+question, lives in
 [`docs/api-findings.md`](docs/api-findings.md).
 
-**Verified.** v2.0 endpoints authenticate with `Authorization: Bearer <key>` directly —
-no RSA or `client_secret` exchange; that is legacy v1 and we do not build it. Every
-feature follows the same async pipeline. Credits burn on success only — a task that ends
-in `error` costs nothing. Success download URLs expire after **two hours**, while
-`task_id` persists 30 days. Makeup transfer works from a **reference photo of a made-up
-face**, not from shade values or SKUs. Three endpoints are confirmed:
-`POST /s2s/v2.0/task/cloth`, `POST /s2s/v2.0/task/mu-transfer`,
-`POST /s2s/v2.0/task/skin-analysis`.
+**Verified locally.** v2.0 endpoints authenticate with `Authorization: Bearer <key>`
+directly — no RSA or `client_secret` exchange; that is legacy v1 and we do not build it.
+The Skin Analysis File API, signed upload, task, polling, and result mapping work locally.
+Credits burn on success only — a task that ends in `error` costs nothing. Success download
+URLs expire after **two hours**, while `task_id` persists 30 days.
+
+**Verified locally.** Clothes VTO uses
+`POST /s2s/v2.0/task/cloth-v3` with `ref_file_id`, `ref_file_url`, or `template_id`.
+Makeup VTO uses `POST /s2s/v2.0/task/makeup-vto` with an `effects` configuration and
+`version: "1.0"`; the current documentation does not define a makeup reference-image
+input. Both paths have a successful live smoke test and the opt-in browser path returns
+in-memory result bytes.
 
 **Not verified.** The API host — both `yce-api-01.makeupar.com` and
 `yce-api-01.perfectcorp.com` appear in Perfect Corp materials, and we default to the
-former. The facial colour tone task path and its response shape. The image field name on
-a task-start payload. Whether one File API upload is reusable across features. The
-`garment_category` enum. The exact field names on a successful result.
+former for the locally verified paths. Facial Color Tone's input contract, File API path,
+and response mapping. The feature-specific File API reuse behavior. The
+`garment_category` enum. The current account balance.
 
-Each of those is a single config constant in `server/src/youcam/config.ts` with a
-`// TODO(phase0): verify in API Playground` beside it, so confirming one is a one-line
-change. Nothing marked unverified is repeated as fact anywhere in the UI — the server's
+The read-only feature-cost response recorded these current unit costs: Clothes VTO V3 =
+2 units/result, Makeup VTO = 1, Skin Analysis V2.0 SD with 1–4 concerns = 9 or 5–8
+concerns = 12, and Facial Color Tones Analyzer = 20. YINCOL's current five-action Skin
+Analysis request uses the 12-unit bracket, so one successful opt-in flow uses 17 units
+(Skin Analysis + two Clothes results + one Makeup result). The exact current balance still
+belongs in the account console, not in this repository.
+
+Each remaining open item is isolated behind the server boundary. Nothing marked
+unverified is repeated as fact anywhere in the UI — the server's
 `/api/health` endpoint reports which task paths we can actually cite.
 
 ---
 
 ## A note on the demo images
 
-**Nothing in this demo is generated live, and nothing shipped in this repository is an
-API output.**
+**Fixture mode ships with placeholders, and nothing shipped in this repository is an
+API output.** Opt-in live mode can return temporary YouCam result bytes in memory during
+local testing.
 
 Two kinds of picture exist here, and they are never allowed to be confused:
 
@@ -273,10 +294,12 @@ URL would be dead by the morning of the demo.
 
 ## Images
 
-Four **source** images are supplied by the team; three **result** images are generated by
-the capture script and never hand-supplied. `assets/source/` is gitignored, because face
-images carry likeness rights — they must be a team member's own photograph or properly
-licensed. Full detail, including the four specs, in [`assets/README.md`](assets/README.md).
+Portrait and garment reference images can be selected in the input workspace and remain
+in the browser tab. The current fixture preview path still uses the local garment
+catalogue ids; uploaded garment bytes are not presented as live provider inputs. Makeup
+is a request-side effects configuration, not a reference image. `assets/source/` remains
+gitignored because face images carry likeness rights. Full detail is in
+[`assets/README.md`](assets/README.md).
 
 The app runs fully on ornamental placeholders until real photographs land.
 
