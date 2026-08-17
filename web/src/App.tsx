@@ -42,7 +42,7 @@ function StageProgress({ step }: { step: Step }) {
   const activeIndex = STEP_ORDER.indexOf(step);
 
   return (
-    <nav aria-label="Progress" className="min-w-0 flex-1">
+    <nav aria-label="Progress" className="min-w-0 w-full max-w-[62.5rem] flex-1">
       <ol className="grid grid-cols-4 gap-3">
         {STEP_ORDER.map((stage, index) => {
           const current = stage === step;
@@ -51,7 +51,7 @@ function StageProgress({ step }: { step: Step }) {
             <li key={stage}>
               <span
                 aria-current={current ? 'step' : undefined}
-                className={`block border-t-2 pt-3 text-center text-xs sm:text-sm ${
+                className={`block border-t-2 pt-2.5 text-center text-xs sm:text-sm ${
                   current || complete ? 'border-gold font-semibold text-ink' : 'border-gold/30 text-ink-soft'
                 }`}
               >
@@ -274,7 +274,7 @@ export function App() {
       </a>
 
       <div className="mx-auto flex min-h-dvh w-full max-w-yincol flex-col px-6 pb-16 pt-6 sm:px-8 lg:px-10 xl:px-12">
-        <header className="mb-7 flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:gap-8">
+        <header className="mb-7 flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:justify-center sm:gap-8">
           <Wordmark size="sm" />
           <StageProgress step={state.step} />
         </header>

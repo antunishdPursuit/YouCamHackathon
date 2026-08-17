@@ -51,7 +51,7 @@ const SLOT_COPY: Record<
 function InputPreview({ image, alt }: { image: CapturedImage; alt: string }) {
   return (
     <div className="overflow-hidden rounded-card border border-gold/50 bg-ground">
-      <img src={image.previewUrl} alt={alt} className="block aspect-[3/4] h-auto w-full object-cover" />
+      <img src={image.previewUrl} alt={alt} className="block aspect-[4/3] h-auto w-full object-cover" />
     </div>
   );
 }
@@ -130,21 +130,18 @@ function ImagePickerCard({
   };
 
   return (
-    <GildedFrame as="article" className="flex h-full flex-col bg-surface p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="font-display text-2xl text-ink">{copy.title}</h3>
-          <p className="mt-1 text-sm text-ink-soft">{copy.description}</p>
-        </div>
-        {image ? <Ribbon label="Added" /> : null}
-      </div>
-
-      <div className="mt-5">
+    <GildedFrame as="article" className="flex h-full flex-col bg-surface p-4 sm:p-5">
+      <div>
         {image ? (
-          <InputPreview image={image} alt={`Selected ${copy.title.toLowerCase()}`} />
+          <div className="relative">
+            <InputPreview image={image} alt={`Selected ${copy.title.toLowerCase()}`} />
+            <div className="absolute right-3 top-3">
+              <Ribbon label="Added" />
+            </div>
+          </div>
         ) : (
           <div
-            className="flex aspect-[3/4] flex-col items-center justify-center rounded-card border border-dashed border-gold/60 bg-ground px-6 text-center"
+            className="flex aspect-[4/3] flex-col items-center justify-center rounded-card border border-dashed border-gold/60 bg-ground px-5 text-center"
             role="img"
             aria-label={copy.emptyAlt}
           >
@@ -157,12 +154,14 @@ function ImagePickerCard({
               />
               <circle cx="30" cy="18" r="2.4" fill="currentColor" opacity="0.6" />
             </svg>
-            <p className="mt-2 text-sm text-ink-soft">Add an image to compare it.</p>
+            <p className="mt-2 font-display text-xl text-ink">{copy.title}</p>
+            <p className="mt-2 max-w-[28ch] text-sm text-ink-soft">{copy.description}</p>
+            <p className="mt-3 text-sm text-ink-soft">Add an image to compare it.</p>
           </div>
         )}
       </div>
 
-      <div className="mt-5 flex flex-wrap gap-3">
+      <div className="mt-4 flex flex-wrap items-center gap-3">
         <input
           ref={fileInput}
           type="file"
@@ -173,11 +172,11 @@ function ImagePickerCard({
             event.currentTarget.value = '';
           }}
         />
-        <Button className="flex-1 !px-3 text-sm" onClick={() => fileInput.current?.click()}>
+        <Button className="!px-4 text-sm" onClick={() => fileInput.current?.click()}>
           {image ? 'Replace' : copy.acceptLabel}
         </Button>
         {image && onClear ? (
-          <Button variant="link" className="w-full text-sm" onClick={onClear}>
+          <Button variant="link" className="text-sm" onClick={onClear}>
             Remove
           </Button>
         ) : null}
@@ -234,7 +233,7 @@ export function InputsScreen({
     (demoInputs || (portrait !== null && garmentInputs.a !== null && garmentInputs.b !== null && makeupLookId !== null));
 
   return (
-    <div className="animate-soft-fade space-y-8">
+    <div className="animate-soft-fade space-y-10">
       <header className="text-center">
         <SectionHeading>Add your inputs</SectionHeading>
         <p className="mx-auto mt-3 max-w-reading text-lg text-ink-soft">
@@ -242,84 +241,83 @@ export function InputsScreen({
         </p>
       </header>
 
-      <YincolCard aria-labelledby="occasion-heading" tone="surface" className="p-6 sm:p-7">
-        <h3 id="occasion-heading" className="font-display text-2xl text-ink">
-          What are you dressing for?
-        </h3>
-        <p className="mt-2 text-base text-ink-soft">
-          Choose the moment you have in mind so the comparison stays focused. This context stays in this tab and is not sent to YouCam.
-        </p>
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5" role="group" aria-label="Occasion">
-          {OCCASION_OPTIONS.map((option) => {
-            const selected = occasion === option;
-            return (
-              <button
-                key={option}
-                type="button"
-                aria-pressed={selected}
-                onClick={() => onOccasion(option)}
-                className={`min-h-[44px] rounded-full border px-3 py-2 text-sm font-semibold transition-shadow duration-200 ${
-                  selected ? 'border-gold bg-powder text-ink shadow-emboss' : 'border-gold/50 bg-ground text-ink'
-                }`}
-              >
-                {OCCASION_LABELS[option]}
-              </button>
-            );
-          })}
-        </div>
-        <fieldset className="mt-5">
-          <legend className="text-sm font-semibold text-ink">Setting <span className="font-normal text-ink-soft">(optional)</span></legend>
-          <div className="mt-3 flex flex-wrap gap-3">
-            {SETTING_OPTIONS.map((option) => {
-              const selected = setting === option;
+      <div className="grid gap-8 xl:grid-cols-[minmax(240px,0.34fr)_minmax(0,1fr)] xl:items-start">
+        <YincolCard aria-labelledby="occasion-heading" tone="surface" className="p-6 sm:p-7">
+          <h3 id="occasion-heading" className="font-display text-2xl text-ink">
+            What are you dressing for?
+          </h3>
+          <p className="mt-2 text-base text-ink-soft">
+            Choose the moment you have in mind so the comparison stays focused. This context stays in this tab and is not sent to YouCam.
+          </p>
+          <div className="mt-4 grid grid-cols-2 gap-3" role="group" aria-label="Occasion">
+            {OCCASION_OPTIONS.map((option) => {
+              const selected = occasion === option;
               return (
                 <button
                   key={option}
                   type="button"
                   aria-pressed={selected}
-                  onClick={() => onSetting(selected ? null : option)}
-                  className={`min-h-[44px] rounded-full border px-4 py-2 text-sm transition-shadow duration-200 ${
+                  onClick={() => onOccasion(option)}
+                  className={`min-h-[44px] rounded-full border px-3 py-2 text-sm font-semibold transition-shadow duration-200 ${
                     selected ? 'border-gold bg-powder text-ink shadow-emboss' : 'border-gold/50 bg-ground text-ink'
                   }`}
                 >
-                  {SETTING_LABELS[option]}
+                  {OCCASION_LABELS[option]}
                 </button>
               );
             })}
           </div>
-        </fieldset>
-      </YincolCard>
+          <fieldset className="mt-5">
+            <legend className="text-sm font-semibold text-ink">Setting <span className="font-normal text-ink-soft">(optional)</span></legend>
+            <div className="mt-3 flex flex-wrap gap-3">
+              {SETTING_OPTIONS.map((option) => {
+                const selected = setting === option;
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => onSetting(selected ? null : option)}
+                    className={`min-h-[44px] rounded-full border px-4 py-2 text-sm transition-shadow duration-200 ${
+                      selected ? 'border-gold bg-powder text-ink shadow-emboss' : 'border-gold/50 bg-ground text-ink'
+                    }`}
+                  >
+                    {SETTING_LABELS[option]}
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
+        </YincolCard>
 
-      <section aria-labelledby="image-inputs-heading">
-        <h3 id="image-inputs-heading" className="font-display text-2xl text-ink">
-          Images
-        </h3>
-        <div className="mt-4 grid gap-5 lg:grid-cols-3">
-          <ImagePickerCard
-            slot="portrait"
-            image={portrait}
-            onChange={onPortrait}
-          />
-          <ImagePickerCard
-            slot="garmentA"
-            image={garmentInputs.a}
-            onChange={(image) => onGarment('a', image)}
-            onClear={() => onClearGarment('a')}
-          />
-          <ImagePickerCard
-            slot="garmentB"
-            image={garmentInputs.b}
-            onChange={(image) => onGarment('b', image)}
-            onClear={() => onClearGarment('b')}
-          />
-        </div>
-        <p className="mt-4 rounded-card border border-gold/40 bg-surface px-4 py-3 text-sm text-ink-soft">
-          Uploads stay in this tab. The local demo uses fixture previews by default. Opt-in
-          live mode sends the portrait and garment files through the verified Clothes VTO,
-          Makeup VTO, and Skin Analysis paths without saving them. The colour direction
-          remains a local guide until Facial Color Tone is verified.
-        </p>
-      </section>
+        <section aria-label="Portrait and garment inputs">
+          <div className="grid gap-5 lg:grid-cols-3">
+            <ImagePickerCard
+              slot="portrait"
+              image={portrait}
+              onChange={onPortrait}
+            />
+            <ImagePickerCard
+              slot="garmentA"
+              image={garmentInputs.a}
+              onChange={(image) => onGarment('a', image)}
+              onClear={() => onClearGarment('a')}
+            />
+            <ImagePickerCard
+              slot="garmentB"
+              image={garmentInputs.b}
+              onChange={(image) => onGarment('b', image)}
+              onClear={() => onClearGarment('b')}
+            />
+          </div>
+          <p className="mt-4 rounded-card border border-gold/40 bg-surface px-4 py-3 text-sm text-ink-soft">
+            Uploads stay in this tab. The local demo uses fixture previews by default. Opt-in
+            live mode sends the portrait and garment files through the verified Clothes VTO,
+            Makeup VTO, and Skin Analysis paths without saving them. The colour direction
+            remains a local guide until Facial Color Tone is verified.
+          </p>
+        </section>
+      </div>
 
       <PearlDivider />
 
@@ -330,7 +328,7 @@ export function InputsScreen({
         <p className="mt-2 text-base text-ink-soft">
           Choose the effect preset to send to the Makeup API. You do not need a makeup reference photo here.
         </p>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {MAKEUP_LOOKS.map((look) => {
             const selected = look.id === makeupLookId;
             return (
@@ -339,7 +337,7 @@ export function InputsScreen({
                 type="button"
                 aria-pressed={selected}
                 onClick={() => onChooseMakeup(look.id)}
-                className={`rounded-card border p-5 text-left transition-shadow duration-200 ${
+                className={`rounded-card border p-4 text-left transition-shadow duration-200 ${
                   selected ? 'border-gold bg-powder shadow-emboss' : 'border-gold/50 bg-ground'
                 }`}
               >
@@ -367,24 +365,35 @@ export function InputsScreen({
       </section>
 
       <YincolCard aria-labelledby="demo-inputs-heading" tone="surface" className="p-5">
-        <h3 id="demo-inputs-heading" className="font-display text-xl text-ink">
-          Need to see the flow first?
-        </h3>
-        <p className="mt-2 text-base text-ink-soft">
-          Use the local demo inputs to walk through generation without selecting files or spending API credits.
-        </p>
-        <Button variant="quiet" className="mt-4 w-full" onClick={onUseDemo}>
-          Use demo inputs
-        </Button>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 id="demo-inputs-heading" className="font-display text-xl text-ink">
+              Need to see the flow first?
+            </h3>
+            <p className="mt-2 text-base text-ink-soft">
+              Use the local demo inputs to walk through generation without selecting files or spending API credits.
+            </p>
+          </div>
+          <Button variant="quiet" className="self-start !px-4 text-sm sm:shrink-0" onClick={onUseDemo}>
+            Use demo inputs
+          </Button>
+        </div>
       </YincolCard>
 
-      <div className="flex flex-col gap-3 sm:flex-row-reverse">
-        <Button className="w-full sm:flex-1" disabled={!ready} onClick={onContinue}>
-          {!occasion ? 'Choose an occasion to continue' : ready ? 'Generate previews' : 'Add all inputs to continue'}
-        </Button>
-        <Button variant="quiet" className="w-full sm:flex-1" onClick={onBack}>
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <Button variant="quiet" className="w-full sm:w-auto" onClick={onBack}>
           Back
         </Button>
+        <div className="flex flex-col items-start gap-2 sm:items-end">
+          {!ready ? (
+            <p className="text-sm text-ink-soft">
+              Select an occasion and add all inputs to continue.
+            </p>
+          ) : null}
+          <Button className="w-full sm:w-auto" disabled={!ready} onClick={onContinue}>
+            Generate previews
+          </Button>
+        </div>
       </div>
     </div>
   );
