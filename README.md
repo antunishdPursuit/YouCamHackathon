@@ -15,9 +15,9 @@ A shopper walks four stages:
 | # | Stage | What happens |
 | --- | --- | --- |
 | 1 | Start | The promise, a concise privacy disclosure, and session-only deletion. |
-| 2 | Add inputs | Choose an occasion, optionally choose an indoor or outdoor setting, upload a portrait and two garment references, then choose one makeup effects preset. Each image gets a client-side quality check before a call is spent. |
+| 2 | Add inputs | Upload a portrait and two garment references, then choose one makeup effects preset. Each image gets a client-side quality check before a call is spent. |
 | 3 | Generate | Named progress steps: checking images, reading colour context, generating garment previews, and applying makeup. Never a bare spinner. |
-| 4 | Results | A compact palette, separate garment and makeup previews, one-variable-at-a-time comparison, provenance labels, and session-only keep/start-over actions. |
+| 4 | Results | A compact palette, separate garment and makeup previews, one-variable-at-a-time comparison, provenance labels, session-only keep/start-over actions, and reuse of matching completed previews. |
 
 Four Perfect Corp features sit behind the fixture flow: facial colour tone, skin analysis,
 clothes virtual try-on, and makeup virtual try-on. The current documented makeup endpoint
