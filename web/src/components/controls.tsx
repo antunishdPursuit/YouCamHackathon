@@ -18,7 +18,7 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 
 export function Button({ variant = 'primary', className = '', children, ...rest }: ButtonProps) {
   const base =
-    'inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full px-6 py-2.5 ' +
+    'inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full px-6 py-3 ' +
     'text-base font-semibold transition-[transform,box-shadow] duration-200 ' +
     'disabled:cursor-not-allowed disabled:opacity-55';
 
@@ -40,7 +40,7 @@ export function Button({ variant = 'primary', className = '', children, ...rest 
 /**
  * A chip showing a locked or selected value.
  *
- * `tone="locked"` is the persistent chip on the compare screen naming the variable
+ * `tone="locked"` is the persistent chip in the results workspace naming the variable
  * that is being held still.
  */
 export function Chip({

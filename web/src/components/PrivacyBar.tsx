@@ -14,11 +14,11 @@ export function PrivacyBar({ onDelete }: { onDelete: () => void }) {
   const [confirming, setConfirming] = useState(false);
 
   return (
-    <div className="rounded-card border border-gold/50 bg-surface px-4 py-2.5">
+    <div className="rounded-card border border-gold/50 bg-surface px-5 py-4">
       {confirming ? (
         <div className="space-y-2">
           <p className="text-sm text-ink">
-            Delete your photograph and everything read from it?
+            Remove your photo and results?
           </p>
           <div className="flex gap-2">
             <Button
@@ -41,7 +41,7 @@ export function PrivacyBar({ onDelete }: { onDelete: () => void }) {
         </div>
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs text-ink-soft">
+          <p className="text-sm text-ink-soft">
             <svg
               viewBox="0 0 16 16"
               aria-hidden="true"
@@ -61,7 +61,7 @@ export function PrivacyBar({ onDelete }: { onDelete: () => void }) {
             onClick={() => setConfirming(true)}
             className="min-h-[44px] rounded-full px-3 text-sm font-semibold text-ink underline underline-offset-4"
           >
-            Delete it
+            Remove photo and results
           </button>
         </div>
       )}

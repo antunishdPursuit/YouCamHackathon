@@ -1,22 +1,22 @@
 /**
- * Screen 4 — Analysis.
+ * Stage 3 — Generate.
  *
- * Three named steps, never a bare spinner. The copy is soft but specific: "Reading your
- * undertone" says what the system is doing. "Consulting the mirror" would hide it, and
- * a loading state that hides the work is how a product stops being trustworthy.
+ * Four named steps, never a bare spinner. The user can see what is being checked and
+ * generated while the local API proxy completes both analysis and try-on requests.
  */
 
 import { useEffect, useState } from 'react';
 import { PearlDivider, SectionHeading } from '../components/ornament.js';
 
 const STEPS = [
-  { id: 'undertone', label: 'Reading your undertone' },
-  { id: 'contrast', label: 'Measuring contrast' },
-  { id: 'palette', label: 'Composing your palette' },
+  { id: 'images', label: 'Checking your images' },
+  { id: 'colour', label: 'Reading your colour context' },
+  { id: 'garments', label: 'Generating garment previews' },
+  { id: 'makeup', label: 'Applying your makeup look' },
 ] as const;
 
-/** ~2s per step, matching the fixture delay so the animation is always exercised. */
-const STEP_DURATION_MS = 2_000;
+/** Keep the explanation visible while the fixture delay is exercised. */
+const STEP_DURATION_MS = 1_200;
 
 export function AnalysisScreen({ done, onFinished }: { done: boolean; onFinished: () => void }) {
   const [active, setActive] = useState(0);
@@ -36,11 +36,11 @@ export function AnalysisScreen({ done, onFinished }: { done: boolean; onFinished
 
   return (
     <div className="animate-soft-fade flex min-h-[60vh] flex-col justify-center space-y-6 text-center">
-      <SectionHeading>A moment at the counter</SectionHeading>
+      <SectionHeading className="text-4xl">Generating your previews</SectionHeading>
 
       <PearlDivider />
 
-      <ol className="mx-auto w-full max-w-xs space-y-4 text-left" aria-live="polite">
+      <ol className="mx-auto w-full max-w-sm space-y-4 text-left" aria-live="polite">
         {STEPS.map((step, index) => {
           const state = index < active ? 'done' : index === active ? 'active' : 'waiting';
           return (
@@ -80,7 +80,7 @@ export function AnalysisScreen({ done, onFinished }: { done: boolean; onFinished
       </ol>
 
       <p className="text-sm text-ink-soft">
-        Your photograph is being read for colour only.
+        Your files stay in this tab while the preview work runs.
       </p>
     </div>
   );

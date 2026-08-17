@@ -11,7 +11,7 @@
  * container that holds a photograph, a garment or a swatch. Those interiors stay cream.
  */
 
-import type { ReactNode } from 'react';
+import type { HTMLAttributes, ReactNode } from 'react';
 
 /** Small gold corner flourish. Four of these make a frame feel hand-set. */
 function CornerFlourish({ className }: { className: string }) {
@@ -55,6 +55,31 @@ export function GildedFrame({
       <CornerFlourish className="right-1 top-1 rotate-90" />
       <CornerFlourish className="bottom-1 right-1 rotate-180" />
       <CornerFlourish className="bottom-1 left-1 -rotate-90" />
+      {children}
+    </Tag>
+  );
+}
+
+/**
+ * The standard YINCOL content card.
+ *
+ * A card changes only its surface tone; spacing belongs to the page composition so
+ * cards can breathe consistently across all four stages.
+ */
+export function YincolCard({
+  children,
+  className = '',
+  tone = 'ground',
+  as: Tag = 'section',
+  ...rest
+}: HTMLAttributes<HTMLElement> & {
+  children: ReactNode;
+  tone?: 'ground' | 'surface';
+  as?: 'div' | 'section' | 'article' | 'aside';
+}) {
+  const surface = tone === 'surface' ? 'bg-surface' : 'bg-ground';
+  return (
+    <Tag {...rest} className={`rounded-card border border-gold/50 ${surface} ${className}`}>
       {children}
     </Tag>
   );

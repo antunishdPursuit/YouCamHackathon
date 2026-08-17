@@ -23,6 +23,10 @@ export default {
       borderRadius: {
         card: '20px',
       },
+      maxWidth: {
+        yincol: '100rem',
+        reading: '60ch',
+      },
       boxShadow: {
         // Soft emboss — like pressed powder. Faint inner highlight, faint outer shadow.
         emboss:

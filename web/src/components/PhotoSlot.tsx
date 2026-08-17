@@ -90,13 +90,18 @@ export function PhotoSlot({
         say so plainly — a stand-in presented as an API result is a lie told to a judge.
       */}
       {provenance === 'placeholder' && isReady ? (
-        <figcaption className="mt-1.5 text-xs text-ink-soft">
+        <figcaption className="mt-2 text-sm text-ink-soft">
           Placeholder image — not an API result.
         </figcaption>
       ) : null}
       {provenance === 'captured' && isReady ? (
-        <figcaption className="mt-1.5 text-xs text-ink-soft">
+        <figcaption className="mt-2 text-sm text-ink-soft">
           Pre-captured result from the live API.
+        </figcaption>
+      ) : null}
+      {provenance === 'live' && isReady ? (
+        <figcaption className="mt-2 text-sm text-ink-soft">
+          Live YouCam result — generated from your upload.
         </figcaption>
       ) : null}
     </figure>

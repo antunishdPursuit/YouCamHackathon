@@ -53,10 +53,22 @@ export interface AnalyzeResponse {
   readonly mode: 'fixture' | 'live';
 }
 
+/** Browser-held image bytes sent only for the opt-in live try-on path. */
+export interface TryOnImageInput {
+  /** Base64-encoded image bytes, without a `data:` URL prefix. */
+  readonly data: string;
+  readonly contentType: string;
+  readonly fileName: string;
+}
+
 export interface TryOnRequest {
   readonly portraitRef: string;
   readonly garmentIds: readonly string[];
   readonly makeupLookId: string;
+  /** Present for live mode; fixture mode ignores these browser-held inputs. */
+  readonly portrait?: TryOnImageInput;
+  /** Keyed by the selected catalogue id so the server can preserve slot order. */
+  readonly garmentImages?: Readonly<Record<string, TryOnImageInput>>;
 }
 
 export interface TryOnPanel {

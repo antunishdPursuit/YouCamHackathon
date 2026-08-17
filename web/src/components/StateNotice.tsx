@@ -33,7 +33,7 @@ export function StateNotice({
   return (
     <GildedFrame
       as="section"
-      className={`p-5 ${tone === 'attention' ? 'bg-powder' : 'bg-surface'}`}
+      className={`p-5 sm:p-6 ${tone === 'attention' ? 'bg-powder' : 'bg-surface'}`}
     >
       <div role={tone === 'attention' ? 'alert' : undefined}>
         <h3 className="font-display text-2xl leading-tight text-ink">{title}</h3>
@@ -67,7 +67,7 @@ export function PartialResultsNotice({ failedLabels }: { failedLabels: readonly 
   return (
     <p
       role="status"
-      className="rounded-card border border-gold/50 bg-surface px-4 py-3 text-sm text-ink"
+      className="rounded-card border border-gold/50 bg-surface px-5 py-4 text-base text-ink"
     >
       We could not generate {list}. Everything else on this screen is ready, and your
       palette is unaffected — you can carry on comparing what did come back.

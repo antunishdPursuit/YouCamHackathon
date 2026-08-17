@@ -10,27 +10,46 @@ import type { AnalyzeResponse, TryOnResponse } from '@yincol/shared';
 
 export type Step =
   | 'intro'
-  | 'capture'
-  | 'selection'
-  | 'analysis'
-  | 'colors'
-  | 'preview'
-  | 'compare'
-  | 'lookCard';
+  | 'inputs'
+  | 'generate'
+  | 'results';
+
+export type Occasion = 'wedding' | 'work' | 'dinner' | 'celebration' | 'other';
+
+export const OCCASION_OPTIONS: readonly Occasion[] = [
+  'wedding',
+  'work',
+  'dinner',
+  'celebration',
+  'other',
+];
+
+export const OCCASION_LABELS: Readonly<Record<Occasion, string>> = {
+  wedding: 'Wedding',
+  work: 'Work',
+  dinner: 'Dinner',
+  celebration: 'Celebration',
+  other: 'Other occasion',
+};
+
+export type Setting = 'indoor' | 'outdoor';
+
+export const SETTING_OPTIONS: readonly Setting[] = ['indoor', 'outdoor'];
+
+export const SETTING_LABELS: Readonly<Record<Setting, string>> = {
+  indoor: 'Indoor',
+  outdoor: 'Outdoor',
+};
 
 /** The order screens advance in, used for the back affordance. */
 export const STEP_ORDER: readonly Step[] = [
   'intro',
-  'capture',
-  'selection',
-  'analysis',
-  'colors',
-  'preview',
-  'compare',
-  'lookCard',
+  'inputs',
+  'generate',
+  'results',
 ];
 
-export interface CapturedPortrait {
+export interface CapturedImage {
   /** An object URL for the chosen file, revoked when the portrait is replaced or cleared. */
   readonly previewUrl: string;
   /** The selected bytes stay in memory until this session ends; they are never persisted. */
@@ -40,7 +59,9 @@ export interface CapturedPortrait {
   readonly note?: string;
 }
 
-/** Which axis the compare screen is showing. */
+export type CapturedPortrait = CapturedImage;
+
+/** Which axis the results workspace is showing. */
 export type CompareAxis = 'garments' | 'makeup';
 
 /**
@@ -61,10 +82,19 @@ export interface SavedLook {
 export interface SessionState {
   readonly step: Step;
   readonly consentGiven: boolean;
+  /** A user-selected context for the comparison; it does not go to the provider APIs. */
+  readonly occasion: Occasion | null;
+  readonly setting: Setting | null;
   readonly portrait: CapturedPortrait | null;
-  /** Exactly two, once selection is complete. */
+  readonly garmentInputs: {
+    readonly a: CapturedImage | null;
+    readonly b: CapturedImage | null;
+  };
+  /** Fixture catalog ids used only to keep the current local result pipeline working. */
   readonly garmentIds: readonly string[];
   readonly makeupLookId: string | null;
+  /** Explicit local-only path; it never claims that placeholder inputs are API inputs. */
+  readonly demoInputs: boolean;
   readonly analysis: AnalyzeResponse | null;
   readonly tryOn: TryOnResponse | null;
   readonly axis: CompareAxis;
@@ -82,9 +112,13 @@ export interface SessionState {
 export const initialState: SessionState = {
   step: 'intro',
   consentGiven: false,
+  occasion: null,
+  setting: null,
   portrait: null,
+  garmentInputs: { a: null, b: null },
   garmentIds: [],
   makeupLookId: null,
+  demoInputs: false,
   analysis: null,
   tryOn: null,
   axis: 'garments',
@@ -100,9 +134,14 @@ export const initialState: SessionState = {
 export type SessionAction =
   | { type: 'giveConsent' }
   | { type: 'goTo'; step: Step }
+  | { type: 'setOccasion'; occasion: Occasion }
+  | { type: 'setSetting'; setting: Setting | null }
   | { type: 'setPortrait'; portrait: CapturedPortrait }
   | { type: 'clearPortrait' }
-  | { type: 'toggleGarment'; garmentId: string }
+  | { type: 'setGarmentInput'; slot: 'a' | 'b'; image: CapturedImage }
+  | { type: 'clearGarmentInput'; slot: 'a' | 'b' }
+  | { type: 'useDemoInputs' }
+  | { type: 'editInputs' }
   | { type: 'chooseMakeup'; lookId: string }
   | { type: 'analysisStarted' }
   | { type: 'analysisReady'; analysis: AnalyzeResponse }
@@ -115,9 +154,14 @@ export type SessionAction =
   | { type: 'dismissError' }
   | { type: 'startOver' };
 
-/** Selection is complete at exactly two garments and one makeup look. */
-export const selectionComplete = (state: SessionState): boolean =>
-  state.garmentIds.length === 2 && state.makeupLookId !== null;
+/** Inputs are complete when the user supplied three images or explicitly chose demo inputs. */
+export const inputsComplete = (state: SessionState): boolean =>
+  state.occasion !== null &&
+  (state.demoInputs ||
+    (state.portrait !== null &&
+      state.garmentInputs.a !== null &&
+      state.garmentInputs.b !== null &&
+      state.makeupLookId !== null));
 
 export function sessionReducer(state: SessionState, action: SessionAction): SessionState {
   switch (action.type) {
@@ -127,8 +171,14 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
     case 'goTo':
       return { ...state, step: action.step, error: null };
 
+    case 'setOccasion':
+      return { ...state, occasion: action.occasion, error: null };
+
+    case 'setSetting':
+      return { ...state, setting: action.setting, error: null };
+
     case 'setPortrait':
-      return { ...state, portrait: action.portrait, error: null };
+      return { ...state, portrait: action.portrait, demoInputs: false, error: null };
 
     case 'clearPortrait':
       // One-tap delete, as promised on every screen showing the portrait. It clears the
@@ -138,28 +188,64 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
       return {
         ...initialState,
         consentGiven: state.consentGiven,
-        step: 'capture',
+        step: 'inputs',
       };
 
-    case 'toggleGarment': {
-      const already = state.garmentIds.includes(action.garmentId);
-      if (already) {
-        return { ...state, garmentIds: state.garmentIds.filter((id) => id !== action.garmentId) };
-      }
-      // Two is the limit. A third tap replaces the older of the two rather than being
-      // silently ignored, so the control never feels dead.
-      const next =
-        state.garmentIds.length < 2
-          ? [...state.garmentIds, action.garmentId]
-          : [state.garmentIds[1]!, action.garmentId];
-      return { ...state, garmentIds: next };
+    case 'setGarmentInput': {
+      const fixtureId = action.slot === 'a' ? 'rosewater-cardigan' : 'sage-linen-shirt';
+      const otherId = action.slot === 'a'
+        ? state.garmentIds[1] ?? 'sage-linen-shirt'
+        : state.garmentIds[0] ?? 'rosewater-cardigan';
+      return {
+        ...state,
+        garmentInputs: { ...state.garmentInputs, [action.slot]: action.image },
+        garmentIds: action.slot === 'a' ? [fixtureId, otherId] : [otherId, fixtureId],
+        demoInputs: false,
+        error: null,
+      };
     }
 
+    case 'clearGarmentInput':
+      return {
+        ...state,
+        garmentInputs: { ...state.garmentInputs, [action.slot]: null },
+        garmentIds: state.garmentIds.filter((_id, index) =>
+          action.slot === 'a' ? index !== 0 : index !== 1,
+        ),
+        error: null,
+      };
+
+    case 'useDemoInputs':
+      return {
+        ...state,
+        occasion: 'celebration',
+        setting: 'indoor',
+        garmentIds: ['rosewater-cardigan', 'sage-linen-shirt'],
+        makeupLookId: 'rose-veil',
+        demoInputs: true,
+        error: null,
+      };
+
+    case 'editInputs':
+      return {
+        ...state,
+        step: 'inputs',
+        analysis: null,
+        tryOn: null,
+        axis: 'garments',
+        garmentWinnerId: null,
+        makeupWinner: null,
+        savedLook: false,
+        error: null,
+        errorCode: null,
+        busy: false,
+      };
+
     case 'chooseMakeup':
-      return { ...state, makeupLookId: action.lookId };
+      return { ...state, makeupLookId: action.lookId, demoInputs: false, error: null };
 
     case 'analysisStarted':
-      return { ...state, busy: true, error: null, step: 'analysis' };
+      return { ...state, busy: true, error: null, step: 'generate' };
 
     case 'analysisReady':
       return { ...state, analysis: action.analysis };
@@ -183,7 +269,6 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         ...state,
         savedLook: true,
         savedLooks: [...others, action.look],
-        step: 'lookCard',
       };
     }
 

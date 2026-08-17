@@ -10,10 +10,12 @@ import type {
   AnalyzeResponse,
   SkinAnalysisRequest,
   SkinAnalysisResponse,
+  TryOnImageInput,
+  TryOnRequest,
   TryOnResponse,
 } from '@yincol/shared';
 import { IMAGE_SPEC } from '@yincol/shared';
-import type { CapturedPortrait } from '../state/session.js';
+import type { CapturedImage, CapturedPortrait } from '../state/session.js';
 
 const API_BASE = '/api';
 
@@ -69,6 +71,21 @@ async function fileAsBase64(file: File): Promise<string> {
   return btoa(binary);
 }
 
+async function fileAsImageInput(file: File): Promise<TryOnImageInput> {
+  if (file.size >= IMAGE_SPEC.maxFileBytesExclusive) {
+    throw new ApiError('That file is too large. Please choose an image smaller than 10 MB.', 'general');
+  }
+  if (file.type !== 'image/jpeg' && file.type !== 'image/png') {
+    throw new ApiError('Please choose a JPEG or PNG image for live previews.', 'general');
+  }
+
+  return {
+    data: await fileAsBase64(file),
+    contentType: file.type,
+    fileName: file.name || 'image',
+  };
+}
+
 /** Sends the selected browser file to the dedicated Skin Analysis route. */
 export async function requestSkinAnalysis(
   portrait: CapturedPortrait,
@@ -91,9 +108,32 @@ export async function requestSkinAnalysis(
   return post<SkinAnalysisResponse>('/skin-analysis', body);
 }
 
-export const requestTryOn = (
-  portraitRef: string,
-  garmentIds: readonly string[],
-  makeupLookId: string,
-): Promise<TryOnResponse> =>
-  post<TryOnResponse>('/try-on', { portraitRef, garmentIds, makeupLookId });
+export async function requestTryOn({
+  portraitRef,
+  portrait,
+  garmentIds,
+  garmentInputs,
+  makeupLookId,
+}: {
+  portraitRef: string;
+  portrait: CapturedPortrait | null;
+  garmentIds: readonly string[];
+  garmentInputs: readonly (CapturedImage | null)[];
+  makeupLookId: string;
+}): Promise<TryOnResponse> {
+  const garmentImages: Record<string, TryOnImageInput> = {};
+  for (const [index, garmentId] of garmentIds.entries()) {
+    const image = garmentInputs[index];
+    if (image) garmentImages[garmentId] = await fileAsImageInput(image.file);
+  }
+
+  const body: TryOnRequest = {
+    portraitRef,
+    garmentIds,
+    makeupLookId,
+    ...(portrait ? { portrait: await fileAsImageInput(portrait.file) } : {}),
+    ...(Object.keys(garmentImages).length > 0 ? { garmentImages } : {}),
+  };
+
+  return post<TryOnResponse>('/try-on', body);
+}

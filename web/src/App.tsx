@@ -1,9 +1,10 @@
 /**
- * The shell: one reducer, one screen at a time.
+ * The shell: one reducer, four clear stages.
  *
- * Everything runs on fixtures by default, so the whole nine-screen flow is walkable
- * with no network and no credits. The selected portrait can optionally pass through
- * the isolated live Skin Analysis route without changing the palette/try-on mode.
+ * Everything runs on fixtures by default, so the whole flow is walkable with no
+ * network and no credits. Live Skin Analysis and live try-on are separate opt-in
+ * server flags; the browser can send its tab-held files without knowing which mode
+ * the server selected.
  */
 
 import { useCallback, useEffect, useReducer } from 'react';
@@ -13,18 +14,57 @@ import { PrivacyBar } from './components/PrivacyBar.js';
 import { Wordmark } from './components/ornament.js';
 import { Button } from './components/controls.js';
 import { IntroScreen } from './screens/IntroScreen.js';
-import { CaptureScreen } from './screens/CaptureScreen.js';
-import { SelectionScreen } from './screens/SelectionScreen.js';
+import { InputsScreen } from './screens/InputsScreen.js';
 import { AnalysisScreen } from './screens/AnalysisScreen.js';
-import { ColorsScreen } from './screens/ColorsScreen.js';
-import { PreviewScreen } from './screens/PreviewScreen.js';
-import { CompareScreen } from './screens/CompareScreen.js';
-import { LookCardScreen } from './screens/LookCardScreen.js';
-import { findGarment, findMakeupLook } from '@yincol/shared';
-import { initialState, sessionReducer, type SavedLook, type SessionState } from './state/session.js';
+import { ResultsScreen } from './screens/ResultsScreen.js';
+import { findMakeupLook } from '@yincol/shared';
+import {
+  initialState,
+  OCCASION_LABELS,
+  sessionReducer,
+  STEP_ORDER,
+  type SavedLook,
+  type SessionState,
+  type Step,
+} from './state/session.js';
 
 /** Screens that display the portrait, and therefore carry the privacy affordance. */
-const SHOWS_PORTRAIT = new Set(['capture', 'analysis', 'colors', 'preview', 'compare', 'lookCard']);
+const SHOWS_PORTRAIT = new Set(['inputs', 'generate', 'results']);
+
+const STAGE_LABELS: Readonly<Record<Step, string>> = {
+  intro: 'Start',
+  inputs: 'Add inputs',
+  generate: 'Generate',
+  results: 'Results',
+};
+
+function StageProgress({ step }: { step: Step }) {
+  const activeIndex = STEP_ORDER.indexOf(step);
+
+  return (
+    <nav aria-label="Progress" className="min-w-0 flex-1">
+      <ol className="grid grid-cols-4 gap-3">
+        {STEP_ORDER.map((stage, index) => {
+          const current = stage === step;
+          const complete = index < activeIndex;
+          return (
+            <li key={stage}>
+              <span
+                aria-current={current ? 'step' : undefined}
+                className={`block border-t-2 pt-3 text-center text-xs sm:text-sm ${
+                  current || complete ? 'border-gold font-semibold text-ink' : 'border-gold/30 text-ink-soft'
+                }`}
+              >
+                <span className="sr-only">{complete ? 'Complete: ' : current ? 'Current: ' : ''}</span>
+                {STAGE_LABELS[stage]}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
+  );
+}
 
 /**
  * Condense the current session into the shelf entry.
@@ -33,9 +73,17 @@ const SHOWS_PORTRAIT = new Set(['capture', 'analysis', 'colors', 'preview', 'com
  * duplicates — and it needs no clock or random source to be unique.
  */
 function buildSavedLook(state: SessionState): SavedLook {
-  const garment = findGarment(state.garmentWinnerId ?? '');
+  const garmentIndex = state.garmentIds.indexOf(state.garmentWinnerId ?? '');
+  const garmentName = garmentIndex === 0 ? 'Garment A' : garmentIndex === 1 ? 'Garment B' : 'A garment';
   const look = state.makeupLookId ? findMakeupLook(state.makeupLookId) : undefined;
   const makeupName = state.makeupWinner === 'bare' ? 'Bare face' : (look?.name ?? 'Makeup look');
+  const occasionName = state.occasion === 'other'
+    ? 'your occasion'
+    : state.occasion
+      ? state.occasion === 'wedding'
+        ? 'your wedding'
+        : OCCASION_LABELS[state.occasion].toLowerCase()
+      : 'your occasion';
   const swatchHexes =
     state.analysis?.palette.swatches
       .filter((swatch) => swatch.role !== 'neutral')
@@ -44,10 +92,10 @@ function buildSavedLook(state: SessionState): SavedLook {
 
   return {
     id: `${state.garmentWinnerId ?? 'none'}--${state.makeupWinner ?? 'none'}--${state.makeupLookId ?? 'none'}`,
-    garmentName: garment?.name ?? 'A garment',
+    garmentName,
     makeupName,
     swatchHexes,
-    summary: `${garment?.name ?? 'A garment'} with ${makeupName.toLowerCase()}.`,
+    summary: `${garmentName} with ${makeupName.toLowerCase()} for ${occasionName}.`,
   };
 }
 
@@ -57,9 +105,9 @@ export function App() {
   /**
    * Kick off both calls together when analysis begins.
    *
-   * The portrait reference is a fixture key in fixture mode. In live mode it would be a
-   * publicly reachable URL — the API fetches the image itself, so a local object URL
-   * would be meaningless to it.
+   * The portrait reference remains a fixture key for fixture mode. When the server has
+   * the opt-in live try-on flag enabled, the browser-held portrait and garment bytes are
+   * sent in the same request and uploaded server-side through the feature File APIs.
    */
   const beginAnalysis = useCallback(async () => {
     dispatch({ type: 'analysisStarted' });
@@ -86,11 +134,13 @@ export function App() {
           : analysis;
       dispatch({ type: 'analysisReady', analysis: combinedAnalysis });
 
-      const tryOn = await requestTryOn(
+      const tryOn = await requestTryOn({
         portraitRef,
-        state.garmentIds,
-        state.makeupLookId ?? '',
-      );
+        portrait,
+        garmentIds: state.garmentIds,
+        garmentInputs: [state.garmentInputs.a, state.garmentInputs.b],
+        makeupLookId: state.makeupLookId ?? '',
+      });
       dispatch({ type: 'tryOnReady', tryOn });
     } catch (error) {
       dispatch({
@@ -99,7 +149,7 @@ export function App() {
         code: error instanceof ApiError ? error.code : 'general',
       });
     }
-  }, [state.garmentIds, state.makeupLookId]);
+  }, [state.garmentIds, state.makeupLookId, state.portrait]);
 
   // Release the object URL when the portrait is replaced or cleared, so a discarded
   // photograph is genuinely gone rather than lingering in memory.
@@ -109,6 +159,21 @@ export function App() {
       if (url) URL.revokeObjectURL(url);
     };
   }, [state.portrait?.previewUrl]);
+
+  // Garment reference files follow the same tab-only lifecycle as the portrait.
+  useEffect(() => {
+    const url = state.garmentInputs.a?.previewUrl;
+    return () => {
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [state.garmentInputs.a?.previewUrl]);
+
+  useEffect(() => {
+    const url = state.garmentInputs.b?.previewUrl;
+    return () => {
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [state.garmentInputs.b?.previewUrl]);
 
   const analysisDone = state.analysis !== null && state.tryOn !== null;
 
@@ -125,7 +190,7 @@ export function App() {
           actionLabel="Choose a different photograph"
           action={() => {
             dispatch({ type: 'dismissError' });
-            dispatch({ type: 'goTo', step: 'capture' });
+            dispatch({ type: 'goTo', step: 'inputs' });
           }}
         />
       );
@@ -138,84 +203,58 @@ export function App() {
             savedLooks={state.savedLooks}
             onBegin={() => {
               dispatch({ type: 'giveConsent' });
-              dispatch({ type: 'goTo', step: 'capture' });
+              dispatch({ type: 'goTo', step: 'inputs' });
             }}
           />
         );
 
-      case 'capture':
+      case 'inputs':
         return (
-          <CaptureScreen
+          <InputsScreen
+            occasion={state.occasion}
+            setting={state.setting}
             portrait={state.portrait}
-            onPortrait={(portrait) => dispatch({ type: 'setPortrait', portrait })}
-            onContinue={() => dispatch({ type: 'goTo', step: 'selection' })}
-          />
-        );
-
-      case 'selection':
-        return (
-          <SelectionScreen
-            garmentIds={state.garmentIds}
+            garmentInputs={state.garmentInputs}
             makeupLookId={state.makeupLookId}
-            onToggleGarment={(garmentId) => dispatch({ type: 'toggleGarment', garmentId })}
+            demoInputs={state.demoInputs}
+            onOccasion={(occasion) => dispatch({ type: 'setOccasion', occasion })}
+            onSetting={(setting) => dispatch({ type: 'setSetting', setting })}
+            onPortrait={(image) => dispatch({ type: 'setPortrait', portrait: image })}
+            onGarment={(slot, image) => dispatch({ type: 'setGarmentInput', slot, image })}
+            onClearGarment={(slot) => dispatch({ type: 'clearGarmentInput', slot })}
             onChooseMakeup={(lookId) => dispatch({ type: 'chooseMakeup', lookId })}
+            onUseDemo={() => dispatch({ type: 'useDemoInputs' })}
             onContinue={beginAnalysis}
+            onBack={() => dispatch({ type: 'goTo', step: 'intro' })}
           />
         );
 
-      case 'analysis':
+      case 'generate':
         return (
           <AnalysisScreen
             done={analysisDone}
-            onFinished={() => dispatch({ type: 'goTo', step: 'colors' })}
+            onFinished={() => dispatch({ type: 'goTo', step: 'results' })}
           />
         );
 
-      case 'colors':
-        return state.analysis ? (
-          <ColorsScreen
+      case 'results':
+        return state.analysis && state.tryOn ? (
+          <ResultsScreen
+            occasion={state.occasion}
+            setting={state.setting}
             analysis={state.analysis}
-            onContinue={() => dispatch({ type: 'goTo', step: 'preview' })}
-          />
-        ) : null;
-
-      case 'preview':
-        return state.analysis && state.tryOn ? (
-          <PreviewScreen
             tryOn={state.tryOn}
-            palette={state.analysis.palette}
-            garmentIds={state.garmentIds}
-            makeupLookId={state.makeupLookId}
-            onContinue={() => dispatch({ type: 'goTo', step: 'compare' })}
-          />
-        ) : null;
-
-      case 'compare':
-        return state.analysis && state.tryOn ? (
-          <CompareScreen
-            tryOn={state.tryOn}
-            palette={state.analysis.palette}
             garmentIds={state.garmentIds}
             makeupLookId={state.makeupLookId}
             axis={state.axis}
             garmentWinnerId={state.garmentWinnerId}
             makeupWinner={state.makeupWinner}
+            savedLook={state.savedLook}
             onAxisChange={(axis) => dispatch({ type: 'setAxis', axis })}
             onPickGarment={(garmentId) => dispatch({ type: 'pickGarmentWinner', garmentId })}
             onPickMakeup={(winner) => dispatch({ type: 'pickMakeupWinner', winner })}
-            onContinue={() => dispatch({ type: 'saveLook', look: buildSavedLook(state) })}
-          />
-        ) : null;
-
-      case 'lookCard':
-        return state.analysis && state.tryOn ? (
-          <LookCardScreen
-            tryOn={state.tryOn}
-            palette={state.analysis.palette}
-            garmentWinnerId={state.garmentWinnerId}
-            makeupWinner={state.makeupWinner}
-            makeupLookId={state.makeupLookId}
-            onBack={() => dispatch({ type: 'goTo', step: 'compare' })}
+            onSave={() => dispatch({ type: 'saveLook', look: buildSavedLook(state) })}
+            onEditInputs={() => dispatch({ type: 'editInputs' })}
             onStartOver={() => dispatch({ type: 'startOver' })}
           />
         ) : null;
@@ -234,15 +273,14 @@ export function App() {
         Skip to content
       </a>
 
-      <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-4 pb-10 pt-4">
-        {state.step !== 'intro' ? (
-          <header className="mb-4 flex items-center justify-center">
-            <Wordmark size="sm" />
-          </header>
-        ) : null}
+      <div className="mx-auto flex min-h-dvh w-full max-w-yincol flex-col px-6 pb-16 pt-6 sm:px-8 lg:px-10 xl:px-12">
+        <header className="mb-7 flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:gap-8">
+          <Wordmark size="sm" />
+          <StageProgress step={state.step} />
+        </header>
 
-        {SHOWS_PORTRAIT.has(state.step) ? (
-          <div className="mb-4">
+        {SHOWS_PORTRAIT.has(state.step) && state.portrait ? (
+          <div className="mb-6">
             <PrivacyBar onDelete={() => dispatch({ type: 'clearPortrait' })} />
           </div>
         ) : null}
@@ -250,12 +288,12 @@ export function App() {
         {state.error && state.errorCode !== 'noFace' ? (
           <div
             role="alert"
-            className="mb-4 rounded-card border border-gold/60 bg-powder px-4 py-3 text-sm text-ink"
+            className="mb-6 rounded-card border border-gold/60 bg-powder px-5 py-4 text-base text-ink"
           >
             <p>{state.error}</p>
             <Button
               variant="quiet"
-              className="mt-2 !px-3 text-sm"
+              className="mt-3 !px-3 text-sm"
               onClick={() => dispatch({ type: 'dismissError' })}
             >
               Dismiss

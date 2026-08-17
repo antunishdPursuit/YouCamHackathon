@@ -193,20 +193,10 @@ export interface Garment {
   readonly imageUrl?: string;
 }
 
-/**
- * Makeup transfer is REFERENCE-IMAGE BASED. The API extracts a look from a photo of a
- * made-up face; it does not accept shade values or SKUs.
- *
- * `referenceImageUrl` is therefore the only field the API ever sees. The lip / cheek /
- * eye chips below are HAND-AUTHORED DISPLAY METADATA describing what the reference
- * looks like — they are never sent anywhere and never influence the result.
- */
+/** A display look whose chips seed the server-side Makeup VTO effects preset. */
 export interface MakeupLook {
   readonly id: string;
   readonly name: string;
-  /** The only field that is API input. */
-  readonly referenceImageUrl: string;
-  /** Display-only. See the note above. */
   readonly chips: {
     readonly lip: { readonly hex: Hex; readonly name: string };
     readonly cheek: { readonly hex: Hex; readonly name: string };

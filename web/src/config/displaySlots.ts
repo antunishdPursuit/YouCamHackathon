@@ -1,8 +1,8 @@
 /**
  * The four photographs the UI can render, declared in ONE config object.
  *
- * Everything downstream reads from here: the preview panels, both compare axes, and
- * the look card. When a slot is empty it renders the ornamental placeholder rather
+ * Everything downstream reads from here: the generated preview panels and both results
+ * comparison axes. When a slot is empty it renders the ornamental placeholder rather
  * than a broken image.
  */
 

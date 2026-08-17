@@ -69,22 +69,14 @@ export const GARMENTS: readonly Garment[] = [
 /**
  * Makeup looks.
  *
- * ⚠ READ THIS BEFORE EDITING. The API extracts a look from `referenceImageUrl` — a
- * photograph of a made-up face. That URL is the ONLY field here that is ever sent
- * anywhere.
- *
- * The `chips` below are HAND-AUTHORED DISPLAY METADATA. Somebody looked at the
- * reference photograph and wrote down roughly what the lip, cheek and eye read as, so
- * the picker can show three dots instead of a stranger's face. They are not API input,
- * they do not influence the result, and no shade value or SKU can be sent to this
- * feature at all. If a future change starts passing a chip hex to the API, that change
- * is wrong.
+ * The current documented Makeup VTO endpoint takes an effects configuration rather
+ * than a reference photograph. The server converts the selected look's display chips
+ * into that provider payload; the vendor fields never reach the browser.
  */
 export const MAKEUP_LOOKS: readonly MakeupLook[] = [
   {
     id: 'rose-veil',
     name: 'Rose Veil',
-    referenceImageUrl: 'makeup-reference.jpg',
     description: 'A soft everyday flush — barely-there lip, warm rose cheek, clean lid.',
     chips: {
       lip: { hex: '#c9757a', name: 'Rosewater' },
@@ -95,7 +87,6 @@ export const MAKEUP_LOOKS: readonly MakeupLook[] = [
   {
     id: 'peach-ember',
     name: 'Peach Ember',
-    referenceImageUrl: 'makeup-reference-peach-ember.jpg',
     description: 'Warm coral through lip and cheek, with a gilded wash on the lid.',
     chips: {
       lip: { hex: '#d9705a', name: 'Coral ember' },
@@ -106,7 +97,6 @@ export const MAKEUP_LOOKS: readonly MakeupLook[] = [
   {
     id: 'berry-nocturne',
     name: 'Berry Nocturne',
-    referenceImageUrl: 'makeup-reference-berry-nocturne.jpg',
     description: 'A deeper berry lip held against a quiet cheek and a soft smoked lid.',
     chips: {
       lip: { hex: '#8e3550', name: 'Mulberry' },
@@ -117,7 +107,6 @@ export const MAKEUP_LOOKS: readonly MakeupLook[] = [
   {
     id: 'champagne-halo',
     name: 'Champagne Halo',
-    referenceImageUrl: 'makeup-reference-champagne-halo.jpg',
     description: 'Neutral and luminous — a golden lid, bare cheek, and a warm nude lip.',
     chips: {
       lip: { hex: '#c08a72', name: 'Warm nude' },
@@ -128,7 +117,6 @@ export const MAKEUP_LOOKS: readonly MakeupLook[] = [
   {
     id: 'wisteria-dusk',
     name: 'Wisteria Dusk',
-    referenceImageUrl: 'makeup-reference-wisteria-dusk.jpg',
     description: 'A cool mauve lid with a pink-leaning lip, kept low and soft.',
     chips: {
       lip: { hex: '#bf6f83', name: 'Mauve rose' },
