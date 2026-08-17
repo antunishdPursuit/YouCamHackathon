@@ -26,6 +26,13 @@ describe('config', () => {
     expect(loadConfig({ YINCOL_LIVE_SKIN_ANALYSIS: 'TRUE' }).liveSkinAnalysis).toBe(true);
   });
 
+  it('keeps live try-on opt-in while the palette remains on fixtures', () => {
+    expect(loadConfig({}).liveTryOn).toBe(false);
+    expect(loadConfig({ YINCOL_LIVE_TRY_ON: 'true' }).liveTryOn).toBe(true);
+    expect(loadConfig({ YINCOL_FIXTURE_MODE: 'false' }).liveTryOn).toBe(true);
+    expect(loadConfig({ YINCOL_LIVE_TRY_ON: 'TRUE' }).liveTryOn).toBe(true);
+  });
+
   it('strips trailing slashes so path joining never doubles up', () => {
     expect(loadConfig({ YINCOL_API_BASE_URL: 'https://example.com//' }).baseUrl).toBe(
       'https://example.com',

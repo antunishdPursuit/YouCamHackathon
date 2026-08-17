@@ -26,9 +26,10 @@ import {
   FEATURES,
   buildClothesVtoPayload,
   buildFacialColorTonePayload,
-  buildMakeupTransferPayload,
+  buildMakeupVtoPayload,
   buildSkinAnalysisPayload,
   isTaskPathVerified,
+  makeupEffectsForLook,
 } from '../src/youcam/features.js';
 import { downloadResult, runTask, type RawTaskResult } from '../src/youcam/taskRunner.js';
 import { publicUrlStrategy } from '../src/youcam/imageInput.js';
@@ -36,7 +37,7 @@ import { adaptColorTone } from '../src/youcam/adapters/facialColorTone.js';
 import { adaptSkinAnalysis } from '../src/youcam/adapters/skinAnalysis.js';
 import { adaptTryOnUrl } from '../src/youcam/adapters/tryOn.js';
 import { CAPTURE_TARGETS, FIXTURE_PUBLIC_DIR } from '../src/fixtures/index.js';
-import { findGarment } from '@yincol/shared';
+import { findGarment, findMakeupLook } from '@yincol/shared';
 
 loadRootEnv();
 
@@ -160,19 +161,17 @@ async function main(): Promise<void> {
   }
 
   // ── makeup ─────────────────────────────────────────────────
-  console.log('\n[4/4] Makeup transfer');
+  console.log('\n[4/4] Makeup virtual try-on');
   for (const target of CAPTURE_TARGETS.makeup) {
     try {
-      const reference = await publicUrlStrategy.prepare(
-        { publicUrl: sourceUrl(target.source) },
-        'makeupTransfer',
-      );
+      const look = findMakeupLook(target.catalogId);
+      if (!look) throw new Error(`Unknown makeup look ${target.catalogId}.`);
       const { raw } = await runTask(
         config,
-        FEATURES.makeupTransfer,
-        buildMakeupTransferPayload(portrait, reference),
+        FEATURES.makeupVto,
+        buildMakeupVtoPayload(portrait, makeupEffectsForLook(look)),
       );
-      await captureImage(target.catalogId, raw, 'makeupTransfer', target.fixture);
+      await captureImage(target.catalogId, raw, 'makeupVto', target.fixture);
     } catch (error) {
       console.error(`  ✗ ${target.catalogId}: ${(error as Error).message}`);
     }

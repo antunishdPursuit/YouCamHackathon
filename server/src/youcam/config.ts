@@ -9,14 +9,14 @@
  */
 
 /** Feature identifiers used across the runner, the adapters and the fixture layer. */
-export type FeatureId = 'facialColorTone' | 'skinAnalysis' | 'clothesVto' | 'makeupTransfer';
+export type FeatureId = 'facialColorTone' | 'skinAnalysis' | 'clothesVto' | 'makeupVto';
 
 /**
  * API host.
  *
- * TODO(phase0): verify in API Playground. Both `yce-api-01.makeupar.com` and
- * `yce-api-01.perfectcorp.com` appear in Perfect Corp materials. We default to the
- * makeupar host. Override with YINCOL_API_BASE_URL rather than editing this line.
+ * The makeupar host is locally verified for Skin Analysis, Clothes VTO, and Makeup VTO.
+ * Facial Color Tone remains unverified.
+ * Override with YINCOL_API_BASE_URL rather than editing this line.
  */
 export const DEFAULT_API_BASE_URL = 'https://yce-api-01.makeupar.com';
 
@@ -29,36 +29,35 @@ export const authHeader = (apiKey: string): Record<string, string> => ({
 // Task endpoints
 // ─────────────────────────────────────────────────────────────
 
-/** VERIFIED. Payload includes `garment_category` and `change_shoes`. */
-export const CLOTHES_VTO_TASK_PATH = '/s2s/v2.0/task/cloth';
+/** LIVE VERIFIED on August 16, 2026 against the current AI Clothes V3 contract. */
+export const CLOTHES_VTO_TASK_PATH = '/s2s/v2.0/task/cloth-v3';
 
-/** VERIFIED. Polled at `${path}/{task_id}`. */
-export const MAKEUP_TRANSFER_TASK_PATH = '/s2s/v2.0/task/mu-transfer';
+/** LIVE VERIFIED on August 16, 2026 against the current AI Makeup VTO contract. */
+export const MAKEUP_VTO_TASK_PATH = '/s2s/v2.0/task/makeup-vto';
 
 /** VERIFIED. */
 export const SKIN_ANALYSIS_TASK_PATH = '/s2s/v2.0/task/skin-analysis';
 
 /**
- * TODO(phase0): verify in API Playground. The facial colour tone feature is marketed as
- * detecting skin tone plus eye, eyebrow, lip and hair colours, but its task path is not
- * confirmed anywhere we can cite. This value is inferred by analogy with the three paths
- * above and is the single most likely thing in this file to be wrong.
+ * The feature-cost response identifies this as the current run-task path. The task's
+ * input fields, File API path, and response shape still need a live verification before
+ * this feature can replace the local palette.
  */
-export const FACIAL_COLOR_TONE_TASK_PATH = '/s2s/v2.0/task/facial-color-tone';
+export const FACIAL_COLOR_TONE_TASK_PATH = '/s2s/v2.0/task/skin-tone-analysis';
 
 export const TASK_PATHS: Readonly<Record<FeatureId, string>> = {
   facialColorTone: FACIAL_COLOR_TONE_TASK_PATH,
   skinAnalysis: SKIN_ANALYSIS_TASK_PATH,
   clothesVto: CLOTHES_VTO_TASK_PATH,
-  makeupTransfer: MAKEUP_TRANSFER_TASK_PATH,
+  makeupVto: MAKEUP_VTO_TASK_PATH,
 };
 
-/** Which of the above we can actually cite. Surfaced in the UI's provenance note. */
+/** Which of the above have live local evidence. Surfaced in the UI's provenance note. */
 export const TASK_PATH_VERIFIED: Readonly<Record<FeatureId, boolean>> = {
   facialColorTone: false,
   skinAnalysis: true,
   clothesVto: true,
-  makeupTransfer: true,
+  makeupVto: true,
 };
 
 /**
@@ -71,16 +70,25 @@ export type GarmentCategoryValue = (typeof GARMENT_CATEGORIES)[number];
 /** VERIFIED in the live v2.0 Skin Analysis test. */
 export const SKIN_ANALYSIS_FILE_PATH = '/s2s/v2.0/file/skin-analysis';
 
+/** LIVE VERIFIED on August 16, 2026 against the current AI Clothes V3 contract. */
+export const CLOTHES_VTO_FILE_PATH = '/s2s/v2.0/file/cloth-v3';
+
+/** LIVE VERIFIED on August 16, 2026 against the current AI Makeup VTO contract. */
+export const MAKEUP_VTO_FILE_PATH = '/s2s/v2.0/file/makeup-vto';
+
 /**
  * File API paths are kept separate from task paths because the vendor's feature slugs are
- * not the same as our internal feature ids. Only Skin Analysis is verified in this phase.
+ * not the same as our internal feature ids. Skin Analysis, Clothes VTO, and Makeup VTO
+ * are locally verified; Facial Color Tone remains unverified.
  */
-const VERIFIED_FILE_PATHS: Partial<Record<FeatureId, string>> = {
+const DOCUMENTED_FILE_PATHS: Partial<Record<FeatureId, string>> = {
   skinAnalysis: SKIN_ANALYSIS_FILE_PATH,
+  clothesVto: CLOTHES_VTO_FILE_PATH,
+  makeupVto: MAKEUP_VTO_FILE_PATH,
 };
 
 export const filePathFor = (feature: FeatureId): string => {
-  const path = VERIFIED_FILE_PATHS[feature];
+  const path = DOCUMENTED_FILE_PATHS[feature];
   if (!path) {
     throw new Error(`The File API path is not verified for ${feature}.`);
   }
@@ -144,6 +152,8 @@ export interface YouCamConfig {
   readonly fixtureMode: boolean;
   /** Explicitly enables live Skin Analysis while the rest of the demo stays on fixtures. */
   readonly liveSkinAnalysis: boolean;
+  /** Explicitly enables live Clothes and Makeup VTO while the palette stays on fixtures. */
+  readonly liveTryOn: boolean;
   /** Base URL the API can fetch source images from (Path B). Capture script only. */
   readonly publicAssetBaseUrl: string;
   readonly simulate: SimulatedState;
@@ -159,12 +169,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): YouCamConfig {
     fixtureMode && SIMULATED_STATES.includes(requested) ? requested : 'none';
   const liveSkinAnalysis =
     !fixtureMode || (env['YINCOL_LIVE_SKIN_ANALYSIS'] ?? '').toLowerCase() === 'true';
+  const liveTryOn = !fixtureMode || (env['YINCOL_LIVE_TRY_ON'] ?? '').toLowerCase() === 'true';
 
   return {
     baseUrl: (env['YINCOL_API_BASE_URL'] ?? DEFAULT_API_BASE_URL).replace(/\/+$/, ''),
     apiKey: env['YINCOL_API_KEY'] ?? '',
     fixtureMode,
     liveSkinAnalysis,
+    liveTryOn,
     publicAssetBaseUrl: (env['YINCOL_PUBLIC_ASSET_BASE_URL'] ?? '').replace(/\/+$/, ''),
     simulate,
   };

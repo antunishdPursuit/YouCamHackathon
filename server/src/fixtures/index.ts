@@ -90,13 +90,12 @@ export const FIXTURE_SKIN_APPEARANCE: SkinAppearance = {
 // ─────────────────────────────────────────────────────────────
 
 /**
- * Which catalogue entries the four supplied source images correspond to.
+ * Which catalogue entries the three supplied source images correspond to.
  *
- * ASSUMPTION(phase0): the brief supplies exactly one portrait, two garments and one
- * makeup reference, but the picker offers eight garments and five looks. So one pair of
- * garments and one look can have real captured results; everything else renders the
- * designed placeholder. That is the honest state of the demo, and screen 9 already
- * treats a missing panel as a first-class case rather than an error.
+ * ASSUMPTION(phase0): the brief supplies exactly one portrait and two garments, but the
+ * picker offers eight garments and five looks. So one pair of garments and one look can
+ * have real captured results; everything else renders the designed placeholder. Makeup
+ * is configured by the server and has no source image in the current API contract.
  */
 export const CAPTURE_TARGETS = {
   portrait: { source: 'portrait.jpg', fixture: 'portrait.jpg' },
@@ -104,9 +103,7 @@ export const CAPTURE_TARGETS = {
     { catalogId: 'rosewater-cardigan', source: 'garment-a.jpg', fixture: 'garment-a-result.jpg' },
     { catalogId: 'sage-linen-shirt', source: 'garment-b.jpg', fixture: 'garment-b-result.jpg' },
   ],
-  makeup: [
-    { catalogId: 'rose-veil', source: 'makeup-reference.jpg', fixture: 'makeup-on-result.jpg' },
-  ],
+  makeup: [{ catalogId: 'rose-veil', fixture: 'makeup-on-result.jpg' }],
 } as const;
 
 /** Designed stand-ins that ship with the repo. Clearly marked as such, in the file. */

@@ -25,9 +25,10 @@ afterEach(() => {
 });
 
 describe('YouCam File API upload', () => {
-  it('uses the verified Skin Analysis file path', () => {
+  it('uses the documented feature-specific File API paths', () => {
     expect(filePathFor('skinAnalysis')).toBe('/s2s/v2.0/file/skin-analysis');
-    expect(() => filePathFor('clothesVto')).toThrow('not verified');
+    expect(filePathFor('clothesVto')).toBe('/s2s/v2.0/file/cloth-v3');
+    expect(filePathFor('makeupVto')).toBe('/s2s/v2.0/file/makeup-vto');
   });
 
   it('creates an upload slot, puts the bytes, and returns the file id', async () => {

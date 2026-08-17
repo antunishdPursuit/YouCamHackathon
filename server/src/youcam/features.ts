@@ -9,6 +9,7 @@ import {
   type FeatureId,
   type GarmentCategoryValue,
 } from './config.js';
+import type { MakeupLook } from '@yincol/shared';
 import type { TaskFeature } from './taskRunner.js';
 import type { ImageReference } from './imageInput.js';
 
@@ -22,7 +23,7 @@ export const FEATURES: Readonly<Record<FeatureId, TaskFeature>> = {
   facialColorTone: feature('facialColorTone', 'Facial colour tone'),
   skinAnalysis: feature('skinAnalysis', 'Skin analysis'),
   clothesVto: feature('clothesVto', 'Clothes try-on'),
-  makeupTransfer: feature('makeupTransfer', 'Makeup transfer'),
+  makeupVto: feature('makeupVto', 'Makeup virtual try-on'),
 };
 
 export const isTaskPathVerified = (id: FeatureId): boolean => TASK_PATH_VERIFIED[id];
@@ -52,30 +53,67 @@ export const buildSkinAnalysisPayload = (portrait: ImageReference): unknown => (
   format: 'json',
 });
 
-/** VERIFIED: the cloth payload includes `garment_category` and `change_shoes`. */
+/** DOCUMENTED: AI Clothes V3 uses a reference file or template for the garment. */
 export const buildClothesVtoPayload = (
   portrait: ImageReference,
   garment: ImageReference,
   garmentCategory: GarmentCategoryValue,
 ): unknown => ({
   ...imageField(portrait),
-  garment_image: garment.kind === 'publicUrl' ? garment.url : undefined,
-  garment_file_id: garment.kind === 'fileId' ? garment.fileId : undefined,
+  ...(garment.kind === 'publicUrl'
+    ? { ref_file_url: garment.url }
+    : { ref_file_id: garment.fileId }),
   garment_category: garmentCategory,
-  // We are not doing footwear. Declared explicitly so the default is ours, not theirs.
-  change_shoes: false,
+});
+
+/** The documented effect object is intentionally kept behind the server boundary. */
+export type MakeupEffect = Readonly<{
+  category: string;
+  readonly [key: string]: unknown;
+}>;
+
+/** DOCUMENTED: AI Makeup VTO takes an effects array and an effect-schema version. */
+export const buildMakeupVtoPayload = (
+  portrait: ImageReference,
+  effects: readonly MakeupEffect[],
+): unknown => ({
+  ...imageField(portrait),
+  effects,
+  version: '1.0',
 });
 
 /**
- * VERIFIED as a product constraint: makeup transfer is REFERENCE-IMAGE BASED. It
- * extracts a look from a photo of a made-up face. It does not accept shade values,
- * SKUs, or hex codes, and there is nowhere in this payload to put one.
+ * Convert the app's chosen look into the documented Makeup VTO effects shape. The
+ * browser still receives only the app-level look and chips; vendor fields stay here.
  */
-export const buildMakeupTransferPayload = (
-  portrait: ImageReference,
-  reference: ImageReference,
-): unknown => ({
-  ...imageField(portrait),
-  reference_image: reference.kind === 'publicUrl' ? reference.url : undefined,
-  reference_file_id: reference.kind === 'fileId' ? reference.fileId : undefined,
-});
+export const makeupEffectsForLook = (
+  look: Pick<MakeupLook, 'chips'>,
+): readonly MakeupEffect[] => [
+  {
+    category: 'skin_smooth',
+    skinSmoothStrength: 50,
+    skinSmoothColorIntensity: 50,
+  },
+  {
+    category: 'blush',
+    pattern: { name: '2colors1' },
+    palettes: [
+      { color: look.chips.cheek.hex, texture: 'matte', colorIntensity: 60 },
+      { color: look.chips.cheek.hex, texture: 'satin', colorIntensity: 45, glowStrength: 25 },
+    ],
+  },
+  {
+    category: 'lip_color',
+    shape: { name: 'plump' },
+    style: { type: 'full' },
+    palettes: [
+      {
+        color: look.chips.lip.hex,
+        texture: 'gloss',
+        colorIntensity: 75,
+        gloss: 50,
+        transparencyIntensity: 50,
+      },
+    ],
+  },
+];

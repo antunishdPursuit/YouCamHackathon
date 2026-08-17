@@ -18,9 +18,9 @@ loadRootEnv();
 
 const app = express();
 app.use(cors({ origin: true }));
-// A 10 MB image becomes roughly 13.4 MB when sent as base64 JSON, plus a small
-// envelope. The route still rejects files at or above the provider's 10 MB limit.
-app.use(express.json({ limit: '14mb' }));
+// Three sub-10 MB images become just under 40 MB as base64 JSON, plus a small envelope.
+// Each image is still rejected at or above the provider's 10 MB limit before upload.
+app.use(express.json({ limit: '42mb' }));
 
 app.get('/api/health', (_req, res) => {
   const config = loadConfig();
@@ -28,6 +28,7 @@ app.get('/api/health', (_req, res) => {
     ok: true,
     mode: config.fixtureMode ? 'fixture' : 'live',
     liveSkinAnalysis: config.liveSkinAnalysis,
+    liveTryOn: config.liveTryOn,
     // Never echo the key itself, only whether one is present.
     hasApiKey: config.apiKey.length > 0,
     verifiedTaskPaths: TASK_PATH_VERIFIED,
