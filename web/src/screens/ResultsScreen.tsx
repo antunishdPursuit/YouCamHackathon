@@ -193,35 +193,32 @@ export function ResultsScreen({
         <PaletteSummary analysis={analysis} />
 
         <section aria-labelledby="previews-heading" className="min-w-0 space-y-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <SectionHeading id="previews-heading" className="text-3xl">Generated previews</SectionHeading>
-          <div className="flex flex-col items-start gap-2 sm:items-end">
-            <Segmented
-              label="What to compare"
-              value={axis}
-              onChange={onAxisChange}
-              options={[
-                { value: 'garments', label: 'Garments', hint: 'compare garment A with garment B' },
-                { value: 'makeup', label: 'Makeup', hint: 'compare the bare face with the makeup look' },
-              ]}
-            />
-            <Chip tone="locked">
-              <span aria-hidden="true">🔒</span>
-              {lockedLabel}
-            </Chip>
-          </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <SectionHeading id="previews-heading" className="mr-auto text-3xl">Generated previews</SectionHeading>
+          <Segmented
+            label="What to compare"
+            value={axis}
+            onChange={onAxisChange}
+            options={[
+              { value: 'garments', label: 'Garments', hint: 'compare garment A with garment B' },
+              { value: 'makeup', label: 'Makeup', hint: 'compare the bare face with the makeup look' },
+            ]}
+          />
+          <Chip tone="locked">
+            <span aria-hidden="true">🔒</span>
+            {lockedLabel}
+          </Chip>
+          {tryOn.mode === 'fixture' ? (
+            <span className="rounded-full border border-gold/50 bg-surface px-3 py-1.5 text-sm text-ink-soft">
+              Local demo preview · fixture images
+            </span>
+          ) : null}
+          {tryOn.mode === 'live' ? (
+            <span className="rounded-full border border-gold/50 bg-surface px-3 py-1.5 text-sm text-ink-soft">
+              Live YouCam results · uploaded files
+            </span>
+          ) : null}
         </div>
-
-        {tryOn.mode === 'fixture' ? (
-          <p className="rounded-card border border-gold/50 bg-surface px-4 py-3 text-sm text-ink-soft">
-            Local demo preview: these images are fixtures, not live YouCam results.
-          </p>
-        ) : null}
-        {tryOn.mode === 'live' ? (
-          <p className="rounded-card border border-gold/50 bg-surface px-4 py-3 text-sm text-ink-soft">
-            Your colour direction uses YINCOL&apos;s local palette rule. The previews below are live YouCam results generated from your uploaded files.
-          </p>
-        ) : null}
 
         <PartialResultsNotice failedLabels={failedLabels} />
 
@@ -233,16 +230,18 @@ export function ResultsScreen({
                 showProvenance={tryOn.mode !== 'fixture'}
                 {...(entry.panel ? { result: entry.panel.result, provenance: entry.panel.provenance } : {})}
               />
-              <h3 className="mt-2 text-base font-semibold text-ink">{entry.title}</h3>
-              <Button
-                variant={entry.chosen ? 'primary' : 'quiet'}
-                aria-pressed={entry.chosen}
-                onClick={entry.choose}
-                className="mt-2 self-start !px-4 text-sm"
-              >
-                {entry.chosen ? 'Kept' : 'Keep this'}
-                <span className="sr-only"> — {entry.title}</span>
-              </Button>
+              <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
+                <h3 className="text-base font-semibold text-ink">{entry.title}</h3>
+                <Button
+                  variant={entry.chosen ? 'primary' : 'quiet'}
+                  aria-pressed={entry.chosen}
+                  onClick={entry.choose}
+                  className="!px-4 text-sm"
+                >
+                  {entry.chosen ? 'Kept' : 'Keep this'}
+                  <span className="sr-only"> — {entry.title}</span>
+                </Button>
+              </div>
             </article>
           ))}
         </div>
@@ -255,7 +254,7 @@ export function ResultsScreen({
         </section>
       </div>
 
-      <div className="flex w-full flex-col items-center gap-2 sm:flex-row sm:justify-center">
+      <div className="flex w-full flex-col items-start gap-2 sm:flex-row sm:justify-start">
         <Button variant="quiet" className="w-full sm:w-auto" onClick={onEditInputs}>Back to inputs</Button>
         <Button variant="link" className="w-full sm:w-auto" onClick={onStartOver}>Start a new look</Button>
       </div>
