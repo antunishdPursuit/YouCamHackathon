@@ -3,6 +3,8 @@
 **Status / 状态:** Internal options for discussion; none is approved scope. / 供内部讨论的方案；尚未批准任何方案范围。
 **Research basis / 研究依据:** [[Brief and Rules]] and [[Track and API Research]]
 
+**当前说明 / Current note:** 以下方案是历史内部规划，不是当前的 UI 规格。已批准的上传式四阶段方向记录在仓库外的项目笔记中。/ These are historical internal options, not the current UI specification. The approved upload-based four-stage direction is recorded in the private project notes outside this repository.
+
 ## How to read these ideas / 阅读方式
 
 ### 中文

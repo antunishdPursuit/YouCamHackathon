@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800" width="600" height="800" role="img" aria-label="Portrait — placeholder">
+  <title>Portrait — placeholder, not an API result</title>
+  <rect width="600" height="800" fill="#FFFDF9"/>
+  <rect x="18" y="18" width="564" height="764" fill="#FBF3EA" rx="20"/>
+  <rect x="30" y="30" width="540" height="740" fill="none" stroke="#C6A15B" stroke-width="1" rx="14"/>
+  <rect x="38" y="38" width="524" height="724" fill="none" stroke="#C6A15B" stroke-width="0.5" opacity="0.6" rx="10"/>
+
+  <!-- corner flourishes -->
+  <path d="M 30 64 q 0 -34 34 -34" fill="none" stroke="#C6A15B" stroke-width="1.4"/><circle cx="42" cy="42" r="2.4" fill="#C6A15B"/>
+  <path d="M 570 64 q 0 -34 -34 -34" fill="none" stroke="#C6A15B" stroke-width="1.4"/><circle cx="558" cy="42" r="2.4" fill="#C6A15B"/>
+  <path d="M 30 736 q 0 34 34 34" fill="none" stroke="#C6A15B" stroke-width="1.4"/><circle cx="42" cy="758" r="2.4" fill="#C6A15B"/>
+  <path d="M 570 736 q 0 34 -34 34" fill="none" stroke="#C6A15B" stroke-width="1.4"/><circle cx="558" cy="758" r="2.4" fill="#C6A15B"/>
+
+  <!-- centred ornamental motif -->
+  <g transform="translate(300, 360)" opacity="0.85">
+    
+    <path d="M -54 60 L -54 -6 a 54 54 0 0 1 108 0 L 54 60 Z" fill="none" stroke="#C6A15B" stroke-width="1.6"/>
+    <path d="M -40 52 L -40 -4 a 40 40 0 0 1 80 0 L 40 52 Z" fill="none" stroke="#C6A15B" stroke-width="0.8" opacity="0.6"/>
+    <circle cx="0" cy="-18" r="5" fill="#C6A15B" opacity="0.5"/>
+  </g>
+
+  <!-- pearl-dot divider -->
+  <g fill="#C6A15B" opacity="0.7">
+    <circle cx="264" cy="496" r="2.2"/>
+    <circle cx="282" cy="496" r="2.2"/>
+    <circle cx="300" cy="496" r="3.4"/>
+    <circle cx="318" cy="496" r="2.2"/>
+    <circle cx="336" cy="496" r="2.2"/>
+  </g>
+
+</svg>
