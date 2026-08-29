@@ -142,6 +142,21 @@ export interface FixtureImage {
 }
 
 /**
+ * The two things a fixture slot might turn out to be, each described as itself.
+ *
+ * One alt string cannot cover both. A captured fixture is a real API result, but of the
+ * demo portrait rather than of the person looking at it; a placeholder is an ornamental
+ * panel with no garment in it at all. Alt text is the whole description for anyone using
+ * a screen reader, so "You wearing the rosewater cardigan" was wrong twice over — the
+ * wrong person for a capture, and a garment that is not in the picture for a stand-in.
+ * The visible caption already distinguishes them; this makes the described one agree.
+ */
+export interface FixtureAlt {
+  readonly captured: string;
+  readonly placeholder: string;
+}
+
+/**
  * Resolve one image slot.
  *
  * Prefers a captured fixture; falls back to the shipped placeholder. The provenance
@@ -150,11 +165,11 @@ export interface FixtureImage {
 export function resolveFixtureImage(
   capturedFilename: string | undefined,
   placeholderKey: keyof typeof PLACEHOLDER_FILES,
-  alt: string,
+  alt: FixtureAlt,
 ): FixtureImage {
   if (capturedFilename && existsSync(join(FIXTURE_PUBLIC_DIR, capturedFilename))) {
     return {
-      result: { status: 'ready', imageUrl: `/fixtures/${capturedFilename}`, alt },
+      result: { status: 'ready', imageUrl: `/fixtures/${capturedFilename}`, alt: alt.captured },
       provenance: 'captured',
     };
   }
@@ -162,7 +177,7 @@ export function resolveFixtureImage(
   const placeholder = PLACEHOLDER_FILES[placeholderKey];
   if (placeholder && existsSync(join(FIXTURE_PUBLIC_DIR, placeholder))) {
     return {
-      result: { status: 'ready', imageUrl: `/fixtures/${placeholder}`, alt },
+      result: { status: 'ready', imageUrl: `/fixtures/${placeholder}`, alt: alt.placeholder },
       provenance: 'placeholder',
     };
   }
@@ -262,7 +277,10 @@ export function fixtureCompleteLook({
   const garmentImage = resolveFixtureImage(
     capturedGarmentFixture(garmentId),
     index === 0 ? 'garmentA' : 'garmentB',
-    `You wearing the ${garmentName.toLowerCase()}`,
+    {
+      captured: `The demo portrait wearing the ${garmentName.toLowerCase()}`,
+      placeholder: `Designed stand-in for the ${garmentName.toLowerCase()} preview`,
+    },
   );
   const garmentOnly: TryOnPanel = {
     result: garmentImage.result,
@@ -287,7 +305,14 @@ export function fixtureCompleteLook({
   const completeLookImage = resolveFixtureImage(
     capturedCompleteLookFixture(garmentId, lookId),
     index === 0 ? 'completeLookA' : 'completeLookB',
-    `You wearing the ${garmentName.toLowerCase()} with the ${lookName} makeup look`,
+    {
+      captured:
+        `The demo portrait wearing the ${garmentName.toLowerCase()}, ` +
+        `with the ${lookName} makeup look`,
+      placeholder:
+        `Designed stand-in for the ${garmentName.toLowerCase()} ` +
+        `with the ${lookName} makeup look`,
+    },
   );
 
   return {

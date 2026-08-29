@@ -108,7 +108,12 @@ tryOnRouter.post('/try-on', async (req, res) => {
       completeLooks[garmentId] = outcome.completeLook;
     });
 
-    const portraitImage = resolveFixtureImage(undefined, 'portrait', 'Your portrait, bare face');
+    // Fixture mode never receives the visitor's photograph, so the portrait panel cannot
+    // be theirs and must not be described as though it were.
+    const portraitImage = resolveFixtureImage(undefined, 'portrait', {
+      captured: 'The demo portrait, bare face',
+      placeholder: 'Designed stand-in for the portrait',
+    });
 
     const response: TryOnResponse = {
       garments,
