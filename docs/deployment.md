@@ -157,8 +157,16 @@ committed bytes, so a rolled-back deployment shows exactly what that commit show
 - **Facial Color Tone is not live.** The palette is computed locally from the fixture
   reading. The provider's task path is recorded but its request shape and response mapping
   are unverified — see `docs/api-findings.md`. Nothing in the public deployment calls it.
-- **Fixture provenance.** Every panel says on its face whether it is a captured API result
-  or a designed stand-in. Do not describe a stand-in as a YouCam output.
+- **Fixture provenance, and how much of the demo is real.** The August 29, 2026 capture
+  produced four genuine API results: a garment preview and a complete look for each of the
+  two catalogue garments `rosewater-cardigan` and `sage-linen-shirt`, with the **Rose Veil**
+  look. Everything else — the other six garments, and every look other than Rose Veil — is
+  a designed stand-in. Every panel says on its face which it is. Do not describe a stand-in
+  as a YouCam output, and note that a shopper who picks a different look is, correctly,
+  shown stand-ins rather than the Rose Veil image relabelled.
+- **The demo shows one face.** Fixture mode renders the captured results whatever the
+  visitor uploads; their own photograph never leaves the tab and is never processed. The
+  previews are of the approved demo portrait, not of them.
 
 ---
 

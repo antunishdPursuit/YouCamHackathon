@@ -53,9 +53,8 @@ export const publicUrlStrategy: ImageInputStrategy = {
   async prepare(source) {
     if (!source.publicUrl) {
       throw new Error(
-        'Path B needs a publicly reachable image URL. Set YINCOL_PUBLIC_ASSET_BASE_URL ' +
-          'to somewhere the API can fetch from — a localhost URL will not work, because ' +
-          'the fetch happens on their side, not ours.',
+        'Path B needs a publicly reachable image URL from the caller. A localhost URL ' +
+          'will not work, because the fetch happens on their side, not ours.',
       );
     }
     return { kind: 'publicUrl', url: source.publicUrl };

@@ -132,9 +132,8 @@ Then set `YINCOL_API_KEY`. For the currently verified live paths, keep
 `YINCOL_FIXTURE_MODE=false` yet: the Facial Color Tones Analyzer input and response
 contract still needs verification before the palette can run live. The server-side
 File API upload primitive handles the verified Skin Analysis, Clothes VTO, and Makeup
-VTO paths, so
-`YINCOL_PUBLIC_ASSET_BASE_URL` is needed only by the existing public-URL fixture capture
-path, not by the new upload path.
+VTO paths, and the capture script uses it too — so there is no longer any public-URL
+hosting step, and `YINCOL_PUBLIC_ASSET_BASE_URL` has been retired.
 
 To test only the browser-to-Skin-Analysis increment while keeping the rest of the demo
 safe on fixtures, leave `YINCOL_FIXTURE_MODE=true` and set:
@@ -187,9 +186,11 @@ The remaining live-path gaps are listed here rather than discovered later:
 Fixture capture is the supported way to spend credits:
 
 ```bash
-YINCOL_FIXTURE_MODE=false YINCOL_API_KEY=… YINCOL_PUBLIC_ASSET_BASE_URL=… \
-  npm run capture-fixtures
+YINCOL_FIXTURE_MODE=false YINCOL_API_KEY=… npm run capture-fixtures
 ```
+
+It reads the three source images from the gitignored `assets/source/` and uploads them
+through the verified File API paths, so nothing has to be published publicly first.
 
 It refuses to run while fixture mode is on, and it downloads result bytes the instant a
 task succeeds — see [the two-hour rule](#a-note-on-the-demo-images).
@@ -340,24 +341,34 @@ unverified is repeated as fact anywhere in the UI — the server's
 
 ## A note on the demo images
 
-**Fixture mode ships with placeholders, and nothing shipped in this repository is an
-API output.** Opt-in live mode can return temporary YouCam result bytes in memory during
-local testing.
+**The repository now ships four captured API results, and everything else is a designed
+placeholder.** Both kinds are labelled, and the UI always says which one it is showing.
 
 Two kinds of picture exist here, and they are never allowed to be confused:
 
 - **Placeholders.** The five SVG panels in `web/public/fixtures/` are designed
   stand-ins — a cream 3:4 panel with a gold hairline frame and a quiet caption. They ship
-  with the repo so the flow runs before any capture exists. Every one is labelled
-  `provenance: 'placeholder'` by the server, carries no `stage`, and is surfaced as a
-  placeholder in the UI. This is what the demo currently runs on: a shipped placeholder
-  can never describe itself as a complete look, because nothing rendered it.
+  with the repo so the flow runs before any capture exists, and they still cover every
+  combination that was not captured. Every one is labelled `provenance: 'placeholder'` by
+  the server, carries no `stage`, and is surfaced in the UI as a stand-in: a shipped
+  placeholder can never describe itself as a complete look, because nothing rendered it.
 - **Captured results.** `npm run capture-fixtures` is the only thing in the repository
   that produces a result image. It runs the real API once, downloads the bytes
   immediately — the download URL is dead in two hours, so bytes are what survive to demo
   day — and writes them over the placeholders. Those are labelled `provenance:
   'captured'`, and they are **real API outputs, pre-captured**, not generated in front of
   the audience.
+
+**What was captured, on August 29, 2026:** two garment results and two complete-look
+results, for the catalogue garments `rosewater-cardigan` and `sage-linen-shirt`, with the
+**Rose Veil** makeup look. That run cost **18 units** — Skin Analysis 12, two Clothes
+results at 2, two Makeup results at 1. Facial Color Tone was skipped deliberately, because
+its input contract is still unverified.
+
+Everything outside that set falls back to a placeholder, and the look is part of what
+"that set" means: choosing any look other than Rose Veil returns the designed stand-in,
+rather than the Rose Veil image under another look's name. A capture shows one specific
+makeup on one specific garment, and it is only ever shown as that.
 
 If a picture in `web/public/fixtures/` did not come from that script, it is a placeholder,
 and it must never be described as an API output.
@@ -376,7 +387,8 @@ is a request-side effects configuration, not a reference image. `assets/source/`
 gitignored because face images carry likeness rights. Full detail is in
 [`assets/README.md`](assets/README.md).
 
-The app runs fully on ornamental placeholders until real photographs land.
+The app runs fully on ornamental placeholders wherever a capture does not exist, so the
+whole flow is walkable for any combination of inputs.
 
 **Full-body results are not cropped.** The garment task returns a full-body image, and a
 fixed portrait-card ratio with `object-fit: cover` would quietly cut the legs off it — a

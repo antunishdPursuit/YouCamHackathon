@@ -50,10 +50,13 @@ normalized into the latter signal and was not returned to the browser.
 - **Two image-input paths.** Path A is File API + a self-performed `PUT` of the bytes;
   calling the File API alone uploads nothing, and skipping the `PUT` surfaces later as a
   misleading `500 unknowninternalerror` or a `404`. Path B passes a publicly reachable
-  image URL directly on task start. **Path A is implemented for Skin Analysis in
-  `server/src/youcam/imageInput.ts`; the browser uses it through
-  `server/src/routes/skinAnalysis.ts` and the opt-in live try-on route, while the capture
-  script still uses Path B.**
+  image URL directly on task start. **Path A is what everything that runs now uses:
+  `server/src/youcam/imageInput.ts` implements it, the browser reaches it through
+  `server/src/routes/skinAnalysis.ts` and the opt-in live try-on route, and the capture
+  script uploads its local source files the same way.** Path B remains implemented and is
+  reached only by the live `/api/analyze` palette path, which is disabled pending Facial
+  Color Tone verification. Nothing now needs images published to a public host, and
+  `YINCOL_PUBLIC_ASSET_BASE_URL` was retired with that requirement.
 - **Skin Analysis task payload.** The verified request uses `src_file_id` (or
   `src_file_url`), `dst_actions`, and `format: "json"`. The browser route sends the
   documented SD action set `wrinkle`, `pore`, `texture`, `acne`, and `skin_type`.
@@ -217,9 +220,21 @@ rather than only of its hex values.
 ### 4. Placeholder fixture bytes are synthetic, and labelled as such
 `server/fixtures/` and `web/public/fixtures/`
 
-Committed placeholder fixtures are generated ornamental panels, not API output. They exist
-so the flow runs before a real capture. Every one is watermarked in the UI as a
-placeholder, and `npm run capture-fixtures` overwrites them with genuine API results.
+Committed placeholder fixtures are generated ornamental panels, not API output. Every one
+is surfaced in the UI as a placeholder, and `npm run capture-fixtures` writes genuine API
+results alongside them.
+
+**The August 29, 2026 capture** produced four real results: a garment and a complete look
+for each of `rosewater-cardigan` and `sage-linen-shirt`, with the `rose-veil` look, for
+**18 units**. The placeholders still cover everything that run did not capture — the other
+six garments, and every look other than Rose Veil. The captured complete look is keyed on
+the look as well as the garment, so it is never returned under a look it was not rendered
+in; `CAPTURED_MAKEUP_LOOK_ID` in `server/src/fixtures/index.ts` is the single place that
+records which one that is.
+
+The response shapes from that run are in `docs/captured-shapes/`, with every URL redacted:
+the provider returns a presigned S3 link carrying a credential, a signature and a two-hour
+expiry, and those records are committed.
 
 Five of them now, not four: each garment slot gained a complete-look counterpart, and the
 bare-makeup panel went away with the unsequenced path that produced it. A placeholder is

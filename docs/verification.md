@@ -9,6 +9,12 @@ browser verification.
 This file records what was run and what came back. Where a check could not be run, it
 says so and why, rather than leaving the row out.
 
+**Three runs are recorded, oldest first. The third is the current state** — it was run
+after the captured fixtures landed, and it supersedes the two below it wherever they
+disagree. Skip to [the third run](#third-run--final-after-the-captured-fixtures) for what
+is true now; the earlier two are kept because they record when each property was
+established.
+
 ---
 
 ## Summary
@@ -275,14 +281,107 @@ handlers; no application code was modified to make the run work. The uploaded te
 were served from `web/dist/testfixtures/`, which was deleted afterwards and is gitignored
 in any case.
 
-### Still not verified
+### Still not verified, as of the second run
 
 - **Captured fixtures.** Every panel still renders a designed stand-in. No captured API
   result exists in the repository yet, so nothing here verifies a real YouCam output.
+  *(Resolved in the third run — the capture landed in `061ab99`.)*
 - **Reduced motion under emulation.** Confirmed by reading the stylesheet, not by
   emulating the preference in a browser.
 - **Multi-instance rate limiting.** The limiter is per process; the approved shape is one
   process. Not exercised behind a load balancer.
+
+---
+
+## Third run — final, after the captured fixtures
+
+**Run on:** August 29, 2026, against `061ab99` (@antunishdPursuit's capture) and the
+closeout commits on top of it. **This section is the current state of the branch.**
+
+| Check | Result |
+| --- | --- |
+| `npm test` | **172 passed**, 0 failed (74 shared, 98 server) |
+| `npm run typecheck` | clean, all three workspaces |
+| `npm run build` | succeeded, 186.56 kB JS / 58.44 kB gzipped |
+| `npm run contrast-audit` | 4 known gaps, no new failures |
+| `npm audit` | 5 findings, all dev-only |
+| `npm audit --omit=dev` | **0 vulnerabilities** |
+| Captured fixtures render | **passed** |
+| Fixture mode still sends no image bytes | **passed**, 152 bytes per generation |
+| Three defects found in the capture | **fixed** — below |
+
+### What the capture cost
+
+**18 units**, matching the estimate for a run that skips Facial Color Tone:
+
+| Task | Units |
+| --- | --- |
+| Skin Analysis (5–8 concerns bracket) | 12 |
+| Clothes VTO × 2, at 2 each | 4 |
+| Makeup VTO × 2, at 1 each | 2 |
+| Facial Color Tone — **skipped**, contract unverified | 0 |
+| **Total** | **18** |
+
+The earlier 38-unit figure assumed Facial Color Tone would be attempted. It was
+deliberately not, so that 20 was never spent.
+
+### What renders now
+
+| Selection | Image | Caption |
+| --- | --- | --- |
+| Rose Veil, garment A | `complete-look-a-result.jpg` (1122×1402) | Garment and Rose Veil makeup |
+| Rose Veil, garment B | `complete-look-b-result.jpg` (1122×1402) | Garment and Rose Veil makeup |
+| Rose Veil, makeup axis | `garment-a-result.jpg` + complete look | Garment only, no makeup / Garment and Rose Veil makeup |
+| **Any other look** | the designed placeholders | Designed stand-in |
+
+The provenance chip reads "Local demo preview · fixture images" throughout.
+
+### Three defects found in the capture, and fixed
+
+1. **Presigned URLs committed.** `recordShape` wrote each task's full payload to
+   `docs/captured-shapes/`, including the provider's download link — a presigned S3 URL
+   with `X-Amz-Credential`, `X-Amz-Signature` and a two-hour expiry. Twelve across five
+   files, eight of them skin-analysis masks derived from a face. Now redacted by
+   `youcam/redact.ts`, on the committed files and on every future capture. The structure
+   the records exist to document is untouched.
+2. **The captured complete look stood in for every makeup look.** The lookup keyed on the
+   garment alone, so choosing Peach Ember returned the Rose Veil images captioned "Garment
+   and Peach Ember makeup". The look is now part of the lookup; other looks fall back to
+   the stand-in, as `assets/README.md` always said they would.
+3. **Alt text claimed the visitor was in the picture.** Every fixture panel read "You
+   wearing the rosewater cardigan". Fixture mode never receives the visitor's photograph:
+   a capture shows the demo portrait, and a placeholder shows no garment at all. Alt text
+   is the whole description for a screen-reader user, so this was the one audience being
+   told something the visible caption never said.
+
+A fourth was found earlier and is worth listing with them: the capture commit broke
+`fixtures/completeLook.test.ts`, which asserted "both resolve to placeholders, because no
+capture has been run in this repository" — the environment rather than the invariant. It
+now asserts the pairing that holds either way.
+
+### Privacy, re-measured against the real fixtures
+
+Three images uploaded and held in the tab, `window.fetch` instrumented:
+
+| Request | Bytes |
+| --- | --- |
+| `POST /api/analyze` | 34 |
+| `POST /api/skin-analysis` | 2 |
+| `POST /api/try-on` | 116 |
+
+**152 bytes, no image field.** The captured fixtures changed what comes back, not what
+goes out.
+
+### Still not verified
+
+- **Facial Color Tone.** Deliberately skipped by the capture; its File API input contract
+  is still unverified. The palette remains computed locally.
+- **Reduced motion under emulation.** Confirmed by reading the stylesheet, not by
+  emulating the preference in a browser.
+- **Multi-instance rate limiting.** The limiter is per process; the approved shape is one
+  process. Not exercised behind a load balancer.
+- **The other six garments and four looks.** No capture exists for them by design, and
+  they render designed stand-ins that say so.
 
 ---
 

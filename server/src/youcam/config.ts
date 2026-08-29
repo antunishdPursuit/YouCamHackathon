@@ -162,8 +162,6 @@ export interface YouCamConfig {
   readonly liveSkinAnalysis: boolean;
   /** Explicitly enables live Clothes and Makeup VTO while the palette stays on fixtures. */
   readonly liveTryOn: boolean;
-  /** Base URL the API can fetch source images from (Path B). Capture script only. */
-  readonly publicAssetBaseUrl: string;
   readonly simulate: SimulatedState;
 }
 
@@ -203,7 +201,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): YouCamConfig {
     fixtureMode,
     liveSkinAnalysis,
     liveTryOn,
-    publicAssetBaseUrl: (env['YINCOL_PUBLIC_ASSET_BASE_URL'] ?? '').replace(/\/+$/, ''),
     simulate,
   };
 }
