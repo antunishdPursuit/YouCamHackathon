@@ -19,6 +19,7 @@ import {
 import { adaptSkinAnalysis } from '../youcam/adapters/skinAnalysis.js';
 import { logFailure } from '../youcam/publicError.js';
 import { runTask, YouCamError } from '../youcam/taskRunner.js';
+import { rejectImageBytesInFixtureMode } from './fixtureGuard.js';
 
 export const skinAnalysisRouter = Router();
 
@@ -70,6 +71,10 @@ skinAnalysisRouter.post('/skin-analysis', async (req, res) => {
   // is the only way to spend a Skin Analysis unit while the rest of the flow is still
   // fixture-backed.
   if (!config.liveSkinAnalysis) {
+    // Nothing is analysed here, so nothing needs uploading. Refusing the bytes is what
+    // makes "your photograph stays in this tab" a fact rather than a wording choice.
+    if (rejectImageBytesInFixtureMode(req.body, res)) return;
+
     await fixtureDelay();
     const response: SkinAnalysisResponse = {
       skin: FIXTURE_SKIN_APPEARANCE,

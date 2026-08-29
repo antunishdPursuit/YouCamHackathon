@@ -3,42 +3,9 @@ import { adaptColorTone, ColorToneShapeError } from './facialColorTone.js';
 import { adaptSkinAnalysis } from './skinAnalysis.js';
 import { adaptTryOn, tryOnFailure } from './tryOn.js';
 import { extractResultUrls } from '../taskRunner.js';
-import { loadConfig } from '../config.js';
 
-describe('config', () => {
-  it('defaults to fixture mode when nothing is set', () => {
-    expect(loadConfig({}).fixtureMode).toBe(true);
-  });
-
-  it('leaves fixture mode ON for anything but the exact string "false"', () => {
-    // A typo must never silently start spending credits.
-    for (const value of ['true', 'TRUE', 'no', '0', 'False ', 'fasle', '']) {
-      expect(loadConfig({ YINCOL_FIXTURE_MODE: value }).fixtureMode, value).toBe(true);
-    }
-    expect(loadConfig({ YINCOL_FIXTURE_MODE: 'false' }).fixtureMode).toBe(false);
-    expect(loadConfig({ YINCOL_FIXTURE_MODE: 'FALSE' }).fixtureMode).toBe(false);
-  });
-
-  it('keeps live Skin Analysis opt-in while the demo remains on fixtures', () => {
-    expect(loadConfig({}).liveSkinAnalysis).toBe(false);
-    expect(loadConfig({ YINCOL_LIVE_SKIN_ANALYSIS: 'true' }).liveSkinAnalysis).toBe(true);
-    expect(loadConfig({ YINCOL_FIXTURE_MODE: 'false' }).liveSkinAnalysis).toBe(true);
-    expect(loadConfig({ YINCOL_LIVE_SKIN_ANALYSIS: 'TRUE' }).liveSkinAnalysis).toBe(true);
-  });
-
-  it('keeps live try-on opt-in while the palette remains on fixtures', () => {
-    expect(loadConfig({}).liveTryOn).toBe(false);
-    expect(loadConfig({ YINCOL_LIVE_TRY_ON: 'true' }).liveTryOn).toBe(true);
-    expect(loadConfig({ YINCOL_FIXTURE_MODE: 'false' }).liveTryOn).toBe(true);
-    expect(loadConfig({ YINCOL_LIVE_TRY_ON: 'TRUE' }).liveTryOn).toBe(true);
-  });
-
-  it('strips trailing slashes so path joining never doubles up', () => {
-    expect(loadConfig({ YINCOL_API_BASE_URL: 'https://example.com//' }).baseUrl).toBe(
-      'https://example.com',
-    );
-  });
-});
+// Configuration is covered in `youcam/config.test.ts`, next to the fail-closed rule it
+// exists to protect.
 
 describe('facial colour tone adapter', () => {
   it('reads hex-encoded colours', () => {

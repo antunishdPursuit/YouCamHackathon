@@ -50,14 +50,16 @@ loadRootEnv();
 const config = loadConfig();
 
 function requireLiveMode(): void {
+  // The key is checked first because `loadConfig` fails closed: with no key it forces
+  // fixture mode on, and reporting that as "fixture mode is on" would hide the real cause.
+  if (!config.apiKey) {
+    throw new Error('YINCOL_API_KEY is empty. Set it in .env (which is gitignored).');
+  }
   if (config.fixtureMode) {
     throw new Error(
       'Refusing to run: fixture mode is on. This script spends real API credits.\n' +
         'Set YINCOL_FIXTURE_MODE=false explicitly to capture.',
     );
-  }
-  if (!config.apiKey) {
-    throw new Error('YINCOL_API_KEY is empty. Set it in .env (which is gitignored).');
   }
   if (!config.publicAssetBaseUrl) {
     throw new Error(

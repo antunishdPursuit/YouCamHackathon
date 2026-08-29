@@ -1,26 +1,63 @@
 /**
- * YINCOL Express proxy.
+ * YINCOL Express proxy, and in production the whole server.
  *
- * Exists only to hide the API key and normalise the async pipeline. No database, no
- * auth, no accounts — there is nothing to store, because nothing is kept.
+ * One process serves the built front end and `/api` from the same origin. That keeps the
+ * API key server-side, keeps the rate limit and the live kill switch in one place, and
+ * means the browser never makes a cross-origin request — so there is no CORS policy here
+ * to get wrong. No database, no auth, no accounts: there is nothing to store, because
+ * nothing is kept.
  */
 
+import { existsSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import express from 'express';
-import cors from 'cors';
 import { GARMENTS, MAKEUP_LOOKS } from '@yincol/shared';
 import { loadRootEnv } from './loadEnv.js';
-import { loadConfig, TASK_PATH_VERIFIED } from './youcam/config.js';
+import { loadConfig, liveWasRequestedWithoutKey, TASK_PATH_VERIFIED } from './youcam/config.js';
+import { createRateLimiter } from './rateLimit.js';
 import { analyzeRouter } from './routes/analyze.js';
 import { skinAnalysisRouter } from './routes/skinAnalysis.js';
 import { tryOnRouter } from './routes/tryOn.js';
 
 loadRootEnv();
 
+const startupConfig = loadConfig();
 const app = express();
-app.use(cors({ origin: true }));
-// Three sub-10 MB images become just under 40 MB as base64 JSON, plus a small envelope.
-// Each image is still rejected at or above the provider's 10 MB limit before upload.
-app.use(express.json({ limit: '42mb' }));
+
+/**
+ * Trust the platform's proxy only where the deployment says there is one.
+ *
+ * `req.ip` is the rate limiter's key. Trusting `X-Forwarded-For` unconditionally would
+ * let any caller choose their own key and walk straight past the limit.
+ */
+if ((process.env['YINCOL_TRUST_PROXY'] ?? '').toLowerCase() === 'true') {
+  app.set('trust proxy', 1);
+}
+
+/**
+ * The request-size ceiling follows the mode, because the mode decides what a legitimate
+ * request can contain.
+ *
+ * In fixture mode the browser sends fixture metadata — a few hundred bytes — and the
+ * routes refuse image bytes outright, so 32 kB is generous. In live mode three sub-10 MB
+ * images become just under 40 MB as base64 JSON, and each is still rejected at or above
+ * the provider's 10 MB limit before upload.
+ */
+const BODY_LIMIT = startupConfig.fixtureMode ? '32kb' : '42mb';
+app.use(express.json({ limit: BODY_LIMIT }));
+
+/**
+ * Two limits, because the two kinds of request cost different amounts.
+ *
+ * One generation is three requests, so the generation window allows roughly ten
+ * generations a minute per address — far more than a person clicking, far less than a
+ * script can use to fill the process.
+ */
+const generalLimit = createRateLimiter({ windowMs: 60_000, max: 120 });
+const generationLimit = createRateLimiter({ windowMs: 60_000, max: 30 });
+
+app.use('/api', generalLimit);
 
 app.get('/api/health', (_req, res) => {
   const config = loadConfig();
@@ -40,19 +77,69 @@ app.get('/api/catalog', (_req, res) => {
   res.json({ garments: GARMENTS, makeupLooks: MAKEUP_LOOKS });
 });
 
+/**
+ * Mounted on the generation paths themselves, once.
+ *
+ * Attaching it per router instead would run it once for every router the request walks
+ * past on its way to the one that answers, so a `/try-on` call would spend three of its
+ * own budget and an unmatched `/api` path would spend three of someone else's.
+ */
+app.use(['/api/analyze', '/api/skin-analysis', '/api/try-on'], generationLimit);
+
 app.use('/api', analyzeRouter);
 app.use('/api', skinAnalysisRouter);
 app.use('/api', tryOnRouter);
 
+/**
+ * The built front end, served by the same process on the same origin.
+ *
+ * Absent in development, where Vite serves the app on its own port and proxies `/api`
+ * back here. Its absence is a normal state, not a failure.
+ */
+const WEB_DIST = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', 'web', 'dist');
+const hasBuiltWeb = existsSync(join(WEB_DIST, 'index.html'));
+
+if (hasBuiltWeb) {
+  app.use(express.static(WEB_DIST));
+
+  // Client-side routing fallback. Scoped away from `/api` so an unknown API path stays a
+  // 404 instead of quietly returning the HTML shell.
+  app.get(/^(?!\/api\/).*/, (_req, res) => {
+    res.sendFile(join(WEB_DIST, 'index.html'));
+  });
+}
+
 // Anything unhandled becomes a plain message, never a stack trace with a key in it.
 app.use((error: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  // An oversized body is the one framework error worth naming: in fixture mode it is what
+  // a stale client sending image bytes will hit first, and a 500 would misdescribe it.
+  if ((error as { type?: string }).type === 'entity.too.large') {
+    res.status(413).json({ code: 'general', error: 'That request is too large for this demo.' });
+    return;
+  }
+
   console.error('[yincol]', error.message);
   res.status(500).json({ error: 'Something went wrong on our side.' });
 });
 
 const port = Number(process.env['PORT'] ?? 8787);
 app.listen(port, () => {
-  const config = loadConfig();
   console.log(`[yincol] server listening on http://localhost:${port}`);
-  console.log(`[yincol] mode: ${config.fixtureMode ? 'FIXTURE (no network, no credits)' : 'LIVE'}`);
+  console.log(
+    `[yincol] mode: ${startupConfig.fixtureMode ? 'FIXTURE (no network, no credits)' : 'LIVE'}`,
+  );
+  console.log(`[yincol] request body limit: ${BODY_LIMIT}`);
+  console.log(
+    hasBuiltWeb
+      ? `[yincol] serving the built front end from ${WEB_DIST}`
+      : '[yincol] no web build found — run `npm run build` for single-process serving',
+  );
+
+  // Fail-closed is silent by design, which is exactly why it gets said out loud here.
+  if (liveWasRequestedWithoutKey()) {
+    console.warn(
+      '[yincol] a live path was requested but YINCOL_API_KEY is empty — ' +
+        'staying on fixtures. Set a key to enable live mode.',
+    );
+  }
 });

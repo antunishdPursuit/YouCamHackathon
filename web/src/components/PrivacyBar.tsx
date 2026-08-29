@@ -5,12 +5,24 @@
  * and its delete is real: it clears the photograph and everything derived from it, not
  * just the picture on screen. A delete that leaves the palette behind would be a
  * gesture, not a deletion.
+ *
+ * The sentence follows the behaviour rather than the other way round. In fixture mode the
+ * client never reads the file, so "stays in this tab" is a description of what the code
+ * does; in live mode the photograph is sent, and saying otherwise would be a lie however
+ * comfortable. Until the mode is known, neither claim is made.
  */
 
 import { useState } from 'react';
 import { Button } from './controls.js';
+import { privacyBarSentence } from '../config/privacyCopy.js';
 
-export function PrivacyBar({ onDelete }: { onDelete: () => void }) {
+export function PrivacyBar({
+  onDelete,
+  imagesLeaveTab,
+}: {
+  onDelete: () => void;
+  imagesLeaveTab: boolean | null;
+}) {
   const [confirming, setConfirming] = useState(false);
 
   return (
@@ -54,7 +66,7 @@ export function PrivacyBar({ onDelete }: { onDelete: () => void }) {
                 strokeWidth="1.3"
               />
             </svg>
-            Your photograph stays in this tab. No account, no database.
+            {privacyBarSentence(imagesLeaveTab)}
           </p>
           <button
             type="button"

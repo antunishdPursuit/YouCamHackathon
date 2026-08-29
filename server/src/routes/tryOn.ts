@@ -30,6 +30,7 @@ import {
 import { logFailure, publicFailureReason } from '../youcam/publicError.js';
 import { tryOnFailure } from '../youcam/adapters/tryOn.js';
 import { fixtureCompleteLook, fixtureDelay, resolveFixtureImage } from '../fixtures/index.js';
+import { rejectImageBytesInFixtureMode } from './fixtureGuard.js';
 
 export const tryOnRouter = Router();
 
@@ -84,6 +85,11 @@ tryOnRouter.post('/try-on', async (req, res) => {
   const look = findMakeupLook(makeupLookId);
 
   if (config.fixtureMode && !config.liveTryOn) {
+    // The fixture path generates nothing from the shopper's own pictures, so it has no
+    // use for them. Refusing them here is what keeps the privacy promise a property of
+    // the deployment rather than of whichever client happens to be calling.
+    if (rejectImageBytesInFixtureMode(body, res)) return;
+
     await fixtureDelay();
 
     const garments: Record<string, TryOnPanel> = {};

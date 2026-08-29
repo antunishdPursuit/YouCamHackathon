@@ -2,7 +2,7 @@
   "name": "yincol",
   "private": true,
   "version": "0.1.0",
-  "description": "YINCOL — one selfie, two garments, one makeup look, one coordinated decision.",
+  "description": "YINCOL \u2014 one selfie, two garments, one makeup look, one coordinated decision.",
   "type": "module",
   "workspaces": [
     "shared",
@@ -17,6 +17,7 @@
     "dev:web": "npm run dev --workspace @yincol/web",
     "dev:server": "npm run dev --workspace @yincol/server",
     "build": "npm run build --workspace @yincol/web",
+    "start": "npm run start --workspace @yincol/server",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "capture-fixtures": "npm run capture-fixtures --workspace @yincol/server"

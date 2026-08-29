@@ -3,12 +3,18 @@
  *
  * Everything runs on fixtures by default, so the whole flow is walkable with no
  * network and no credits. Live Skin Analysis and live try-on are separate opt-in
- * server flags; the browser can send its tab-held files without knowing which mode
- * the server selected.
+ * server flags. The browser asks which of them are on before it reads a file, because
+ * in fixture mode it must not read one at all.
  */
 
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import { ApiError, requestAnalysis, requestSkinAnalysis, requestTryOn } from './api/client.js';
+import {
+  ApiError,
+  fetchRuntimeMode,
+  requestAnalysis,
+  requestSkinAnalysis,
+  requestTryOn,
+} from './api/client.js';
 import { StateNotice } from './components/StateNotice.js';
 import { PrivacyBar } from './components/PrivacyBar.js';
 import { Wordmark } from './components/ornament.js';
@@ -71,6 +77,24 @@ function StageProgress({ step }: { step: Step }) {
 export function App() {
   const [state, dispatch] = useReducer(sessionReducer, initialState);
   const [generationSource, setGenerationSource] = useState<'cache' | 'network' | null>(null);
+
+  /**
+   * Whether the photograph will leave the tab, which only the server can say.
+   *
+   * `null` until it answers. The privacy bar makes no claim in the meantime — the whole
+   * point of the sentence is that it is true, and a default would be a guess.
+   */
+  const [imagesLeaveTab, setImagesLeaveTab] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchRuntimeMode().then((mode) => {
+      if (!cancelled) setImagesLeaveTab(mode.liveSkinAnalysis || mode.liveTryOn);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   /**
    * Which generation the results on their way back belong to.
@@ -246,6 +270,7 @@ export function App() {
             keptGarmentIds={state.keptGarmentIds}
             keptMakeupWinners={state.keptMakeupWinners}
             makeupLookId={state.makeupLookId}
+            imagesLeaveTab={imagesLeaveTab}
             onBegin={() => {
               dispatch({ type: 'giveConsent' });
               dispatch({ type: 'goTo', step: 'inputs' });
@@ -259,6 +284,7 @@ export function App() {
             portrait={state.portrait}
             garmentInputs={state.garmentInputs}
             makeupLookId={state.makeupLookId}
+            imagesLeaveTab={imagesLeaveTab}
             onPortrait={(image) => {
               voidGeneration();
               dispatch({ type: 'setPortrait', portrait: image });
@@ -285,6 +311,7 @@ export function App() {
           <AnalysisScreen
             done={analysisDone}
             cached={generationSource === 'cache'}
+            imagesLeaveTab={imagesLeaveTab}
             onFinished={() => dispatch({ type: 'goTo', step: 'results' })}
           />
         );
@@ -332,7 +359,7 @@ export function App() {
 
         {SHOWS_PORTRAIT.has(state.step) && state.portrait ? (
           <div className="mb-6">
-            <PrivacyBar onDelete={handleClearPortrait} />
+            <PrivacyBar onDelete={handleClearPortrait} imagesLeaveTab={imagesLeaveTab} />
           </div>
         ) : null}
 
