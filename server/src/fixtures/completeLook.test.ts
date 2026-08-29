@@ -25,14 +25,35 @@ describe('fixture-mode complete looks', () => {
   });
 
   it('never lets a shipped placeholder claim to be a complete look', () => {
+    // The invariant is the pairing, not which side of it this repository happens to be on.
+    // `stage` describes a sequence that actually ran, so a captured fixture carries one and
+    // a placeholder must not — whether or not a capture has been committed. Asserting
+    // "both are placeholders" instead would only restate the current contents of
+    // web/public/fixtures/, and did: it broke the moment the real captures landed.
+    for (const request of [garmentA, garmentB]) {
+      const outcome = fixtureCompleteLook(request);
+
+      for (const panel of [outcome.completeLook, outcome.garmentOnly]) {
+        if (panel.provenance === 'placeholder') {
+          expect(panel.stage).toBeUndefined();
+        } else {
+          expect(panel.provenance).toBe('captured');
+          expect(panel.stage).toBeDefined();
+        }
+      }
+    }
+  });
+
+  it('describes the captured panels as the steps that produced them', () => {
     const outcome = fixtureCompleteLook(garmentA);
 
-    // No capture has been run in this repository, so both resolve to placeholders — and
-    // a placeholder gets no stage, because nothing rendered it.
-    expect(outcome.completeLook.provenance).toBe('placeholder');
-    expect(outcome.completeLook.stage).toBeUndefined();
-    expect(outcome.garmentOnly.provenance).toBe('placeholder');
-    expect(outcome.garmentOnly.stage).toBeUndefined();
+    // Only meaningful once a capture exists; before that there is nothing to describe.
+    if (outcome.completeLook.provenance === 'captured') {
+      expect(outcome.completeLook.stage).toBe('completeLook');
+    }
+    if (outcome.garmentOnly.provenance === 'captured') {
+      expect(outcome.garmentOnly.stage).toBe('garmentOnly');
+    }
   });
 
   it('gives the two garments different complete-look panels', () => {

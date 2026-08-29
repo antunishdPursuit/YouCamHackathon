@@ -23,13 +23,16 @@
 
 import { ImageUploadError } from './imageInput.js';
 import { YouCamError } from './taskRunner.js';
+import { redactUrls } from './redact.js';
 
 /**
  * Signed provider URLs turn up inside error text, and they are credentials of a sort for
  * as long as they live. Stripped from anything published, including our own messages —
  * a backstop, not the main defence, which is the rule above.
+ *
+ * The rule itself lives in `redact.ts`, because the capture script needs the same one.
  */
-const withoutUrls = (text: string): string => text.replace(/https?:\/\/\S+/g, '[url redacted]');
+const withoutUrls = redactUrls;
 
 /** The two error classes that wrap a call to the provider. Neither is ever published. */
 const isProviderError = (error: unknown): error is YouCamError | ImageUploadError =>

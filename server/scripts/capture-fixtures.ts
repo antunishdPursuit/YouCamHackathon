@@ -27,6 +27,7 @@ import { runTask, type RawTaskResult } from '../src/youcam/taskRunner.js';
 import { fileUploadStrategy, type ImageSource } from '../src/youcam/imageInput.js';
 import { runCompleteLookSequence } from '../src/youcam/completeLook.js';
 import { adaptSkinAnalysis } from '../src/youcam/adapters/skinAnalysis.js';
+import { redactUrlsDeep } from '../src/youcam/redact.js';
 import { CAPTURE_TARGETS, FIXTURE_PUBLIC_DIR } from '../src/fixtures/index.js';
 import { findGarment, findMakeupLook } from '@yincol/shared';
 
@@ -82,11 +83,22 @@ function readLocalSource(filename: string): ImageSource {
   };
 }
 
-/** Write the full success payload beside the fixture, so the real shape gets recorded. */
+/**
+ * Write the success payload beside the fixture, so the real shape gets recorded.
+ *
+ * URLs are redacted first. A successful task returns a presigned S3 link carrying
+ * `X-Amz-Credential`, `X-Amz-Signature` and a two-hour expiry — a bearer credential for a
+ * generated image of a face, and these files are committed. The record exists to document
+ * which fields come back and how they nest, and redaction costs it none of that.
+ */
 function recordShape(name: string, raw: RawTaskResult): void {
   const target = join(FIXTURE_PUBLIC_DIR, '..', '..', '..', 'docs', 'captured-shapes');
   mkdirSync(target, { recursive: true });
-  writeFileSync(join(target, `${name}.json`), JSON.stringify(raw, null, 2), 'utf8');
+  writeFileSync(
+    join(target, `${name}.json`),
+    JSON.stringify(redactUrlsDeep(raw), null, 2),
+    'utf8',
+  );
   console.log(`  ↳ response shape written to docs/captured-shapes/${name}.json`);
 }
 
