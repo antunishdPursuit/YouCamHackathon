@@ -66,14 +66,11 @@ accounts, no database, no hair colour, no earrings.
 Fixture mode is the default. The app runs end to end with **no call to YouCam and zero
 API credits** — the demo has to survive venue wifi.
 
-One thing that sentence used to overstate, corrected here so the README matches the code:
-the browser still POSTs the selected portrait and garment bytes to the local Express
-server on every generation, whatever mode the server is in. In fixture mode the server
-does not forward them anywhere and does not keep them — it returns fixtures and the bytes
-are discarded when the request ends — but they do leave the tab, which the consent copy
-on screen does not currently say. Reconciling those two is issue #4 item 6, and it is a
-product decision rather than a documentation fix, so this note records the behaviour
-without pre-empting it.
+Fixture mode enforces that privacy boundary. The browser reads selected files locally for
+validation, but its generation requests contain metadata only; they do not contain
+portrait or garment bytes. The server rejects image payloads while fixture mode is
+active. Live uploads are opt-in and are sent to YouCam only when the live paths are
+explicitly enabled.
 
 ```bash
 npm ci
@@ -111,7 +108,7 @@ lives client-side and triggers on any photograph that fails the size check in
 ### Checks
 
 ```bash
-npm test          # 131 tests — 74 in shared/, 57 in server/
+npm test          # 172 tests — 74 in shared/, 98 in server/
 npm run typecheck # all three workspaces
 npm run build     # web production bundle
 npm run contrast-audit --workspace @yincol/web
