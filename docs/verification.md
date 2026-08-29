@@ -159,10 +159,138 @@ Aborting them touches the request layer that #4 items 4, 6 and 9 cover.
 
 ---
 
+## Second run — August 29, 2026, after the fixture-privacy and packaging work
+
+Re-run after the commits that made fixture mode send no image bytes, made the
+configuration fail closed, added the request limits, and put the front end and `/api` in
+one process. **This section supersedes the summary above where the two disagree.** It will
+be re-run once the captured fixtures land, because those change what the browser renders.
+
+| Check | Result |
+| --- | --- |
+| Tests | **163 passed**, 0 failed (74 shared, 89 server) |
+| Typecheck | clean, all three workspaces |
+| Build | succeeded, 186.56 kB JS / 58.44 kB gzipped |
+| Contrast audit | 4 known gaps, no new failures |
+| `npm audit` | 5 findings, all dev-only |
+| `npm audit --omit=dev` | **0 vulnerabilities** — see below |
+| Production install and start | **passed** — see below |
+| Fail-closed configuration | **passed** — see below |
+| Fixture mode sends no image bytes | **passed** — see below |
+| #4 item 12 state sweeps | **passed**, one defect found and fixed |
+
+### Dependency audit — the production tree is clean
+
+`npm audit` still reports 5 findings, and all of them are Vite, Vitest, and Vite's nested
+esbuild 0.21.5 — the dev toolchain, which no deployment installs.
+
+`npm audit --omit=dev` reports **0 vulnerabilities**, which is the number that describes
+what actually ships.
+
+`tsx` moved from devDependencies to dependencies so a pruned install can still start the
+server. It brings esbuild 0.28.2, which is above the advisory's `<=0.24.2` range, so it
+does not carry the finding into production. `cors` was removed outright along with the
+cross-origin setup it existed for.
+
+### Production install and start
+
+A clean tree built from `git archive HEAD`, with `web/dist` copied in:
+
+```
+npm ci --omit=dev     → 76 packages, 0 vulnerabilities
+npm start             → listening, mode FIXTURE, body limit 32kb, serving web/dist
+```
+
+| Check | Result |
+| --- | --- |
+| `/api/health` | `{"mode":"fixture","liveSkinAnalysis":false,"liveTryOn":false,"hasApiKey":false}` |
+| `GET /` | 200, the built app |
+| Unknown page | 200, SPA fallback |
+| Unknown `/api` path | 404, not the HTML shell |
+| Fixture guard | 400, image bytes refused |
+
+### Fail-closed configuration
+
+Started with **every live flag set to live and no API key** — the worst-case
+misconfiguration:
+
+```
+YINCOL_FIXTURE_MODE=false  YINCOL_LIVE_SKIN_ANALYSIS=true  YINCOL_LIVE_TRY_ON=true
+```
+
+```
+[yincol] mode: FIXTURE (no network, no credits)
+[yincol] a live path was requested but YINCOL_API_KEY is empty — staying on fixtures.
+```
+
+`/api/health` confirmed `liveSkinAnalysis: false`, `liveTryOn: false`. Covered for every
+flag combination by `server/src/youcam/config.test.ts`.
+
+### Fixture mode sends no image bytes
+
+The claim the privacy bar makes, measured rather than asserted. Three real images
+(1200×1600 portrait, two 1400×1200 garments, ~145 kB total) were uploaded through the
+actual file inputs, then `window.fetch` was instrumented to record every outgoing body
+before a full generation:
+
+| Request | Body | Bytes |
+| --- | --- | --- |
+| `POST /api/analyze` | `{"portraitRef":"fixture:portrait"}` | 34 |
+| `POST /api/skin-analysis` | `{}` | 2 |
+| `POST /api/try-on` | `{"portraitRef":…,"garmentIds":[…],"makeupLookId":"peach-ember"}` | 118 |
+
+**154 bytes for a whole generation, and no image field in any of them.** Before this
+change the same generation sent the three images base64-encoded.
+
+The privacy copy was checked in both directions. In fixture mode the intro reads "In this
+browser tab only…" and the inputs screen "Your uploads stay in this tab." With the live
+flags on — verified against a server holding a deliberately invalid key, so nothing could
+be spent — both switch to saying the photograph is sent to the preview service.
+
+### #4 item 12 — state sweeps
+
+| State | How it was reached | Result |
+| --- | --- | --- |
+| Responsive, 375×812 | mobile viewport, both reachable screens | no horizontal overflow, 0 overflowing elements |
+| Tap targets | measured every visible control | all ≥ 44px (45–141px) |
+| Keyboard | 14 focusables, skip link focused | logical order; skip link expands 1px → 42px and becomes visible |
+| Reduced motion | `styles/index.css` | global `prefers-reduced-motion` override; one animation in the app |
+| Invalid upload | 320×240 JPEG | rejected, "only 240px on its shortest side", Generate stays disabled |
+| Partial failure | `YINCOL_SIMULATE=partialFailure` | garment B "Not generated", garment A intact, palette unaffected |
+| Complete-look failure | `YINCOL_SIMULATE=completeLookFailure` | renders, garment preview kept |
+| No face | `YINCOL_SIMULATE=noFace` | replaces the screen, offers "Choose a different photograph" |
+| Skin unavailable | `YINCOL_SIMULATE=skinUnavailable` | palette still shown, section omitted with a reason |
+| Retry / error banner | generation limit tripped | plain banner, Dismiss available, no status code or internals leaked |
+| Delete | privacy bar, on the results screen | confirm prompt, then results, palette and file inputs cleared; `sessionStorage` and `localStorage` both empty |
+
+**One defect found and fixed.** The partial-failure notice lower-cased the panel title, so
+it said "the garment b complete look preview" directly beneath a panel headed "Garment B
+complete look". Fixed in `web/src/screens/ResultsScreen.tsx`; re-verified as "We could not
+generate the Garment B complete look preview."
+
+**Method note.** The browser pane could not deliver synthetic click events for part of this
+run, so the flow was driven from the page with `fetch` + `DataTransfer` to populate the
+real file inputs and dispatch real `change` events. That exercises the application's own
+handlers; no application code was modified to make the run work. The uploaded test images
+were served from `web/dist/testfixtures/`, which was deleted afterwards and is gitignored
+in any case.
+
+### Still not verified
+
+- **Captured fixtures.** Every panel still renders a designed stand-in. No captured API
+  result exists in the repository yet, so nothing here verifies a real YouCam output.
+- **Reduced motion under emulation.** Confirmed by reading the stylesheet, not by
+  emulating the preference in a browser.
+- **Multi-instance rate limiting.** The limiter is per process; the approved shape is one
+  process. Not exercised behind a load balancer.
+
+---
+
 ## Not run
+
+The production start and the item 12 sweeps have since been run — see the second run
+above.
 
 | Check | Why |
 | --- | --- |
-| Production start / deployed smoke test | No production start path exists yet — #4 item 3, blocked on item 2 |
-| Responsive, keyboard, reduced-motion, retry, partial-failure, invalid-upload sweeps | #4 item 12, better run against the final deployed shape |
 | Live-mode verification of any provider path | Out of scope for a fixture-only closeout, and would spend units |
