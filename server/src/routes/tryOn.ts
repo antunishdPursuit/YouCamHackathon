@@ -27,6 +27,7 @@ import {
   fileUploadStrategy,
   type ImageSource,
 } from '../youcam/imageInput.js';
+import { logFailure, publicFailureReason } from '../youcam/publicError.js';
 import { tryOnFailure } from '../youcam/adapters/tryOn.js';
 import { fixtureCompleteLook, fixtureDelay, resolveFixtureImage } from '../fixtures/index.js';
 
@@ -65,10 +66,7 @@ const imageDataUrl = (image: ParsedLiveImage): string =>
   `data:${image.contentType};base64,${image.bytes.toString('base64')}`;
 
 const failedPanel = (reason: unknown, provenance: Provenance = 'live'): TryOnPanel => ({
-  result: tryOnFailure(
-    (reason instanceof Error ? reason.message : 'This preview could not be generated.')
-      .replace(/https?:\/\/\S+/g, '[url redacted]'),
-  ),
+  result: tryOnFailure(publicFailureReason(reason, 'This preview could not be generated.')),
   provenance,
 });
 
@@ -186,6 +184,10 @@ tryOnRouter.post('/try-on', async (req, res) => {
 
   garmentIds.forEach((garmentId, index) => {
     const outcome = settled[index];
+    // The only path here that is not already a handled panel: an upload or an unexpected
+    // throw. The detail stays on the console; the browser gets the sentence.
+    if (outcome?.status === 'rejected') logFailure(`try-on sequence · ${garmentId}`, outcome.reason);
+
     const resolved =
       outcome?.status === 'fulfilled' ? outcome.value : failedOutcome(outcome?.reason);
     garments[garmentId] = resolved.garmentOnly;

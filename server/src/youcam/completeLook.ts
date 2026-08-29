@@ -26,6 +26,7 @@ import type { GarmentCategoryValue, YouCamConfig } from './config.js';
 import { FEATURES, buildClothesVtoPayload, buildMakeupVtoPayload, makeupEffectsForLook } from './features.js';
 import { fileUploadStrategy, type ImageReference, type ImageSource } from './imageInput.js';
 import { runTask, type RawTaskResult } from './taskRunner.js';
+import { logFailure, publicFailureReason } from './publicError.js';
 import { captureTryOnLive, tryOnFailure, type TryOnImageBytes } from './adapters/tryOn.js';
 
 /** Both panels a single garment produces. Always both, so the caller cannot forget one. */
@@ -132,7 +133,8 @@ export async function runCompleteLookSequence(
     garmentPanel = panel(captured.result, 'garmentOnly');
     garmentStep = { taskId, raw, image: captured.image };
   } catch (error) {
-    const reason = failureReason(error, 'This garment preview could not be generated.');
+    logFailure(`complete-look step 1 clothes · ${garmentName}`, error);
+    const reason = publicFailureReason(error, 'This garment preview could not be generated.');
     logStep('step 1 clothes', garmentName, `failed — ${reason}`);
     return { garmentOnly: panel(tryOnFailure(reason)), completeLook: noGarmentImage() };
   }
@@ -181,7 +183,8 @@ export async function runCompleteLookSequence(
       completeLookPanel = panel(captured.result);
     }
   } catch (error) {
-    const reason = failureReason(
+    logFailure(`complete-look step 2 makeup · ${garmentName}`, error);
+    const reason = publicFailureReason(
       error,
       'The makeup step could not be applied to this garment preview.',
     );
@@ -194,10 +197,4 @@ export async function runCompleteLookSequence(
   if (completeLookStep) await onStep?.('completeLook', completeLookStep);
 
   return { garmentOnly: garmentPanel, completeLook: completeLookPanel };
-}
-
-/** Provider URLs can appear in error text; they are signed, so they never reach the browser. */
-function failureReason(error: unknown, fallback: string): string {
-  const message = error instanceof Error ? error.message : '';
-  return (message || fallback).replace(/https?:\/\/\S+/g, '[url redacted]');
 }

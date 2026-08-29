@@ -7,7 +7,7 @@
  */
 
 import { Router } from 'express';
-import type { SkinAnalysisRequest, SkinAnalysisResponse } from '@yincol/shared';
+import type { ApiErrorBody, SkinAnalysisRequest, SkinAnalysisResponse } from '@yincol/shared';
 import { FIXTURE_SKIN_APPEARANCE, fixtureDelay } from '../fixtures/index.js';
 import { loadConfig } from '../youcam/config.js';
 import { FEATURES, buildSkinAnalysisPayload } from '../youcam/features.js';
@@ -17,6 +17,7 @@ import {
   SUPPORTED_IMAGE_TYPES,
 } from '../youcam/imageInput.js';
 import { adaptSkinAnalysis } from '../youcam/adapters/skinAnalysis.js';
+import { logFailure } from '../youcam/publicError.js';
 import { runTask, YouCamError } from '../youcam/taskRunner.js';
 
 export const skinAnalysisRouter = Router();
@@ -109,14 +110,15 @@ skinAnalysisRouter.post('/skin-analysis', async (req, res) => {
     };
     res.json(response);
   } catch (error) {
-    console.error('[yincol] skin analysis failed', error instanceof Error ? error.message : error);
+    logFailure('skin analysis', error);
 
     const noFace = isNoFaceFailure(error);
-    res.status(noFace ? 422 : 502).json({
+    const body: ApiErrorBody = {
       code: noFace ? 'noFace' : 'general',
       error: noFace
         ? 'We could not find a face in that photograph.'
         : 'We could not analyse that photograph just now.',
-    });
+    };
+    res.status(noFace ? 422 : 502).json(body);
   }
 });

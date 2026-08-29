@@ -101,7 +101,17 @@ export interface TryOnResponse {
   readonly mode: 'fixture' | 'live';
 }
 
+/**
+ * Everything a failed request is allowed to say.
+ *
+ * There is deliberately no `detail` field. It used to carry the stringified cause, which
+ * on the live paths is a provider error message with the vendor's raw response body
+ * inside it — so the contract itself now refuses the channel rather than trusting each
+ * route to leave it empty. Diagnostic detail goes to the server console; see
+ * `server/src/youcam/publicError.ts`.
+ */
 export interface ApiErrorBody {
   readonly error: string;
-  readonly detail?: string;
+  /** Lets the browser branch on the one failure that needs its own screen. */
+  readonly code?: 'noFace' | 'colorToneFailed' | 'general';
 }

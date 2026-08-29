@@ -7,7 +7,7 @@
  * the server selected.
  */
 
-import { useCallback, useEffect, useReducer, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { ApiError, requestAnalysis, requestSkinAnalysis, requestTryOn } from './api/client.js';
 import { StateNotice } from './components/StateNotice.js';
 import { PrivacyBar } from './components/PrivacyBar.js';
@@ -73,6 +73,29 @@ export function App() {
   const [generationSource, setGenerationSource] = useState<'cache' | 'network' | null>(null);
 
   /**
+   * Which generation the results on their way back belong to.
+   *
+   * A generation is several awaits long, and the delete link stays live for all of them.
+   * Without this counter the deleted results come back: `clearPortrait` empties the
+   * state, then the still-pending `analysisReady` and `tryOnReady` put the same face
+   * straight back on screen, and `writeGenerationCache` re-seeds the cache that the
+   * delete had just cleared. That makes the delete a gesture rather than a deletion,
+   * which is the one thing the privacy bar promises it is not.
+   *
+   * Every run captures the id it started with. Anything that voids the results bumps it,
+   * and a run whose id no longer matches stops writing — no dispatch, no cache entry,
+   * and no error banner for work the shopper already discarded.
+   */
+  const generationId = useRef(0);
+
+  /** Discard whatever is in flight along with whatever has already been produced. */
+  const voidGeneration = useCallback(() => {
+    generationId.current += 1;
+    clearGenerationCache();
+    setGenerationSource(null);
+  }, []);
+
+  /**
    * Kick off both calls together when analysis begins.
    *
    * The portrait reference remains a fixture key for fixture mode. When the server has
@@ -80,6 +103,11 @@ export function App() {
    * sent in the same request and uploaded server-side through the feature File APIs.
    */
   const beginAnalysis = useCallback(async () => {
+    // Starting a generation also supersedes any earlier one still in flight.
+    generationId.current += 1;
+    const runId = generationId.current;
+    const superseded = () => generationId.current !== runId;
+
     setGenerationSource(null);
     dispatch({ type: 'analysisStarted' });
     const portraitRef = 'fixture:portrait';
@@ -93,6 +121,7 @@ export function App() {
         makeupLookId: state.makeupLookId,
       });
       const cached = cacheKey ? readGenerationCache(cacheKey) : null;
+      if (superseded()) return;
 
       if (cached) {
         setGenerationSource('cache');
@@ -109,6 +138,8 @@ export function App() {
           ? requestSkinAnalysis(portrait).catch(() => null)
           : Promise.resolve(null),
       ]);
+      if (superseded()) return;
+
       const combinedAnalysis = skinAnalysis
         ? { ...analysis, skin: skinAnalysis.skin, skinMode: skinAnalysis.mode }
         : portrait
@@ -129,6 +160,8 @@ export function App() {
         garmentInputs,
         makeupLookId: state.makeupLookId ?? '',
       });
+      if (superseded()) return;
+
       if (cacheKey) {
         writeGenerationCache({
           key: cacheKey,
@@ -139,6 +172,9 @@ export function App() {
       }
       dispatch({ type: 'tryOnReady', tryOn });
     } catch (error) {
+      // A discarded generation must not raise a banner about itself either.
+      if (superseded()) return;
+
       dispatch({
         type: 'failed',
         message: error instanceof Error ? error.message : 'Something went wrong.',
@@ -148,16 +184,14 @@ export function App() {
   }, [state.garmentIds, state.garmentInputs.a, state.garmentInputs.b, state.makeupLookId, state.portrait]);
 
   const handleClearPortrait = useCallback(() => {
-    clearGenerationCache();
-    setGenerationSource(null);
+    voidGeneration();
     dispatch({ type: 'clearPortrait' });
-  }, []);
+  }, [voidGeneration]);
 
   const handleStartOver = useCallback(() => {
-    clearGenerationCache();
-    setGenerationSource(null);
+    voidGeneration();
     dispatch({ type: 'startOver' });
-  }, []);
+  }, [voidGeneration]);
 
   // Release the object URL when the portrait is replaced or cleared, so a discarded
   // photograph is genuinely gone rather than lingering in memory.
@@ -226,19 +260,19 @@ export function App() {
             garmentInputs={state.garmentInputs}
             makeupLookId={state.makeupLookId}
             onPortrait={(image) => {
-              clearGenerationCache();
+              voidGeneration();
               dispatch({ type: 'setPortrait', portrait: image });
             }}
             onGarment={(slot, image) => {
-              clearGenerationCache();
+              voidGeneration();
               dispatch({ type: 'setGarmentInput', slot, image });
             }}
             onClearGarment={(slot) => {
-              clearGenerationCache();
+              voidGeneration();
               dispatch({ type: 'clearGarmentInput', slot });
             }}
             onChooseMakeup={(lookId) => {
-              clearGenerationCache();
+              voidGeneration();
               dispatch({ type: 'chooseMakeup', lookId });
             }}
             onContinue={beginAnalysis}
