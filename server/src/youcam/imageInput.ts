@@ -15,8 +15,8 @@
  * PATH B — public URL. Pass a publicly reachable image URL when starting the task and
  *   skip the upload entirely.
  *
- * ★ Existing capture and try-on callers still use PATH B. PATH A is implemented below for
- *   the verified Skin Analysis file flow and is used by the browser Skin Analysis route.
+ * ★ The capture script uses PATH A for local source files. Browser routes choose the path
+ *   that matches the bytes they hold; PATH A is implemented for the verified file flows.
  */
 
 import { authHeader, filePathFor, type FeatureId, type YouCamConfig } from './config.js';

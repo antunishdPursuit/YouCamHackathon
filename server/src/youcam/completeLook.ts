@@ -42,10 +42,10 @@ export interface CompleteLookRequest {
   /**
    * Step 1's inputs, already prepared by the caller.
    *
-   * The browser route uploads its tab-held bytes through the File API; the capture script
-   * points at published URLs. Which of the two got used is the caller's business — the
-   * sequence only needs a reference it can put in a payload. Step 2 has no such freedom:
-   * its input is bytes we just downloaded, so it always uploads.
+   * The browser route uploads its tab-held bytes through the File API, and the capture
+   * script uploads its local source bytes. Which path got used is the caller's business —
+   * the sequence only needs a reference it can put in a payload. Step 2 has no such
+   * freedom: its input is bytes we just downloaded, so it always uploads.
    */
   readonly portrait: ImageReference;
   readonly garment: ImageReference;

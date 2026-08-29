@@ -110,7 +110,7 @@ export const FIXTURE_SKIN_APPEARANCE: SkinAppearance = {
  * the effects onto it.
  */
 export const CAPTURE_TARGETS = {
-  portrait: { source: 'portrait.jpg', fixture: 'portrait.jpg' },
+  portrait: { source: 'portrait.png', fixture: 'portrait.jpg' },
   garments: [
     {
       catalogId: 'rosewater-cardigan',

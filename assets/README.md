@@ -20,7 +20,7 @@ file unless a separate provider endpoint is verified and approved.
 
 | File | What it must be |
 | --- | --- |
-| `assets/source/portrait.jpg` | Bare-face selfie. Upper body clearly visible, one person, plain uncluttered background, even front lighting, no makeup. This is the face every preview is generated from. |
+| `assets/source/portrait.png` | Bare-face selfie. Upper body clearly visible, one person, plain uncluttered background, even front lighting, no makeup. This is the face every preview is generated from. |
 | `assets/source/garment-a.jpg` | Garment product image — flat-lay or on-model, full garment in frame, plain background. |
 | `assets/source/garment-b.jpg` | Second garment, shot the same way. Pick something that genuinely differs in colour from A, otherwise the comparison screen has nothing to show. |
 

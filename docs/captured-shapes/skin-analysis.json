@@ -1,0 +1,91 @@
+{
+  "status": 200,
+  "data": {
+    "error": null,
+    "results": {
+      "output": [
+        {
+          "ui_score": 77,
+          "mask_urls": [
+            "[url redacted]"
+          ],
+          "raw_score": 72.04545140266418,
+          "type": "texture",
+          "url": null
+        },
+        {
+          "ui_score": 66,
+          "mask_urls": [
+            "[url redacted]"
+          ],
+          "raw_score": 46.60931372642517,
+          "type": "pore",
+          "url": null
+        },
+        {
+          "ui_score": 99,
+          "mask_urls": [
+            "[url redacted]"
+          ],
+          "raw_score": 100,
+          "type": "acne",
+          "url": null
+        },
+        {
+          "ui_score": 79,
+          "mask_urls": [
+            "[url redacted]"
+          ],
+          "raw_score": 88.34301233291626,
+          "type": "wrinkle",
+          "url": null
+        },
+        {
+          "mask_urls": [
+            "[url redacted]"
+          ],
+          "type": "skin_type",
+          "region": "whole",
+          "skin_type": "Oily",
+          "url": null
+        },
+        {
+          "mask_urls": [
+            "[url redacted]"
+          ],
+          "type": "skin_type",
+          "region": "t_zone",
+          "skin_type": "Oily",
+          "url": null
+        },
+        {
+          "mask_urls": [
+            "[url redacted]"
+          ],
+          "type": "skin_type",
+          "region": "u_zone",
+          "skin_type": "Oily",
+          "url": null
+        },
+        {
+          "score": 80.25,
+          "type": "all",
+          "url": null
+        },
+        {
+          "score": 30,
+          "type": "skin_age",
+          "url": null
+        },
+        {
+          "mask_urls": [
+            "[url redacted]"
+          ],
+          "type": "resize_image",
+          "url": null
+        }
+      ]
+    },
+    "task_status": "success"
+  }
+}
