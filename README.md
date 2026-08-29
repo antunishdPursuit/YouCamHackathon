@@ -63,8 +63,17 @@ accounts, no database, no hair colour, no earrings.
 
 ## Running it
 
-Fixture mode is the default. The app runs end to end with **zero network access and zero
+Fixture mode is the default. The app runs end to end with **no call to YouCam and zero
 API credits** — the demo has to survive venue wifi.
+
+One thing that sentence used to overstate, corrected here so the README matches the code:
+the browser still POSTs the selected portrait and garment bytes to the local Express
+server on every generation, whatever mode the server is in. In fixture mode the server
+does not forward them anywhere and does not keep them — it returns fixtures and the bytes
+are discarded when the request ends — but they do leave the tab, which the consent copy
+on screen does not currently say. Reconciling those two is issue #4 item 6, and it is a
+product decision rather than a documentation fix, so this note records the behaviour
+without pre-empting it.
 
 ```bash
 npm ci
@@ -102,10 +111,15 @@ lives client-side and triggers on any photograph that fails the size check in
 ### Checks
 
 ```bash
-npm test          # 125 tests — 74 in shared/, 51 in server/
+npm test          # 131 tests — 74 in shared/, 57 in server/
 npm run typecheck # all three workspaces
+npm run build     # web production bundle
 npm run contrast-audit --workspace @yincol/web
+npm audit         # 5 findings, all in the dev toolchain — see docs/verification.md
 ```
+
+The last recorded run of all five, with its results, is in
+[`docs/verification.md`](docs/verification.md).
 
 ### Switching to live
 
@@ -251,7 +265,7 @@ the palette engine never learns that a network exists.
 | `server/` | Node + Express. Hides the API key and normalises the async pipeline. No database, no auth, no accounts. |
 | `shared/` | Framework-free. Domain types and the palette engine. |
 
-Four decisions worth knowing before reading the code:
+Five decisions worth knowing before reading the code:
 
 - **One task runner, not four polling loops.** Every feature follows the same five steps
   — get an image in, `POST` to the task endpoint, receive a `task_id`, poll until
@@ -264,6 +278,12 @@ Four decisions worth knowing before reading the code:
 - **Analysis calls use `Promise.allSettled`, never `Promise.all`.** Skin analysis is
   optional context; the palette is the product. Skin analysis failing must not take the
   palette down with it.
+- **A provider error never becomes a public one.** `YouCamError` and `ImageUploadError`
+  carry the vendor's status and raw response body, because that is what makes a failed
+  live run diagnosable. `server/src/youcam/publicError.ts` splits the audiences: the
+  detail goes to the server console, and the response gets a sentence written for a
+  person. An error of either class is replaced wholesale rather than filtered, so there
+  is no pattern to get wrong.
 
 ---
 
@@ -297,9 +317,20 @@ and response mapping. The feature-specific File API reuse behavior. The
 The read-only feature-cost response recorded these current unit costs: Clothes VTO V3 =
 2 units/result, Makeup VTO = 1, Skin Analysis V2.0 SD with 1–4 concerns = 9 or 5–8
 concerns = 12, and Facial Color Tones Analyzer = 20. YINCOL's current five-action Skin
-Analysis request uses the 12-unit bracket, so one successful opt-in flow uses 17 units
-(Skin Analysis + two Clothes results + one Makeup result). The exact current balance still
-belongs in the account console, not in this repository.
+Analysis request uses the 12-unit bracket, so **one fully successful opt-in flow uses 18
+units**:
+
+| Tasks | Unit cost | Total |
+| --- | ---: | ---: |
+| Skin Analysis, five actions (5–8 concerns bracket) × 1 | 12 | 12 |
+| Clothes VTO V3 × 2, one per garment | 2 | 4 |
+| Makeup VTO × 2, one per garment | 1 | 2 |
+| | | **18** |
+
+This figure was 17 before the complete-look sequence landed, when the flow ran two Clothes
+tasks and a single Makeup task on the bare portrait. Each garment now carries its own
+makeup task, so the Makeup line doubled. The exact current balance still belongs in the
+account console, not in this repository.
 
 Each remaining open item is isolated behind the server boundary. Nothing marked
 unverified is repeated as fact anywhere in the UI — the server's
@@ -393,3 +424,6 @@ The branch history is the work log; each phase is one commit.
 | 3 | Nine-screen flow on fixtures |
 | 4 | Error states and a WCAG 2.2 AA pass |
 | 5 | Docs |
+| 6 | Flow simplified from nine screens to the four stages above |
+| 7 | Live File API upload, opt-in live Skin Analysis, opt-in live Clothes and Makeup VTO |
+| 8 | Clothes and Makeup sequenced into one complete-look preview |

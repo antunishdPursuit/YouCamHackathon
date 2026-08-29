@@ -88,5 +88,6 @@ once stays in git history forever.
 
 The app runs fully on ornamental placeholders. Every empty image slot renders a designed
 cream panel with a gold hairline frame and a quiet caption — an intentional empty state,
-not a broken image. Nothing here blocks development, and the whole nine-screen flow is
-demonstrable before a single source photograph exists.
+not a broken image. Nothing here blocks development, and the whole four-stage flow —
+Start, Add inputs, Generate, Results — is demonstrable before a single source photograph
+exists.
