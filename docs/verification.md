@@ -1,7 +1,9 @@
 # Verification record
 
-**Run on:** August 29, 2026
-**Commit:** `chore/closeout-deployment-readiness`, on top of `8efcc51`
+**Record updated:** August 29, 2026
+**Final verification tree:** captured-fixture tree represented by `7412d68`, later
+merged into `main` by PR #5. The capture commit was subsequently rewritten to remove
+historical presigned URLs; its file content and the results below were unchanged.
 **Machine:** Windows 11, Node 20+, npm workspaces from the repository root
 **Issue:** #4 item 14 — run and record tests, typecheck, build, dependency audit, and
 browser verification.
@@ -21,14 +23,17 @@ established.
 
 | Check | Command | Result |
 | --- | --- | --- |
-| Tests | `npm test` | **131 passed**, 0 failed |
+| Tests | `npm test` | **172 passed**, 0 failed (74 shared, 98 server) |
 | Typecheck | `npm run typecheck` | **clean**, all three workspaces |
-| Build | `npm run build` | **succeeded**, 56 modules, 21.4s |
+| Build | `npm run build` | **succeeded**, 186.56 kB JS / 58.44 kB gzipped |
 | Contrast audit | `npm run contrast-audit --workspace @yincol/web` | **4 known gaps, no new failures** |
-| Dependency audit | `npm audit` | **5 findings, all dev-toolchain** — see below |
-| Browser | fixture-mode walkthrough, Chrome | **passed**, no console errors |
+| Dependency audit | `npm audit` and `npm audit --omit=dev` | **5 dev-toolchain findings; 0 production vulnerabilities** |
+| Browser | fixture-mode walkthrough with captured fixtures | **passed** — see the third run below |
 
 ---
+
+The entries below are the first recorded run. They are retained as historical evidence;
+the current values are in the third run.
 
 ## Tests — 131 passed
 
@@ -55,12 +60,11 @@ dist/assets/index-*.js         185.14 kB │ gzip: 58.00 kB
 built in 21.39s
 ```
 
-**What this does not cover.** `npm run build` builds the web bundle only. There is no
-server build step — `@yincol/server`'s `start` script runs `tsx src/index.ts`, and `tsx`
-is a devDependency, so the current start path needs the dev toolchain installed. Nothing
-serves `dist/` either: the front end reaches `/api` through Vite's dev proxy, which does
-not exist in a production run. So there is no production start path to verify yet. That
-is issue #4 item 3, and it depends on the hosting shape decided in item 2.
+**Historical first-run limitation.** At this stage, `npm run build` built the web bundle
+only. There was no server build step — `@yincol/server`'s `start` script ran `tsx
+src/index.ts`, and `tsx` was a devDependency — and nothing served `dist/` in a production
+run. The production start path was added and verified in the second run below for issue
+#4 item 3.
 
 ## Contrast audit — 4 known gaps, no new failures
 
@@ -169,8 +173,9 @@ Aborting them touches the request layer that #4 items 4, 6 and 9 cover.
 
 Re-run after the commits that made fixture mode send no image bytes, made the
 configuration fail closed, added the request limits, and put the front end and `/api` in
-one process. **This section supersedes the summary above where the two disagree.** It will
-be re-run once the captured fixtures land, because those change what the browser renders.
+one process. **This is a historical run record; the third run below is current.** At the
+time of this run, the captured fixtures were still queued, and the browser portion would
+be re-run once they landed; that rerun is recorded in the third run.
 
 | Check | Result |
 | --- | --- |
@@ -285,7 +290,8 @@ in any case.
 
 - **Captured fixtures.** Every panel still renders a designed stand-in. No captured API
   result exists in the repository yet, so nothing here verifies a real YouCam output.
-  *(Resolved in the third run — the capture landed in `061ab99`.)*
+  *(Resolved in the third run — the captured fixtures landed in rewritten commit
+  `7412d68`.)*
 - **Reduced motion under emulation.** Confirmed by reading the stylesheet, not by
   emulating the preference in a browser.
 - **Multi-instance rate limiting.** The limiter is per process; the approved shape is one
@@ -295,8 +301,9 @@ in any case.
 
 ## Third run — final, after the captured fixtures
 
-**Run on:** August 29, 2026, against `061ab99` (@antunishdPursuit's capture) and the
-closeout commits on top of it. **This section is the current state of the branch.**
+**Run on:** August 29, 2026, against the captured-fixture tree, now represented by
+rewritten commit `7412d68`, and the closeout commits on top of it. **This section is the
+current verified state.**
 
 | Check | Result |
 | --- | --- |
@@ -387,8 +394,8 @@ goes out.
 
 ## Not run
 
-The production start and the item 12 sweeps have since been run — see the second run
-above.
+The production start and the item 12 sweeps were run in the second run above; the
+captured-fixture rerun is recorded in the third run.
 
 | Check | Why |
 | --- | --- |

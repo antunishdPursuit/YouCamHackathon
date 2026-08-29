@@ -1,12 +1,17 @@
 # Complete-look integration handoff
 
+> **Historical note — superseded.** The complete-look sequence described here was
+> integrated, captured, verified, and merged in PR #5. This note remains as
+> implementation history; its next-step and remaining-work statements do not describe
+> the current repository.
+
 ## Purpose
 
-This note defines the next implementation increment after the current YINCOL flow
-and live upload plumbing. It is written for the developer who takes the next
-branch from `main`.
+This note records the implementation increment that followed the original YINCOL flow
+and live upload plumbing. It was written for the developer who took the next branch from
+`main`.
 
-The next increment is to make the browser's live results match the API sequence
+The increment was to make the browser's live results match the API sequence
 already verified locally: apply a selected garment first, then apply the selected
 makeup effects to that returned garment image.
 
@@ -133,8 +138,8 @@ portrait and one garment reference:
 - Makeup VTO accepted that Clothes VTO result and returned a complete-look image.
 - The combined sequence succeeded without using an image-generation model.
 
-The remaining work is browser-route integration and verification, not a new
-provider-discovery exercise.
+The browser-route integration and verification described here were completed in the
+closeout work. This paragraph is retained as historical context, not as an open task.
 
 ## Review questions
 
