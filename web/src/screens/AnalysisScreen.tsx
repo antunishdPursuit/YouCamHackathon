@@ -7,6 +7,7 @@
 
 import { useEffect, useState } from 'react';
 import { PearlDivider, SectionHeading } from '../components/ornament.js';
+import { duringGenerationSentence } from '../config/privacyCopy.js';
 
 const STEPS = [
   { id: 'images', label: 'Checking your images' },
@@ -23,10 +24,12 @@ const STEP_DURATION_MS = 1_200;
 export function AnalysisScreen({
   done,
   cached = false,
+  imagesLeaveTab,
   onFinished,
 }: {
   done: boolean;
   cached?: boolean;
+  imagesLeaveTab: boolean | null;
   onFinished: () => void;
 }) {
   const [active, setActive] = useState(0);
@@ -98,7 +101,7 @@ export function AnalysisScreen({
       <p className="text-sm text-ink-soft">
         {cached
           ? 'These previews are reused from this session, so the same inputs are not sent again.'
-          : 'Your files stay in this tab while the preview work runs.'}
+          : duringGenerationSentence(imagesLeaveTab)}
       </p>
     </div>
   );

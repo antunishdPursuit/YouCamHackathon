@@ -207,7 +207,7 @@ describe('the complete-look sequence', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it('never lets a signed provider URL reach the browser in a failure reason', async () => {
+  it('publishes none of the provider response when a task fails', async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(startedTask('clothes-1'))
@@ -215,17 +215,29 @@ describe('the complete-look sequence', () => {
         json({
           task_id: 'clothes-1',
           task_status: 'error',
+          error_code: 'E1004',
           detail: 'https://results.example/signed?token=secret',
         }),
       );
     vi.stubGlobal('fetch', fetchMock);
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
     const outcome = await runCompleteLookSequence(request);
 
     expect(outcome.garmentOnly.result.status).toBe('failed');
     if (outcome.garmentOnly.result.status !== 'failed') return;
-    expect(outcome.garmentOnly.result.reason).not.toContain('token=secret');
-    expect(outcome.garmentOnly.result.reason).toContain('[url redacted]');
+
+    // The whole vendor message is replaced, not filtered: no signed URL, no error code,
+    // no task id, and no trace of the polled body.
+    const { reason } = outcome.garmentOnly.result;
+    expect(reason).toBe('This garment preview could not be generated.');
+    expect(reason).not.toContain('token=secret');
+    expect(reason).not.toContain('E1004');
+    expect(reason).not.toContain('clothes-1');
+
+    // It is not simply discarded — the detail is still on the console for a local tester.
+    expect(consoleError).toHaveBeenCalled();
+    expect(JSON.stringify(consoleError.mock.calls)).toContain('E1004');
   });
 });

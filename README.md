@@ -63,8 +63,17 @@ accounts, no database, no hair colour, no earrings.
 
 ## Running it
 
-Fixture mode is the default. The app runs end to end with **zero network access and zero
+Fixture mode is the default. The app runs end to end with **no call to YouCam and zero
 API credits** — the demo has to survive venue wifi.
+
+One thing that sentence used to overstate, corrected here so the README matches the code:
+the browser still POSTs the selected portrait and garment bytes to the local Express
+server on every generation, whatever mode the server is in. In fixture mode the server
+does not forward them anywhere and does not keep them — it returns fixtures and the bytes
+are discarded when the request ends — but they do leave the tab, which the consent copy
+on screen does not currently say. Reconciling those two is issue #4 item 6, and it is a
+product decision rather than a documentation fix, so this note records the behaviour
+without pre-empting it.
 
 ```bash
 npm ci
@@ -102,10 +111,15 @@ lives client-side and triggers on any photograph that fails the size check in
 ### Checks
 
 ```bash
-npm test          # 125 tests — 74 in shared/, 51 in server/
+npm test          # 131 tests — 74 in shared/, 57 in server/
 npm run typecheck # all three workspaces
+npm run build     # web production bundle
 npm run contrast-audit --workspace @yincol/web
+npm audit         # 5 findings, all in the dev toolchain — see docs/verification.md
 ```
+
+The last recorded run of all five, with its results, is in
+[`docs/verification.md`](docs/verification.md).
 
 ### Switching to live
 
@@ -118,9 +132,8 @@ Then set `YINCOL_API_KEY`. For the currently verified live paths, keep
 `YINCOL_FIXTURE_MODE=false` yet: the Facial Color Tones Analyzer input and response
 contract still needs verification before the palette can run live. The server-side
 File API upload primitive handles the verified Skin Analysis, Clothes VTO, and Makeup
-VTO paths, so
-`YINCOL_PUBLIC_ASSET_BASE_URL` is needed only by the existing public-URL fixture capture
-path, not by the new upload path.
+VTO paths, and the capture script uses it too — so there is no longer any public-URL
+hosting step, and `YINCOL_PUBLIC_ASSET_BASE_URL` has been retired.
 
 To test only the browser-to-Skin-Analysis increment while keeping the rest of the demo
 safe on fixtures, leave `YINCOL_FIXTURE_MODE=true` and set:
@@ -173,9 +186,11 @@ The remaining live-path gaps are listed here rather than discovered later:
 Fixture capture is the supported way to spend credits:
 
 ```bash
-YINCOL_FIXTURE_MODE=false YINCOL_API_KEY=… YINCOL_PUBLIC_ASSET_BASE_URL=… \
-  npm run capture-fixtures
+YINCOL_FIXTURE_MODE=false YINCOL_API_KEY=… npm run capture-fixtures
 ```
+
+It reads the three source images from the gitignored `assets/source/` and uploads them
+through the verified File API paths, so nothing has to be published publicly first.
 
 It refuses to run while fixture mode is on, and it downloads result bytes the instant a
 task succeeds — see [the two-hour rule](#a-note-on-the-demo-images).
@@ -251,7 +266,7 @@ the palette engine never learns that a network exists.
 | `server/` | Node + Express. Hides the API key and normalises the async pipeline. No database, no auth, no accounts. |
 | `shared/` | Framework-free. Domain types and the palette engine. |
 
-Four decisions worth knowing before reading the code:
+Five decisions worth knowing before reading the code:
 
 - **One task runner, not four polling loops.** Every feature follows the same five steps
   — get an image in, `POST` to the task endpoint, receive a `task_id`, poll until
@@ -264,6 +279,12 @@ Four decisions worth knowing before reading the code:
 - **Analysis calls use `Promise.allSettled`, never `Promise.all`.** Skin analysis is
   optional context; the palette is the product. Skin analysis failing must not take the
   palette down with it.
+- **A provider error never becomes a public one.** `YouCamError` and `ImageUploadError`
+  carry the vendor's status and raw response body, because that is what makes a failed
+  live run diagnosable. `server/src/youcam/publicError.ts` splits the audiences: the
+  detail goes to the server console, and the response gets a sentence written for a
+  person. An error of either class is replaced wholesale rather than filtered, so there
+  is no pattern to get wrong.
 
 ---
 
@@ -297,9 +318,20 @@ and response mapping. The feature-specific File API reuse behavior. The
 The read-only feature-cost response recorded these current unit costs: Clothes VTO V3 =
 2 units/result, Makeup VTO = 1, Skin Analysis V2.0 SD with 1–4 concerns = 9 or 5–8
 concerns = 12, and Facial Color Tones Analyzer = 20. YINCOL's current five-action Skin
-Analysis request uses the 12-unit bracket, so one successful opt-in flow uses 17 units
-(Skin Analysis + two Clothes results + one Makeup result). The exact current balance still
-belongs in the account console, not in this repository.
+Analysis request uses the 12-unit bracket, so **one fully successful opt-in flow uses 18
+units**:
+
+| Tasks | Unit cost | Total |
+| --- | ---: | ---: |
+| Skin Analysis, five actions (5–8 concerns bracket) × 1 | 12 | 12 |
+| Clothes VTO V3 × 2, one per garment | 2 | 4 |
+| Makeup VTO × 2, one per garment | 1 | 2 |
+| | | **18** |
+
+This figure was 17 before the complete-look sequence landed, when the flow ran two Clothes
+tasks and a single Makeup task on the bare portrait. Each garment now carries its own
+makeup task, so the Makeup line doubled. The exact current balance still belongs in the
+account console, not in this repository.
 
 Each remaining open item is isolated behind the server boundary. Nothing marked
 unverified is repeated as fact anywhere in the UI — the server's
@@ -309,24 +341,34 @@ unverified is repeated as fact anywhere in the UI — the server's
 
 ## A note on the demo images
 
-**Fixture mode ships with placeholders, and nothing shipped in this repository is an
-API output.** Opt-in live mode can return temporary YouCam result bytes in memory during
-local testing.
+**The repository now ships four captured API results, and everything else is a designed
+placeholder.** Both kinds are labelled, and the UI always says which one it is showing.
 
 Two kinds of picture exist here, and they are never allowed to be confused:
 
 - **Placeholders.** The five SVG panels in `web/public/fixtures/` are designed
   stand-ins — a cream 3:4 panel with a gold hairline frame and a quiet caption. They ship
-  with the repo so the flow runs before any capture exists. Every one is labelled
-  `provenance: 'placeholder'` by the server, carries no `stage`, and is surfaced as a
-  placeholder in the UI. This is what the demo currently runs on: a shipped placeholder
-  can never describe itself as a complete look, because nothing rendered it.
+  with the repo so the flow runs before any capture exists, and they still cover every
+  combination that was not captured. Every one is labelled `provenance: 'placeholder'` by
+  the server, carries no `stage`, and is surfaced in the UI as a stand-in: a shipped
+  placeholder can never describe itself as a complete look, because nothing rendered it.
 - **Captured results.** `npm run capture-fixtures` is the only thing in the repository
   that produces a result image. It runs the real API once, downloads the bytes
   immediately — the download URL is dead in two hours, so bytes are what survive to demo
   day — and writes them over the placeholders. Those are labelled `provenance:
   'captured'`, and they are **real API outputs, pre-captured**, not generated in front of
   the audience.
+
+**What was captured, on August 29, 2026:** two garment results and two complete-look
+results, for the catalogue garments `rosewater-cardigan` and `sage-linen-shirt`, with the
+**Rose Veil** makeup look. That run cost **18 units** — Skin Analysis 12, two Clothes
+results at 2, two Makeup results at 1. Facial Color Tone was skipped deliberately, because
+its input contract is still unverified.
+
+Everything outside that set falls back to a placeholder, and the look is part of what
+"that set" means: choosing any look other than Rose Veil returns the designed stand-in,
+rather than the Rose Veil image under another look's name. A capture shows one specific
+makeup on one specific garment, and it is only ever shown as that.
 
 If a picture in `web/public/fixtures/` did not come from that script, it is a placeholder,
 and it must never be described as an API output.
@@ -345,7 +387,8 @@ is a request-side effects configuration, not a reference image. `assets/source/`
 gitignored because face images carry likeness rights. Full detail is in
 [`assets/README.md`](assets/README.md).
 
-The app runs fully on ornamental placeholders until real photographs land.
+The app runs fully on ornamental placeholders wherever a capture does not exist, so the
+whole flow is walkable for any combination of inputs.
 
 **Full-body results are not cropped.** The garment task returns a full-body image, and a
 fixed portrait-card ratio with `object-fit: cover` would quietly cut the legs off it — a
@@ -393,3 +436,6 @@ The branch history is the work log; each phase is one commit.
 | 3 | Nine-screen flow on fixtures |
 | 4 | Error states and a WCAG 2.2 AA pass |
 | 5 | Docs |
+| 6 | Flow simplified from nine screens to the four stages above |
+| 7 | Live File API upload, opt-in live Skin Analysis, opt-in live Clothes and Makeup VTO |
+| 8 | Clothes and Makeup sequenced into one complete-look preview |

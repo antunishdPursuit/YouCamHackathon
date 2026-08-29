@@ -27,8 +27,10 @@ import {
   fileUploadStrategy,
   type ImageSource,
 } from '../youcam/imageInput.js';
+import { logFailure, publicFailureReason } from '../youcam/publicError.js';
 import { tryOnFailure } from '../youcam/adapters/tryOn.js';
 import { fixtureCompleteLook, fixtureDelay, resolveFixtureImage } from '../fixtures/index.js';
+import { rejectImageBytesInFixtureMode } from './fixtureGuard.js';
 
 export const tryOnRouter = Router();
 
@@ -65,10 +67,7 @@ const imageDataUrl = (image: ParsedLiveImage): string =>
   `data:${image.contentType};base64,${image.bytes.toString('base64')}`;
 
 const failedPanel = (reason: unknown, provenance: Provenance = 'live'): TryOnPanel => ({
-  result: tryOnFailure(
-    (reason instanceof Error ? reason.message : 'This preview could not be generated.')
-      .replace(/https?:\/\/\S+/g, '[url redacted]'),
-  ),
+  result: tryOnFailure(publicFailureReason(reason, 'This preview could not be generated.')),
   provenance,
 });
 
@@ -86,6 +85,11 @@ tryOnRouter.post('/try-on', async (req, res) => {
   const look = findMakeupLook(makeupLookId);
 
   if (config.fixtureMode && !config.liveTryOn) {
+    // The fixture path generates nothing from the shopper's own pictures, so it has no
+    // use for them. Refusing them here is what keeps the privacy promise a property of
+    // the deployment rather than of whichever client happens to be calling.
+    if (rejectImageBytesInFixtureMode(body, res)) return;
+
     await fixtureDelay();
 
     const garments: Record<string, TryOnPanel> = {};
@@ -94,6 +98,7 @@ tryOnRouter.post('/try-on', async (req, res) => {
     garmentIds.forEach((garmentId, index) => {
       const outcome = fixtureCompleteLook({
         garmentId,
+        lookId: makeupLookId,
         index,
         garmentName: findGarment(garmentId)?.name ?? garmentId,
         lookName: look?.name ?? 'chosen',
@@ -103,7 +108,12 @@ tryOnRouter.post('/try-on', async (req, res) => {
       completeLooks[garmentId] = outcome.completeLook;
     });
 
-    const portraitImage = resolveFixtureImage(undefined, 'portrait', 'Your portrait, bare face');
+    // Fixture mode never receives the visitor's photograph, so the portrait panel cannot
+    // be theirs and must not be described as though it were.
+    const portraitImage = resolveFixtureImage(undefined, 'portrait', {
+      captured: 'The demo portrait, bare face',
+      placeholder: 'Designed stand-in for the portrait',
+    });
 
     const response: TryOnResponse = {
       garments,
@@ -186,6 +196,10 @@ tryOnRouter.post('/try-on', async (req, res) => {
 
   garmentIds.forEach((garmentId, index) => {
     const outcome = settled[index];
+    // The only path here that is not already a handled panel: an upload or an unexpected
+    // throw. The detail stays on the console; the browser gets the sentence.
+    if (outcome?.status === 'rejected') logFailure(`try-on sequence · ${garmentId}`, outcome.reason);
+
     const resolved =
       outcome?.status === 'fulfilled' ? outcome.value : failedOutcome(outcome?.reason);
     garments[garmentId] = resolved.garmentOnly;

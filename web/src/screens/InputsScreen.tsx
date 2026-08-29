@@ -15,6 +15,7 @@ import {
   type CapturedImage,
   type CapturedPortrait,
 } from '../state/session.js';
+import { uploadsSentence } from '../config/privacyCopy.js';
 
 type InputSlot = 'portrait' | 'garmentA' | 'garmentB';
 
@@ -202,6 +203,7 @@ export function InputsScreen({
   onChooseMakeup,
   onContinue,
   onBack,
+  imagesLeaveTab,
 }: {
   portrait: CapturedPortrait | null;
   garmentInputs: { readonly a: CapturedImage | null; readonly b: CapturedImage | null };
@@ -212,6 +214,7 @@ export function InputsScreen({
   onChooseMakeup: (lookId: string) => void;
   onContinue: () => void;
   onBack: () => void;
+  imagesLeaveTab: boolean | null;
 }) {
   const ready = portrait !== null && garmentInputs.a !== null && garmentInputs.b !== null && makeupLookId !== null;
 
@@ -246,8 +249,7 @@ export function InputsScreen({
             />
           </div>
           <p className="mt-4 rounded-card border border-gold/40 bg-surface px-4 py-3 text-sm text-ink-soft">
-            Your uploads stay in this tab. The results screen will tell you whether each preview
-            is a live YouCam result or a local fixture.
+            {uploadsSentence(imagesLeaveTab)}
           </p>
         </section>
 

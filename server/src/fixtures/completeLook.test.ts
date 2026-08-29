@@ -4,10 +4,11 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { fixtureCompleteLook } from './index.js';
+import { CAPTURED_MAKEUP_LOOK_ID, fixtureCompleteLook } from './index.js';
 
 const base = {
   garmentName: 'Rosewater cardigan',
+  lookId: CAPTURED_MAKEUP_LOOK_ID,
   lookName: 'Rose Veil',
   simulate: 'none' as const,
 };
@@ -25,14 +26,71 @@ describe('fixture-mode complete looks', () => {
   });
 
   it('never lets a shipped placeholder claim to be a complete look', () => {
+    // The invariant is the pairing, not which side of it this repository happens to be on.
+    // `stage` describes a sequence that actually ran, so a captured fixture carries one and
+    // a placeholder must not — whether or not a capture has been committed. Asserting
+    // "both are placeholders" instead would only restate the current contents of
+    // web/public/fixtures/, and did: it broke the moment the real captures landed.
+    for (const request of [garmentA, garmentB]) {
+      const outcome = fixtureCompleteLook(request);
+
+      for (const panel of [outcome.completeLook, outcome.garmentOnly]) {
+        if (panel.provenance === 'placeholder') {
+          expect(panel.stage).toBeUndefined();
+        } else {
+          expect(panel.provenance).toBe('captured');
+          expect(panel.stage).toBeDefined();
+        }
+      }
+    }
+  });
+
+  it('never shows the captured complete look under a look it was not rendered in', () => {
+    // The regression this guards: the complete-look fixtures were captured with one look,
+    // and the lookup ignored which look the shopper picked. Choosing Peach Ember returned
+    // the Rose Veil image, captioned "Garment and Peach Ember makeup" — a picture of one
+    // makeup presented as another.
+    const other = fixtureCompleteLook({ ...garmentA, lookId: 'peach-ember', lookName: 'Peach Ember' });
+
+    expect(other.completeLook.provenance).toBe('placeholder');
+    expect(other.completeLook.stage).toBeUndefined();
+
+    // The garment-only panel is unaffected: no makeup was applied to it, so no look is
+    // being claimed and the capture is still an honest picture of that garment.
+    const captured = fixtureCompleteLook(garmentA);
+    expect(other.garmentOnly.provenance).toBe(captured.garmentOnly.provenance);
+  });
+
+  it('never tells a screen reader the visitor is in the picture', () => {
+    // Alt text is the entire description for anyone who cannot see the panel, and fixture
+    // mode never receives the visitor's photograph. "You wearing the rosewater cardigan"
+    // was wrong for a capture (it is the demo portrait) and wrong for a placeholder (there
+    // is no garment in an ornamental panel at all).
+    for (const request of [garmentA, { ...garmentA, lookId: 'peach-ember', lookName: 'Peach Ember' }]) {
+      const outcome = fixtureCompleteLook(request);
+
+      for (const panel of [outcome.garmentOnly, outcome.completeLook]) {
+        if (panel.result.status !== 'ready') continue;
+
+        expect(panel.result.alt).not.toMatch(/^You /);
+        expect(panel.result.alt).not.toContain('You wearing');
+        expect(panel.result.alt).toMatch(
+          panel.provenance === 'captured' ? /demo portrait/i : /stand-in/i,
+        );
+      }
+    }
+  });
+
+  it('describes the captured panels as the steps that produced them', () => {
     const outcome = fixtureCompleteLook(garmentA);
 
-    // No capture has been run in this repository, so both resolve to placeholders — and
-    // a placeholder gets no stage, because nothing rendered it.
-    expect(outcome.completeLook.provenance).toBe('placeholder');
-    expect(outcome.completeLook.stage).toBeUndefined();
-    expect(outcome.garmentOnly.provenance).toBe('placeholder');
-    expect(outcome.garmentOnly.stage).toBeUndefined();
+    // Only meaningful once a capture exists; before that there is nothing to describe.
+    if (outcome.completeLook.provenance === 'captured') {
+      expect(outcome.completeLook.stage).toBe('completeLook');
+    }
+    if (outcome.garmentOnly.provenance === 'captured') {
+      expect(outcome.garmentOnly.stage).toBe('garmentOnly');
+    }
   });
 
   it('gives the two garments different complete-look panels', () => {

@@ -188,9 +188,12 @@ export function ResultsScreen({
     : [];
 
   const panels = axis === 'garments' ? garmentPanels : makeupPanels;
+  // The title is used exactly as the panel above shows it. Lower-casing it to fit the
+  // sentence turned "Garment B" into "garment b", which reads as a typo rather than as a
+  // reference to the thing the shopper is looking at.
   const failedLabels = panels
     .filter((entry) => entry.panel?.result.status === 'failed')
-    .map((entry) => `the ${entry.title.toLowerCase()} preview`);
+    .map((entry) => `the ${entry.title} preview`);
   const lockedLabel = axis === 'garments'
     ? `Makeup held: ${look?.name ?? 'none'}`
     : `Garment held: ${garmentIds.length > 0 ? garmentSlotLabel(0) : 'none'}`;

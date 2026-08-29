@@ -7,12 +7,19 @@
  */
 
 import { Router } from 'express';
-import type { AnalyzeResponse, ColorToneReading, SkinAppearance, Undertone } from '@yincol/shared';
+import type {
+  AnalyzeResponse,
+  ApiErrorBody,
+  ColorToneReading,
+  SkinAppearance,
+  Undertone,
+} from '@yincol/shared';
 import { buildPaletteFromReading } from '@yincol/shared';
 import { loadConfig } from '../youcam/config.js';
 import { FEATURES, buildFacialColorTonePayload, buildSkinAnalysisPayload } from '../youcam/features.js';
 import { runTask } from '../youcam/taskRunner.js';
 import { publicUrlStrategy } from '../youcam/imageInput.js';
+import { logFailure } from '../youcam/publicError.js';
 import { adaptColorTone } from '../youcam/adapters/facialColorTone.js';
 import { adaptSkinAnalysis } from '../youcam/adapters/skinAnalysis.js';
 import { FIXTURE_COLOR_TONE, FIXTURE_SKIN_APPEARANCE, fixtureDelay } from '../fixtures/index.js';
@@ -66,16 +73,22 @@ analyzeRouter.post('/analyze', async (req, res) => {
 
   // Colour tone is the one call we cannot do without — no reading, no palette.
   if (toneSettled.status === 'rejected') {
+    // The reason itself never ships. On the live path it is a provider error carrying
+    // the vendor's raw response body, and there is no version of that a shopper needs.
+    logFailure('analyze colour tone', toneSettled.reason);
+
     const noFace = String(toneSettled.reason).includes('no-face-detected');
-    res.status(422).json({
+    const body: ApiErrorBody = {
       code: noFace ? 'noFace' : 'colorToneFailed',
       error: noFace
         ? 'We could not find a face in that photograph.'
         : 'We could not read the colours in that photograph.',
-      detail: String(toneSettled.reason),
-    });
+    };
+    res.status(422).json(body);
     return;
   }
+
+  if (skinSettled.status === 'rejected') logFailure('analyze skin appearance', skinSettled.reason);
 
   const { reading, undertone } = toneSettled.value;
   const palette = buildPaletteFromReading(reading, undertone);

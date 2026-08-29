@@ -10,6 +10,7 @@ import { SectionHeading, YincolCard } from '../components/ornament.js';
 import { Button } from '../components/controls.js';
 import { findMakeupLook } from '@yincol/shared';
 import type { MakeupChoice } from '../state/session.js';
+import { storageSentence } from '../config/privacyCopy.js';
 
 /**
  * The kept-options shelf.
@@ -164,12 +165,14 @@ export function IntroScreen({
   keptGarmentIds,
   keptMakeupWinners,
   makeupLookId,
+  imagesLeaveTab,
 }: {
   onBegin: () => void;
   garmentIds: readonly string[];
   keptGarmentIds: readonly string[];
   keptMakeupWinners: readonly MakeupChoice[];
   makeupLookId: string | null;
+  imagesLeaveTab: boolean | null;
 }) {
   return (
     <div className="animate-soft-fade space-y-8">
@@ -203,8 +206,7 @@ export function IntroScreen({
             <div>
               <dt className="font-semibold text-ink">Where it is stored</dt>
               <dd className="text-ink-soft">
-                In this browser tab only, for as long as it stays open. There is no account
-                and no database. Closing the tab ends it.
+                {storageSentence(imagesLeaveTab)}
               </dd>
             </div>
             <div>

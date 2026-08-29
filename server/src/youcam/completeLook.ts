@@ -26,6 +26,7 @@ import type { GarmentCategoryValue, YouCamConfig } from './config.js';
 import { FEATURES, buildClothesVtoPayload, buildMakeupVtoPayload, makeupEffectsForLook } from './features.js';
 import { fileUploadStrategy, type ImageReference, type ImageSource } from './imageInput.js';
 import { runTask, type RawTaskResult } from './taskRunner.js';
+import { logFailure, publicFailureReason } from './publicError.js';
 import { captureTryOnLive, tryOnFailure, type TryOnImageBytes } from './adapters/tryOn.js';
 
 /** Both panels a single garment produces. Always both, so the caller cannot forget one. */
@@ -41,10 +42,10 @@ export interface CompleteLookRequest {
   /**
    * Step 1's inputs, already prepared by the caller.
    *
-   * The browser route uploads its tab-held bytes through the File API; the capture script
-   * points at published URLs. Which of the two got used is the caller's business — the
-   * sequence only needs a reference it can put in a payload. Step 2 has no such freedom:
-   * its input is bytes we just downloaded, so it always uploads.
+   * The browser route uploads its tab-held bytes through the File API, and the capture
+   * script uploads its local source bytes. Which path got used is the caller's business —
+   * the sequence only needs a reference it can put in a payload. Step 2 has no such
+   * freedom: its input is bytes we just downloaded, so it always uploads.
    */
   readonly portrait: ImageReference;
   readonly garment: ImageReference;
@@ -132,7 +133,8 @@ export async function runCompleteLookSequence(
     garmentPanel = panel(captured.result, 'garmentOnly');
     garmentStep = { taskId, raw, image: captured.image };
   } catch (error) {
-    const reason = failureReason(error, 'This garment preview could not be generated.');
+    logFailure(`complete-look step 1 clothes · ${garmentName}`, error);
+    const reason = publicFailureReason(error, 'This garment preview could not be generated.');
     logStep('step 1 clothes', garmentName, `failed — ${reason}`);
     return { garmentOnly: panel(tryOnFailure(reason)), completeLook: noGarmentImage() };
   }
@@ -181,7 +183,8 @@ export async function runCompleteLookSequence(
       completeLookPanel = panel(captured.result);
     }
   } catch (error) {
-    const reason = failureReason(
+    logFailure(`complete-look step 2 makeup · ${garmentName}`, error);
+    const reason = publicFailureReason(
       error,
       'The makeup step could not be applied to this garment preview.',
     );
@@ -194,10 +197,4 @@ export async function runCompleteLookSequence(
   if (completeLookStep) await onStep?.('completeLook', completeLookStep);
 
   return { garmentOnly: garmentPanel, completeLook: completeLookPanel };
-}
-
-/** Provider URLs can appear in error text; they are signed, so they never reach the browser. */
-function failureReason(error: unknown, fallback: string): string {
-  const message = error instanceof Error ? error.message : '';
-  return (message || fallback).replace(/https?:\/\/\S+/g, '[url redacted]');
 }

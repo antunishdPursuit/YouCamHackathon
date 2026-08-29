@@ -1,6 +1,6 @@
 # API findings — Perfect Corp / YouCam S2S v2.0
 
-**Last reviewed:** August 17, 2026
+**Last reviewed:** August 29, 2026
 **Evidence rule:** Official documentation is documented evidence, not live verification.
 Skin Analysis, Clothes VTO, and Makeup VTO have now been verified end to end with our
 account and the selected close-up portrait. Facial Color Tone remains open for a live
@@ -50,10 +50,13 @@ normalized into the latter signal and was not returned to the browser.
 - **Two image-input paths.** Path A is File API + a self-performed `PUT` of the bytes;
   calling the File API alone uploads nothing, and skipping the `PUT` surfaces later as a
   misleading `500 unknowninternalerror` or a `404`. Path B passes a publicly reachable
-  image URL directly on task start. **Path A is implemented for Skin Analysis in
-  `server/src/youcam/imageInput.ts`; the browser uses it through
-  `server/src/routes/skinAnalysis.ts` and the opt-in live try-on route, while the capture
-  script still uses Path B.**
+  image URL directly on task start. **Path A is what everything that runs now uses:
+  `server/src/youcam/imageInput.ts` implements it, the browser reaches it through
+  `server/src/routes/skinAnalysis.ts` and the opt-in live try-on route, and the capture
+  script uploads its local source files the same way.** Path B remains implemented and is
+  reached only by the live `/api/analyze` palette path, which is disabled pending Facial
+  Color Tone verification. Nothing now needs images published to a public host, and
+  `YINCOL_PUBLIC_ASSET_BASE_URL` was retired with that requirement.
 - **Skin Analysis task payload.** The verified request uses `src_file_id` (or
   `src_file_url`), `dst_actions`, and `format: "json"`. The browser route sends the
   documented SD action set `wrinkle`, `pore`, `texture`, `acne`, and `skin_type`.
@@ -71,8 +74,12 @@ normalized into the latter signal and was not returned to the browser.
 - **Feature costs.** The read-only feature-cost response returned these current values:
   Clothes VTO V3 = 2 units per result image; Makeup VTO = 1; Skin Analysis V2.0 SD with
   1–4 concerns = 9 or 5–8 concerns = 12; Facial Color Tones Analyzer = 20. YINCOL's
-  current five-action Skin Analysis request uses the 12-unit bracket, so one successful
-  opt-in flow uses 17 units. The current account balance is not stored here.
+  current five-action Skin Analysis request uses the 12-unit bracket, so one fully
+  successful opt-in flow uses **18 units**: Skin Analysis 12, plus two Clothes results at
+  2 each, plus two Makeup results at 1 each. This was 17 before the complete-look
+  sequence landed and each garment gained its own makeup task; both figures in this file
+  and in the README were corrected on August 29, 2026. The current account balance is not
+  stored here.
 - **Result expiry.** Uploaded files, `file_id` and `task_id` persist 30 days, but the
   download URL returned on success is valid for **2 hours only**; after that a fresh link
   is re-derived from the `task_id`. This is why fixtures store downloaded **image bytes**
@@ -138,8 +145,10 @@ normalized into the latter signal and was not returned to the browser.
       `data.results.url`, and both result downloads succeeded. Keep the adapter tolerant
       until more than one successful response is captured per feature.
 - [x] **Feature cost.** The read-only feature-cost response recorded the scoped costs:
-      Clothes VTO V3 = 2 units/result, Makeup VTO = 1, Skin Analysis V2.0 SD with 1–4
-      concerns = 9, and Facial Color Tones Analyzer = 20.
+      Clothes VTO V3 = 2 units/result, Makeup VTO = 1, Skin Analysis V2.0 SD = 9 for 1–4
+      concerns or 12 for 5–8, and Facial Color Tones Analyzer = 20. YINCOL's request sits
+      in the 12-unit bracket; a fully successful opt-in flow is 18 units. See the feature
+      costs bullet above for the breakdown.
 - [ ] **Available balance.** Check the account console before spending on a live Facial
       Color Tones task or a repeated demo run.
 - [ ] **Webhook option.** Docs mention webhooks as an alternative to polling. Not used —
@@ -211,9 +220,21 @@ rather than only of its hex values.
 ### 4. Placeholder fixture bytes are synthetic, and labelled as such
 `server/fixtures/` and `web/public/fixtures/`
 
-Committed placeholder fixtures are generated ornamental panels, not API output. They exist
-so the flow runs before a real capture. Every one is watermarked in the UI as a
-placeholder, and `npm run capture-fixtures` overwrites them with genuine API results.
+Committed placeholder fixtures are generated ornamental panels, not API output. Every one
+is surfaced in the UI as a placeholder, and `npm run capture-fixtures` writes genuine API
+results alongside them.
+
+**The August 29, 2026 capture** produced four real results: a garment and a complete look
+for each of `rosewater-cardigan` and `sage-linen-shirt`, with the `rose-veil` look, for
+**18 units**. The placeholders still cover everything that run did not capture — the other
+six garments, and every look other than Rose Veil. The captured complete look is keyed on
+the look as well as the garment, so it is never returned under a look it was not rendered
+in; `CAPTURED_MAKEUP_LOOK_ID` in `server/src/fixtures/index.ts` is the single place that
+records which one that is.
+
+The response shapes from that run are in `docs/captured-shapes/`, with every URL redacted:
+the provider returns a presigned S3 link carrying a credential, a signature and a two-hour
+expiry, and those records are committed.
 
 Five of them now, not four: each garment slot gained a complete-look counterpart, and the
 bare-makeup panel went away with the unsequenced path that produced it. A placeholder is
@@ -245,9 +266,35 @@ downloads successful result bytes before the vendor URL expires, and returns in-
 URLs. The browser receives only the internal `TryOnResponse` shape; it does not receive the
 API key or vendor response JSON. Missing garment input fails only that garment panel.
 
+That now holds on the failure path too, which it did not until August 29, 2026. Failure
+reasons used to be the provider's own error text with URLs stripped out, which left the
+HTTP status, the vendor error code and the task id in a public response — and `/api/analyze`
+returned the whole stringified error in a `detail` field. `server/src/youcam/publicError.ts`
+is the single boundary now: `YouCamError` and `ImageUploadError` are replaced wholesale by
+a sentence written for the shopper, and the detail is logged to the server console instead.
+`ApiErrorBody` no longer has a `detail` field for a route to fill.
+
 The live browser-shaped request passed locally on August 16, 2026 with two temporary shirt
 references. Both garment panels, the makeup panel, and the portrait returned `ready` with
 `provenance: "live"`. The temporary references were not stored.
+
+### 7. Catalogue garments carry no product image URL
+`shared/src/domain/catalog.ts` → `GARMENTS`
+
+Eight garments are defined with a name, category, and dominant hex — enough for the picker
+and for fit scoring, which only needs the colour. None has an `imageUrl`, because no
+garment product images were supplied.
+
+Live clothes try-on does not require catalogue `imageUrl` values: the browser supplies a
+garment reference keyed to the selected catalogue id. Fixture mode still uses catalogue
+ids to choose the designed placeholder or captured fixture. Fit scoring remains based on
+the catalogue dominant colour, not on the provider result.
+
+**To change:** add catalogue `imageUrl` values only if the product picker later needs
+catalogue-owned reference images without a user upload. That is not required for the
+current live browser flow.
+
+---
 
 ### 8. The sequenced complete-look path
 `server/src/youcam/completeLook.ts` → `server/src/routes/tryOn.ts`
@@ -278,24 +325,6 @@ survives and the complete look fails (the makeup step failed), or both succeed.
 per the handoff note, and the browser route is covered by stubbed-`fetch` tests, but the
 browser route running the sequence against the live API has not been re-run since this
 change. That check is the one thing outstanding before this path is called live-verified.
-
-### 7. Catalogue garments carry no product image URL
-`shared/src/domain/catalog.ts` → `GARMENTS`
-
-Eight garments are defined with a name, category, and dominant hex — enough for the picker
-and for fit scoring, which only needs the colour. None has an `imageUrl`, because no
-garment product images were supplied.
-
-Live clothes try-on does not require catalogue `imageUrl` values: the browser supplies a
-garment reference keyed to the selected catalogue id. Fixture mode still uses catalogue
-ids to choose the designed placeholder or captured fixture. Fit scoring remains based on
-the catalogue dominant colour, not on the provider result.
-
-**To change:** add catalogue `imageUrl` values only if the product picker later needs
-catalogue-owned reference images without a user upload. That is not required for the
-current live browser flow.
-
----
 
 ## Contrast audit
 

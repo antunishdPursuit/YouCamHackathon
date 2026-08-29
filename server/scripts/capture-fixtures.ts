@@ -11,69 +11,98 @@
  * collecting URLs to fetch at the end. Bytes are what survive to demo day.
  *
  * Run with:
- *   YINCOL_FIXTURE_MODE=false YINCOL_API_KEY=… YINCOL_PUBLIC_ASSET_BASE_URL=… \
- *     npm run capture-fixtures
+ *   YINCOL_FIXTURE_MODE=false YINCOL_API_KEY=… npm run capture-fixtures
  *
- * The public asset base URL must be reachable from the public internet — the API
- * fetches the source images itself, so localhost will not do.
+ * Source images are read from assets/source/ and uploaded through the verified File API
+ * paths. Facial Color Tone is intentionally skipped until its File API input contract
+ * is verified.
  */
 
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { extname, join } from 'node:path';
 import { loadRootEnv } from '../src/loadEnv.js';
 import { loadConfig } from '../src/youcam/config.js';
-import {
-  FEATURES,
-  buildFacialColorTonePayload,
-  buildSkinAnalysisPayload,
-  isTaskPathVerified,
-} from '../src/youcam/features.js';
+import { FEATURES, buildSkinAnalysisPayload } from '../src/youcam/features.js';
 import { runTask, type RawTaskResult } from '../src/youcam/taskRunner.js';
-import { publicUrlStrategy } from '../src/youcam/imageInput.js';
+import { fileUploadStrategy, type ImageSource } from '../src/youcam/imageInput.js';
 import { runCompleteLookSequence } from '../src/youcam/completeLook.js';
-import { adaptColorTone } from '../src/youcam/adapters/facialColorTone.js';
 import { adaptSkinAnalysis } from '../src/youcam/adapters/skinAnalysis.js';
-import { CAPTURE_TARGETS, FIXTURE_PUBLIC_DIR } from '../src/fixtures/index.js';
+import { redactUrlsDeep } from '../src/youcam/redact.js';
+import {
+  CAPTURE_TARGETS,
+  CAPTURED_MAKEUP_LOOK_ID,
+  FIXTURE_PUBLIC_DIR,
+} from '../src/fixtures/index.js';
 import { findGarment, findMakeupLook } from '@yincol/shared';
 
 /**
  * The look the captured complete-look fixtures use.
  *
- * One look, because the makeup step runs per garment and capturing every look against
- * every garment would multiply the credit cost for no demo benefit. Any other look in the
- * picker falls back to the designed placeholder, which says so.
+ * Imported rather than declared here, because the fixture layer has to agree about which
+ * look these images show. If the script captured one look and the app believed another,
+ * every complete-look panel would be captioned with makeup it was not rendered in.
  */
-const FIXTURE_MAKEUP_LOOK_ID = 'rose-veil';
+const FIXTURE_MAKEUP_LOOK_ID = CAPTURED_MAKEUP_LOOK_ID;
 
 loadRootEnv();
 
 const config = loadConfig();
+const SOURCE_DIR = join(FIXTURE_PUBLIC_DIR, '..', '..', '..', 'assets', 'source');
+
+const CONTENT_TYPE_BY_EXTENSION: Readonly<Record<string, string>> = {
+  '.jpeg': 'image/jpeg',
+  '.jpg': 'image/jpeg',
+  '.png': 'image/png',
+};
 
 function requireLiveMode(): void {
+  // The key is checked first because `loadConfig` fails closed: with no key it forces
+  // fixture mode on, and reporting that as "fixture mode is on" would hide the real cause.
+  if (!config.apiKey) {
+    throw new Error('YINCOL_API_KEY is empty. Set it in .env (which is gitignored).');
+  }
   if (config.fixtureMode) {
     throw new Error(
       'Refusing to run: fixture mode is on. This script spends real API credits.\n' +
         'Set YINCOL_FIXTURE_MODE=false explicitly to capture.',
     );
   }
-  if (!config.apiKey) {
-    throw new Error('YINCOL_API_KEY is empty. Set it in .env (which is gitignored).');
-  }
-  if (!config.publicAssetBaseUrl) {
-    throw new Error(
-      'YINCOL_PUBLIC_ASSET_BASE_URL is empty. The API fetches the source images itself, ' +
-        'so they must sit somewhere publicly reachable — a localhost URL will not work.',
-    );
-  }
 }
 
-const sourceUrl = (filename: string): string => `${config.publicAssetBaseUrl}/${filename}`;
+function readLocalSource(filename: string): ImageSource {
+  const path = join(SOURCE_DIR, filename);
+  if (!existsSync(path)) {
+    throw new Error(`Missing source image: assets/source/${filename}`);
+  }
 
-/** Write the full success payload beside the fixture, so the real shape gets recorded. */
+  const contentType = CONTENT_TYPE_BY_EXTENSION[extname(filename).toLowerCase()];
+  if (!contentType) {
+    throw new Error(`Unsupported source image type: assets/source/${filename}`);
+  }
+
+  return {
+    bytes: readFileSync(path),
+    contentType,
+    fileName: filename,
+  };
+}
+
+/**
+ * Write the success payload beside the fixture, so the real shape gets recorded.
+ *
+ * URLs are redacted first. A successful task returns a presigned S3 link carrying
+ * `X-Amz-Credential`, `X-Amz-Signature` and a two-hour expiry — a bearer credential for a
+ * generated image of a face, and these files are committed. The record exists to document
+ * which fields come back and how they nest, and redaction costs it none of that.
+ */
 function recordShape(name: string, raw: RawTaskResult): void {
   const target = join(FIXTURE_PUBLIC_DIR, '..', '..', '..', 'docs', 'captured-shapes');
   mkdirSync(target, { recursive: true });
-  writeFileSync(join(target, `${name}.json`), JSON.stringify(raw, null, 2), 'utf8');
+  writeFileSync(
+    join(target, `${name}.json`),
+    JSON.stringify(redactUrlsDeep(raw), null, 2),
+    'utf8',
+  );
   console.log(`  ↳ response shape written to docs/captured-shapes/${name}.json`);
 }
 
@@ -93,42 +122,14 @@ function writeFixture(label: string, filename: string, bytes: Buffer): void {
 async function main(): Promise<void> {
   requireLiveMode();
 
-  const sourceDir = join(FIXTURE_PUBLIC_DIR, '..', '..', '..', 'assets', 'source');
-  const portraitFile = CAPTURE_TARGETS.portrait.source;
-  if (!existsSync(join(sourceDir, portraitFile))) {
-    console.warn(
-      `[yincol] warning: assets/source/${portraitFile} not found locally. Continuing, ` +
-        'because the API fetches from YINCOL_PUBLIC_ASSET_BASE_URL rather than from disk — ' +
-        'but check the file really is published there.',
-    );
-  }
-
-  const portrait = await publicUrlStrategy.prepare(
-    { publicUrl: sourceUrl(portraitFile) },
-    'facialColorTone',
-  );
-
-  // ── analysis ───────────────────────────────────────────────
-  if (!isTaskPathVerified('facialColorTone')) {
-    console.warn(
-      '[yincol] note: the facial colour tone task path is UNVERIFIED. If this 404s, ' +
-        'the path in server/src/youcam/config.ts is the thing to fix.',
-    );
-  }
-
   console.log('\n[1/3] Facial colour tone');
-  try {
-    const { raw } = await runTask(config, FEATURES.facialColorTone, buildFacialColorTonePayload(portrait));
-    recordShape('facial-color-tone', raw);
-    const adapted = adaptColorTone(raw);
-    console.log(`  ✓ skin L* ${adapted.reading.skin.l}, hair L* ${adapted.reading.hair.l}`);
-    console.log(`  ↳ keys received: ${adapted.rawKeys.join(', ')}`);
-  } catch (error) {
-    console.error(`  ✗ ${(error as Error).message}`);
-  }
+  console.log('  - skipped: the File API input and task contract are not verified yet.');
+
+  const portraitSource = readLocalSource(CAPTURE_TARGETS.portrait.source);
 
   console.log('\n[2/3] Skin analysis');
   try {
+    const portrait = await fileUploadStrategy.prepare(portraitSource, 'skinAnalysis', config);
     const { raw } = await runTask(config, FEATURES.skinAnalysis, buildSkinAnalysisPayload(portrait));
     recordShape('skin-analysis', raw);
     const appearance = adaptSkinAnalysis(raw);
@@ -153,13 +154,12 @@ async function main(): Promise<void> {
     const label = garment?.name ?? target.catalogId;
 
     try {
-      const garmentImage = await publicUrlStrategy.prepare(
-        { publicUrl: sourceUrl(target.source) },
-        'clothesVto',
-      );
+      const portrait = await fileUploadStrategy.prepare(portraitSource, 'clothesVto', config);
+      const garmentSource = readLocalSource(target.source);
+      const garmentImage = await fileUploadStrategy.prepare(garmentSource, 'clothesVto', config);
 
       // The same function the browser route calls. The script differs only in how the
-      // first step's inputs are prepared — published URLs here, uploaded bytes there —
+      // first step's inputs are prepared — local bytes here, tab-held bytes in the browser —
       // and in writing each step's bytes down as they arrive.
       const outcome = await runCompleteLookSequence({
         config,

@@ -162,30 +162,61 @@ export interface YouCamConfig {
   readonly liveSkinAnalysis: boolean;
   /** Explicitly enables live Clothes and Makeup VTO while the palette stays on fixtures. */
   readonly liveTryOn: boolean;
-  /** Base URL the API can fetch source images from (Path B). Capture script only. */
-  readonly publicAssetBaseUrl: string;
   readonly simulate: SimulatedState;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): YouCamConfig {
+  const apiKey = (env['YINCOL_API_KEY'] ?? '').trim();
+
   // Fixture mode is on unless explicitly turned off. Anything other than the exact
   // string "false" leaves it on — a typo must never silently start spending credits.
-  const fixtureMode = (env['YINCOL_FIXTURE_MODE'] ?? 'true').toLowerCase() !== 'false';
+  const declaredFixtureMode = (env['YINCOL_FIXTURE_MODE'] ?? 'true').toLowerCase() !== 'false';
+
+  /**
+   * FAIL CLOSED. Without a key there is no live path to take, whatever the flags say.
+   *
+   * This is the whole safety property of the public deployment: it ships with no key, so
+   * a mistyped or forgotten flag cannot start a live call, and a live call cannot be
+   * provoked by anything a visitor sends. Every live decision below hangs off this one
+   * line rather than off three environment variables agreeing with each other.
+   */
+  const fixtureMode = apiKey.length === 0 || declaredFixtureMode;
 
   const requested = (env['YINCOL_SIMULATE'] ?? 'none') as SimulatedState;
   const simulate: SimulatedState =
     fixtureMode && SIMULATED_STATES.includes(requested) ? requested : 'none';
+
+  // The opt-in increments need a key too. `fixtureMode` already implies one exists, but
+  // stating it here keeps each live flag independently safe to read.
   const liveSkinAnalysis =
-    !fixtureMode || (env['YINCOL_LIVE_SKIN_ANALYSIS'] ?? '').toLowerCase() === 'true';
-  const liveTryOn = !fixtureMode || (env['YINCOL_LIVE_TRY_ON'] ?? '').toLowerCase() === 'true';
+    apiKey.length > 0 &&
+    (!fixtureMode || (env['YINCOL_LIVE_SKIN_ANALYSIS'] ?? '').toLowerCase() === 'true');
+  const liveTryOn =
+    apiKey.length > 0 &&
+    (!fixtureMode || (env['YINCOL_LIVE_TRY_ON'] ?? '').toLowerCase() === 'true');
 
   return {
     baseUrl: (env['YINCOL_API_BASE_URL'] ?? DEFAULT_API_BASE_URL).replace(/\/+$/, ''),
-    apiKey: env['YINCOL_API_KEY'] ?? '',
+    apiKey,
     fixtureMode,
     liveSkinAnalysis,
     liveTryOn,
-    publicAssetBaseUrl: (env['YINCOL_PUBLIC_ASSET_BASE_URL'] ?? '').replace(/\/+$/, ''),
     simulate,
   };
+}
+
+/**
+ * Whether a live path was asked for but denied for want of a key.
+ *
+ * Only worth knowing at startup, where it turns a silently fixture-backed deployment
+ * into a visible line in the log.
+ */
+export function liveWasRequestedWithoutKey(env: NodeJS.ProcessEnv = process.env): boolean {
+  if ((env['YINCOL_API_KEY'] ?? '').trim().length > 0) return false;
+
+  return (
+    (env['YINCOL_FIXTURE_MODE'] ?? 'true').toLowerCase() === 'false' ||
+    (env['YINCOL_LIVE_SKIN_ANALYSIS'] ?? '').toLowerCase() === 'true' ||
+    (env['YINCOL_LIVE_TRY_ON'] ?? '').toLowerCase() === 'true'
+  );
 }
