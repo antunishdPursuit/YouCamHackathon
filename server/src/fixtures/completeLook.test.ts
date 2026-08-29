@@ -4,10 +4,11 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { fixtureCompleteLook } from './index.js';
+import { CAPTURED_MAKEUP_LOOK_ID, fixtureCompleteLook } from './index.js';
 
 const base = {
   garmentName: 'Rosewater cardigan',
+  lookId: CAPTURED_MAKEUP_LOOK_ID,
   lookName: 'Rose Veil',
   simulate: 'none' as const,
 };
@@ -42,6 +43,22 @@ describe('fixture-mode complete looks', () => {
         }
       }
     }
+  });
+
+  it('never shows the captured complete look under a look it was not rendered in', () => {
+    // The regression this guards: the complete-look fixtures were captured with one look,
+    // and the lookup ignored which look the shopper picked. Choosing Peach Ember returned
+    // the Rose Veil image, captioned "Garment and Peach Ember makeup" — a picture of one
+    // makeup presented as another.
+    const other = fixtureCompleteLook({ ...garmentA, lookId: 'peach-ember', lookName: 'Peach Ember' });
+
+    expect(other.completeLook.provenance).toBe('placeholder');
+    expect(other.completeLook.stage).toBeUndefined();
+
+    // The garment-only panel is unaffected: no makeup was applied to it, so no look is
+    // being claimed and the capture is still an honest picture of that garment.
+    const captured = fixtureCompleteLook(garmentA);
+    expect(other.garmentOnly.provenance).toBe(captured.garmentOnly.provenance);
   });
 
   it('describes the captured panels as the steps that produced them', () => {

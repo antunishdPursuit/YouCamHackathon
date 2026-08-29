@@ -98,6 +98,7 @@ tryOnRouter.post('/try-on', async (req, res) => {
     garmentIds.forEach((garmentId, index) => {
       const outcome = fixtureCompleteLook({
         garmentId,
+        lookId: makeupLookId,
         index,
         garmentName: findGarment(garmentId)?.name ?? garmentId,
         lookName: look?.name ?? 'chosen',

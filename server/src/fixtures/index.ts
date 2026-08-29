@@ -176,13 +176,38 @@ export function resolveFixtureImage(
   };
 }
 
+/**
+ * The one makeup look the complete-look fixtures were captured with.
+ *
+ * The makeup step runs per garment, so capturing every look against every garment would
+ * multiply the credit cost for no demo benefit. One look was captured, and this is it.
+ *
+ * The capture script imports this rather than keeping its own copy: if the two ever
+ * disagreed, the app would label a captured image with a look it was not rendered in.
+ */
+export const CAPTURED_MAKEUP_LOOK_ID = 'rose-veil';
+
 /** The captured garment-only fixture for a garment, if that garment is a capture target. */
 export const capturedGarmentFixture = (garmentId: string): string | undefined =>
   CAPTURE_TARGETS.garments.find((target) => target.catalogId === garmentId)?.fixture;
 
-/** The captured complete-look fixture for a garment, if that garment is a capture target. */
-export const capturedCompleteLookFixture = (garmentId: string): string | undefined =>
-  CAPTURE_TARGETS.garments.find((target) => target.catalogId === garmentId)?.completeLookFixture;
+/**
+ * The captured complete-look fixture for a garment **and** a look.
+ *
+ * The look is part of the lookup because it is part of the picture. A complete-look
+ * capture shows one specific makeup rendered onto one specific garment; handing it back
+ * for a different look would show Rose Veil under a caption reading "Peach Ember", which
+ * is the one thing `assets/README.md` says a fixture must never do. Any other look falls
+ * back to the designed placeholder, which says on its face that it is a stand-in.
+ */
+export const capturedCompleteLookFixture = (
+  garmentId: string,
+  lookId: string,
+): string | undefined => {
+  if (lookId !== CAPTURED_MAKEUP_LOOK_ID) return undefined;
+  return CAPTURE_TARGETS.garments.find((target) => target.catalogId === garmentId)
+    ?.completeLookFixture;
+};
 
 // ─────────────────────────────────────────────────────────────
 // The fixture-mode complete look
@@ -190,6 +215,8 @@ export const capturedCompleteLookFixture = (garmentId: string): string | undefin
 
 export interface FixtureCompleteLookRequest {
   readonly garmentId: string;
+  /** Which look was chosen. Decides whether the captured complete look applies at all. */
+  readonly lookId: string;
   /** 0 is slot A, 1 is slot B. Decides which placeholder caption gets drawn. */
   readonly index: number;
   readonly garmentName: string;
@@ -207,6 +234,7 @@ export interface FixtureCompleteLookRequest {
  */
 export function fixtureCompleteLook({
   garmentId,
+  lookId,
   index,
   garmentName,
   lookName,
@@ -257,7 +285,7 @@ export function fixtureCompleteLook({
   }
 
   const completeLookImage = resolveFixtureImage(
-    capturedCompleteLookFixture(garmentId),
+    capturedCompleteLookFixture(garmentId, lookId),
     index === 0 ? 'completeLookA' : 'completeLookB',
     `You wearing the ${garmentName.toLowerCase()} with the ${lookName} makeup look`,
   );

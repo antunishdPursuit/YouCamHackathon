@@ -28,17 +28,21 @@ import { fileUploadStrategy, type ImageSource } from '../src/youcam/imageInput.j
 import { runCompleteLookSequence } from '../src/youcam/completeLook.js';
 import { adaptSkinAnalysis } from '../src/youcam/adapters/skinAnalysis.js';
 import { redactUrlsDeep } from '../src/youcam/redact.js';
-import { CAPTURE_TARGETS, FIXTURE_PUBLIC_DIR } from '../src/fixtures/index.js';
+import {
+  CAPTURE_TARGETS,
+  CAPTURED_MAKEUP_LOOK_ID,
+  FIXTURE_PUBLIC_DIR,
+} from '../src/fixtures/index.js';
 import { findGarment, findMakeupLook } from '@yincol/shared';
 
 /**
  * The look the captured complete-look fixtures use.
  *
- * One look, because the makeup step runs per garment and capturing every look against
- * every garment would multiply the credit cost for no demo benefit. Any other look in the
- * picker falls back to the designed placeholder, which says so.
+ * Imported rather than declared here, because the fixture layer has to agree about which
+ * look these images show. If the script captured one look and the app believed another,
+ * every complete-look panel would be captioned with makeup it was not rendered in.
  */
-const FIXTURE_MAKEUP_LOOK_ID = 'rose-veil';
+const FIXTURE_MAKEUP_LOOK_ID = CAPTURED_MAKEUP_LOOK_ID;
 
 loadRootEnv();
 
