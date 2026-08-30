@@ -9,6 +9,7 @@
 
 import { useRef, useState } from 'react';
 import { checkImageDimensions, IMAGE_SPEC, MAKEUP_LOOKS, type ImageCheck } from '@yincol/shared';
+import type { BackendReadiness } from '../components/BackendStatus.js';
 import { Button } from '../components/controls.js';
 import { GildedFrame, Ribbon, SectionHeading, YincolCard } from '../components/ornament.js';
 import {
@@ -204,6 +205,7 @@ export function InputsScreen({
   onContinue,
   onBack,
   imagesLeaveTab,
+  backendReadiness,
 }: {
   portrait: CapturedPortrait | null;
   garmentInputs: { readonly a: CapturedImage | null; readonly b: CapturedImage | null };
@@ -215,8 +217,17 @@ export function InputsScreen({
   onContinue: () => void;
   onBack: () => void;
   imagesLeaveTab: boolean | null;
+  backendReadiness: BackendReadiness;
 }) {
-  const ready = portrait !== null && garmentInputs.a !== null && garmentInputs.b !== null && makeupLookId !== null;
+  const inputsReady = portrait !== null && garmentInputs.a !== null && garmentInputs.b !== null && makeupLookId !== null;
+  const ready = inputsReady && backendReadiness === 'ready';
+  const helperText = !inputsReady
+    ? 'Add your portrait, two garments, and a makeup direction to continue.'
+    : backendReadiness === 'delayed'
+      ? 'The studio is not ready yet. Try again above when it is available.'
+      : backendReadiness !== 'ready'
+        ? 'The studio is warming up. Generate previews will be available when it is ready.'
+        : null;
 
   return (
     <div className="animate-soft-fade space-y-10">
@@ -309,7 +320,7 @@ export function InputsScreen({
         <Button className="w-full !px-4 text-sm sm:w-auto" disabled={!ready} onClick={onContinue}>
           Generate previews
         </Button>
-        {!ready ? <p className="basis-full text-sm text-ink-soft">Add your portrait, two garments, and a makeup direction to continue.</p> : null}
+        {helperText ? <p className="basis-full text-sm text-ink-soft">{helperText}</p> : null}
       </div>
     </div>
   );
