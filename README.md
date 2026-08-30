@@ -259,11 +259,11 @@ the palette engine never learns that a network exists.
 
 | Path | What it is |
 | --- | --- |
-| `web/` | React + Tailwind + Vite. Internal types only. |
-| `server/` | Node + Express. Hides the API key and normalises the async pipeline. No database, no auth, no accounts. |
+| `web/` | React + Tailwind + Vite. Internal types only; can build as a standalone static site. |
+| `server/` | Node + Express. Hides the API key, normalises the async pipeline, and applies exact-origin CORS. No database, no auth, no accounts. |
 | `shared/` | Framework-free. Domain types and the palette engine. |
 
-Five decisions worth knowing before reading the code:
+Six decisions worth knowing before reading the code:
 
 - **One task runner, not four polling loops.** Every feature follows the same five steps
   — get an image in, `POST` to the task endpoint, receive a `task_id`, poll until
@@ -282,6 +282,11 @@ Five decisions worth knowing before reading the code:
   detail goes to the server console, and the response gets a sentence written for a
   person. An error of either class is replaced wholesale rather than filtered, so there
   is no pattern to get wrong.
+- **The free public shape is split and fixture-only.** Render serves `web/dist` as a
+  Static Site and runs the Node API as a separate Free Web Service. `VITE_API_URL` points
+  the browser at the API, `YINCOL_ALLOWED_ORIGIN` permits only that site, and the UI waits
+  for `/api/health` before enabling Generate. The full runbook is in
+  [`docs/deployment.md`](docs/deployment.md).
 
 ---
 
