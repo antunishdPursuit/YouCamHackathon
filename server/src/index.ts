@@ -1,11 +1,10 @@
 /**
  * YINCOL Express proxy, and in production the whole server.
  *
- * One process serves the built front end and `/api` from the same origin. That keeps the
- * API key server-side, keeps the rate limit and the live kill switch in one place, and
- * means the browser never makes a cross-origin request — so there is no CORS policy here
- * to get wrong. No database, no auth, no accounts: there is nothing to store, because
- * nothing is kept.
+ * The API service keeps the API key server-side, keeps the rate limit and the live kill
+ * switch in one place, and serves the fixture-backed routes. In the free public shape,
+ * the static front end calls this service from its configured origin. No database, no
+ * auth, no accounts: there is nothing to store, because nothing is kept.
  */
 
 import { existsSync } from 'node:fs';
@@ -16,6 +15,7 @@ import { GARMENTS, MAKEUP_LOOKS } from '@yincol/shared';
 import { loadRootEnv } from './loadEnv.js';
 import { loadConfig, liveWasRequestedWithoutKey, TASK_PATH_VERIFIED } from './youcam/config.js';
 import { createRateLimiter } from './rateLimit.js';
+import { createCorsMiddleware } from './cors.js';
 import { analyzeRouter } from './routes/analyze.js';
 import { skinAnalysisRouter } from './routes/skinAnalysis.js';
 import { tryOnRouter } from './routes/tryOn.js';
@@ -24,6 +24,11 @@ loadRootEnv();
 
 const startupConfig = loadConfig();
 const app = express();
+
+// In local development this stays unset and Vite's same-origin proxy is used. In the
+// split public deployment it is the exact static-site origin, with no credentials or
+// wildcard fallback.
+app.use(createCorsMiddleware(process.env['YINCOL_ALLOWED_ORIGIN']));
 
 /**
  * Trust the platform's proxy only where the deployment says there is one.
@@ -91,10 +96,11 @@ app.use('/api', skinAnalysisRouter);
 app.use('/api', tryOnRouter);
 
 /**
- * The built front end, served by the same process on the same origin.
+ * The built front end can still be served by this process for local or single-process
+ * previews. The public free deployment serves it from a separate static site instead.
  *
  * Absent in development, where Vite serves the app on its own port and proxies `/api`
- * back here. Its absence is a normal state, not a failure.
+ * back here. Its absence is a normal state for the split deployment, not a failure.
  */
 const WEB_DIST = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', 'web', 'dist');
 const hasBuiltWeb = existsSync(join(WEB_DIST, 'index.html'));

@@ -87,8 +87,8 @@ MODERATE  vite-node       via vite
 
 **Assessment: none of these ship, and none apply to a fixture-only deployment.** Every
 one is a `devDependencies` package — `vite`, `vitest`, `esbuild` and their children. The
-production dependency set is `react` and `react-dom` in `web/`, and `cors`, `dotenv` and
-`express` in `server/`; none of them appear in the audit. Every advisory describes a
+production dependency set is `react` and `react-dom` in `web/`, and `dotenv`, `express`
+and `tsx` in `server/`; none of them appear in the audit. Every advisory describes a
 **development server** or the **Vitest UI**, neither of which exists in a built artifact.
 
 **Where they do apply:** anyone running `npm run dev` or `npm test` on an untrusted
@@ -200,8 +200,8 @@ what actually ships.
 
 `tsx` moved from devDependencies to dependencies so a pruned install can still start the
 server. It brings esbuild 0.28.2, which is above the advisory's `<=0.24.2` range, so it
-does not carry the finding into production. `cors` was removed outright along with the
-cross-origin setup it existed for.
+does not carry the finding into production. The `cors` package was removed; the later
+split-deployment hardening uses a small exact-origin middleware without that dependency.
 
 ### Production install and start
 
@@ -294,8 +294,8 @@ in any case.
   `7412d68`.)*
 - **Reduced motion under emulation.** Confirmed by reading the stylesheet, not by
   emulating the preference in a browser.
-- **Multi-instance rate limiting.** The limiter is per process; the approved shape is one
-  process. Not exercised behind a load balancer.
+- **Multi-instance rate limiting.** The limiter is per process; the approved API shape is
+  one free instance. Not exercised behind a load balancer.
 
 ---
 
@@ -385,17 +385,51 @@ goes out.
   is still unverified. The palette remains computed locally.
 - **Reduced motion under emulation.** Confirmed by reading the stylesheet, not by
   emulating the preference in a browser.
-- **Multi-instance rate limiting.** The limiter is per process; the approved shape is one
-  process. Not exercised behind a load balancer.
+- **Multi-instance rate limiting.** The limiter is per process; the approved API shape is
+  one free instance. Not exercised behind a load balancer.
 - **The other six garments and four looks.** No capture exists for them by design, and
   they render designed stand-ins that say so.
+
+---
+
+## Fourth run — free split-deployment hardening
+
+**Run on:** August 29, 2026, on branch `feature/free-render-split-deployment`. This run
+verified the local implementation for the approved free Render Static Site plus Free Web
+Service shape. No remote state was changed and no deployment was made.
+
+| Check | Result |
+| --- | --- |
+| `npm test` | **176 passed**, 0 failed (74 shared, 102 server) |
+| `npm run typecheck` | clean, all three workspaces |
+| `npm run build` | succeeded |
+| `npm run contrast-audit --workspace @yincol/web` | 4 known gaps, no new failures |
+| Fixture-only API health | passed; no API key, live flags false |
+| Exact-origin CORS | passed; matching origin allowed, different origin rejected with 403 |
+| CORS preflight | passed; matching `OPTIONS` request returned 204 |
+| Separate static preview | passed; static build reached the API through `VITE_API_URL` |
+| Readiness gate | passed; Generate stayed disabled until API readiness and inputs were complete |
+| Browser console | no warnings or errors |
+
+The runtime checks used an empty API key and explicit fixture flags. The test build's
+`VITE_API_URL` pointed only to `localhost` and was not committed.
+
+### What changed
+
+- `VITE_API_URL` now selects the API origin while retaining the local Vite proxy default.
+- `YINCOL_ALLOWED_ORIGIN` provides exact-origin, credential-free CORS without a new package.
+- The browser checks `/api/health` on entry, retries bounded wake-up attempts, and keeps
+  Generate disabled until the API is ready.
+- The Render runbook now defines the two free services, environment variables, cold-start
+  behavior, CORS checks, and rollback procedure.
 
 ---
 
 ## Not run
 
 The production start and the item 12 sweeps were run in the second run above; the
-captured-fixture rerun is recorded in the third run.
+captured-fixture rerun is recorded in the third run; split-deployment hardening is recorded
+in the fourth run.
 
 | Check | Why |
 | --- | --- |

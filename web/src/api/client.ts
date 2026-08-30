@@ -22,7 +22,12 @@ import type {
 import { IMAGE_SPEC } from '@yincol/shared';
 import type { CapturedImage, CapturedPortrait } from '../state/session.js';
 
-const API_BASE = '/api';
+/**
+ * Static deployments set the API origin at build time. Keeping the default relative
+ * preserves Vite's local proxy and the optional single-process preview.
+ */
+const API_ORIGIN = (import.meta.env.VITE_API_URL ?? '').trim().replace(/\/+$/, '');
+const API_BASE = API_ORIGIN ? `${API_ORIGIN}/api` : '/api';
 
 /**
  * A failure the UI can branch on.
@@ -85,8 +90,11 @@ const FIXTURE_ONLY: RuntimeMode = { liveSkinAnalysis: false, liveTryOn: false };
 
 let modeRequest: Promise<RuntimeMode> | null = null;
 
-async function readRuntimeMode(): Promise<RuntimeMode> {
-  const response = await fetch(`${API_BASE}/health`);
+async function readRuntimeMode(signal?: AbortSignal): Promise<RuntimeMode> {
+  const response = await fetch(`${API_BASE}/health`, {
+    cache: 'no-store',
+    signal,
+  });
   if (!response.ok) throw new Error(`health check failed: ${response.status}`);
 
   const body = (await response.json()) as Partial<RuntimeMode>;
@@ -95,6 +103,19 @@ async function readRuntimeMode(): Promise<RuntimeMode> {
     liveSkinAnalysis: body.liveSkinAnalysis === true,
     liveTryOn: body.liveTryOn === true,
   };
+}
+
+/**
+ * Check readiness without converting a failed health check into fixture mode.
+ *
+ * The app uses this for its warm-up gate. The generation functions keep using
+ * `fetchRuntimeMode`, whose fail-closed fallback protects privacy if a caller reaches
+ * them outside the normal UI path.
+ */
+export async function checkRuntimeHealth(signal?: AbortSignal): Promise<RuntimeMode> {
+  const mode = await readRuntimeMode(signal);
+  modeRequest = Promise.resolve(mode);
+  return mode;
 }
 
 export function fetchRuntimeMode(): Promise<RuntimeMode> {

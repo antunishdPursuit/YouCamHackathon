@@ -13,8 +13,8 @@
  *
  * KNOWN LIMIT. In-memory state is per process. Two instances behind a load balancer each
  * enforce their own window, so the effective limit is the stated one times the instance
- * count. The deployment shape is one process (see the README), and if that ever changes
- * this needs a shared store or the platform's own edge limiter.
+ * count. The approved API service runs one process, and if that ever changes this needs
+ * a shared store or the platform's own edge limiter.
  */
 
 import type { NextFunction, Request, Response } from 'express';

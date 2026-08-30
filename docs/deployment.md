@@ -1,6 +1,10 @@
 # Deployment
 
-The approved shape for the first public release: **fixture-only, one process, no API key.**
+The approved shape for the first public release: **two free Render services, fixture-only,
+and no API key.**
+
+- a Render Static Site for the React build;
+- a Render Free Web Service for the Node/Express API.
 
 Deployment itself is a separate approved action. This document describes how, not when —
 nothing here is authorisation to deploy.
@@ -9,102 +13,170 @@ nothing here is authorisation to deploy.
 
 ## The shape
 
-One Node/Express process serves both halves of the app from the same origin:
+The browser loads the front end from the Static Site and calls the API Web Service from
+the exact origin configured in `YINCOL_ALLOWED_ORIGIN`:
 
 ```
-                    ┌──────────────────────────────┐
-  browser  ───────► │  Express (server/src/index)  │
-                    │                              │
-                    │   /            → web/dist    │
-                    │   /api/*       → routes      │
-                    └──────────────────────────────┘
+  browser
+     │
+     ├── loads the static site ──────► Render Static Site (web/dist)
+     │
+     └── calls /api/* ───────────────► Render Web Service (Node + Express)
+                                        │
+                                        └── fixture routes only
 ```
 
-There is no separate static host and no cross-origin request, which is why the app carries
-no CORS policy. There is no database, no account system, and no session store: nothing is
-kept between requests, so there is nothing to migrate, back up, or purge.
+The browser receives the API origin at static-site build time through `VITE_API_URL`.
+The API service accepts browser requests only from the exact `YINCOL_ALLOWED_ORIGIN`.
+There are no accounts, sessions, database writes, or user uploads in the public release.
+
+The server can still serve `web/dist` for local or single-process previews. The public
+deployment does not depend on that fallback.
 
 ---
 
-## Build and start
+## Creation order
 
-The build needs the dev toolchain; running does not. That is two stages, and conflating
-them is the one way to get this wrong.
+The two public URLs are configuration inputs for each other. Create them in this order:
 
-```bash
-npm ci && npm run build && npm ci --omit=dev && npm start
-```
+1. Create and deploy the API Web Service first. Leave `YINCOL_ALLOWED_ORIGIN` empty only
+   until the Static Site URL is known. Record the API service URL.
+2. Create and deploy the Static Site with `VITE_API_URL` set to that API URL. Record the
+   Static Site URL.
+3. Set `YINCOL_ALLOWED_ORIGIN` on the API Web Service to the exact Static Site origin and
+   restart or redeploy the API service.
+4. Run the health, CORS, and browser checks below before sharing either URL.
 
-Stage by stage:
-
-| Step | Command | What it does |
-| --- | --- | --- |
-| Install | `npm ci` | Full tree, including Vite. |
-| Build | `npm run build` | Compiles the front end to `web/dist`. |
-| Prune | `npm ci --omit=dev` | Drops the dev toolchain. Keeps `web/dist`. |
-| Run | `npm start` | Serves `web/dist` and `/api` on one port. |
-
-Requires **Node 20 or newer** (`engines` in `package.json`).
-
-The server runs its TypeScript directly through `tsx`, which is a runtime dependency for
-exactly this reason — a pruned install must still be able to start. The shared workspace is
-consumed as TypeScript source by design, so there is no separate server compile step. See
-"Known limitations" below.
-
-`PORT` selects the port and defaults to `8787`. Most platforms set it for you.
-
-On startup the process states what it is doing, and these lines are the first thing to
-check after a deploy:
-
-```
-[yincol] server listening on http://localhost:8787
-[yincol] mode: FIXTURE (no network, no credits)
-[yincol] request body limit: 32kb
-[yincol] serving the built front end from /app/web/dist
-```
-
-If the last line instead says no web build was found, stage two did not run or `web/dist`
-was pruned: `/api` will work and the site will 404.
+Do not use a wildcard while connecting the services. The API is safe without an allowed
+origin during the short setup window because the public release has no API key and the
+static site cannot call it successfully until its exact origin is configured.
 
 ---
 
-## Environment for the public deployment
+## Render Static Site
+
+Create a Static Site from the approved default branch of the repository.
+
+| Setting | Value |
+| --- | --- |
+| Root Directory | repository root; leave blank if Render uses the root by default |
+| Build Command | `npm ci && npm run build` |
+| Publish Directory | `web/dist` |
+| Environment variable | `VITE_API_URL=https://<api-service>.onrender.com` |
+
+Replace the placeholder with the API service's actual public URL. Use the origin only:
+do not append `/api` and do not add a trailing slash.
+
+The static site has no secrets. Do not put `YINCOL_API_KEY` on it.
+
+## Render Web Service
+
+Create a Web Service from the same approved commit.
+
+| Setting | Value |
+| --- | --- |
+| Root Directory | repository root; leave blank if Render uses the root by default |
+| Build Command | `npm ci --omit=dev` |
+| Start Command | `npm start` |
+| Health Check Path | `/api/health` |
+| Instance type | Free |
+
+Set these environment variables on the Web Service:
 
 ```text
 YINCOL_FIXTURE_MODE=true
 YINCOL_LIVE_SKIN_ANALYSIS=false
 YINCOL_LIVE_TRY_ON=false
-# YINCOL_API_KEY is deliberately absent.
-YINCOL_TRUST_PROXY=true   # only if the platform terminates TLS in front of the app
+YINCOL_ALLOWED_ORIGIN=https://<static-site>.onrender.com
+YINCOL_TRUST_PROXY=true
 ```
 
-**Set no API key.** That is the deployment's safety property, not a tidiness preference.
-`loadConfig` derives fixture mode from the key's presence: with no key there is no live
-path, whatever the three flags say. A flag set wrongly — or a stray `YINCOL_FIXTURE_MODE=false`
-copied from a development shell — cannot start a live call or spend a credit. The process
-says so out loud on startup when it happens:
+Replace the placeholder with the Static Site's exact public origin. Do not use `*`.
+Render supplies `PORT`; do not hard-code a public port.
 
-```
-[yincol] a live path was requested but YINCOL_API_KEY is empty — staying on fixtures.
-```
+Leave `YINCOL_API_KEY` unset. The API service must report `hasApiKey: false` and
+`mode: "fixture"` before the site is considered safe to share.
 
-`server/src/youcam/config.test.ts` covers this for every combination of the three flags.
+---
 
-`YINCOL_TRUST_PROXY` is off by default and should stay off unless the app really does sit
-behind a proxy. It makes `req.ip` read the forwarded header, which is the rate limiter's
-key — trusting it when nothing sets it lets any caller choose their own key.
+## Why the app waits for the API
 
-### Confirming a deployment is safe
+When the static site opens, the browser calls `/api/health` immediately. If the free API
+service is asleep, the UI shows that the studio is warming up and retries with bounded
+timeouts. The Generate button stays disabled until a health response succeeds.
+
+The health check is also the mode check. Until it succeeds, the browser does not make a
+privacy claim about the active mode. In fixture mode, the generation client sends fixture
+metadata and does not read the portrait or garment files for upload.
+
+This improves the first visit after sleep, but it cannot remove the free-tier cold start.
+Render may stop an inactive free Web Service, and the first request after sleep can take
+up to about a minute. The static site itself remains available while the API wakes.
+
+## Verify before sharing
+
+Run these checks against the API service URL:
 
 ```bash
-curl -s https://<host>/api/health
+curl -i https://<api-service>.onrender.com/api/health
 ```
 
 ```json
-{ "mode": "fixture", "liveSkinAnalysis": false, "liveTryOn": false, "hasApiKey": false }
+{
+  "ok": true,
+  "mode": "fixture",
+  "liveSkinAnalysis": false,
+  "liveTryOn": false,
+  "hasApiKey": false
+}
 ```
 
-All four values matter. `hasApiKey: false` is the one that cannot be faked by configuration.
+Check the allowed browser origin:
+
+```bash
+curl -i \
+  -H "Origin: https://<static-site>.onrender.com" \
+  https://<api-service>.onrender.com/api/health
+```
+
+The response must include:
+
+```text
+Access-Control-Allow-Origin: https://<static-site>.onrender.com
+```
+
+Check that another origin is rejected:
+
+```bash
+curl -i \
+  -H "Origin: https://example.com" \
+  https://<api-service>.onrender.com/api/health
+```
+
+It must return `403` with the generic message `This origin is not allowed.`.
+
+Then open the Static Site and verify the user flow:
+
+1. The page loads without a same-origin `/api` assumption.
+2. The API status changes from connecting or warming up to ready.
+3. Generate remains disabled until both the inputs and API readiness are complete.
+4. Fixture generation returns the shipped results.
+5. The browser Network panel shows no portrait or garment bytes in fixture requests.
+6. The result provenance labels remain visible.
+
+## Local checks
+
+From the repository root:
+
+```bash
+npm ci
+npm run typecheck
+npm test
+npm run build
+```
+
+For local development, leave `YINCOL_ALLOWED_ORIGIN` empty and leave
+`VITE_API_URL` unset. Vite serves the front end and proxies `/api` to `localhost:8787`.
 
 ---
 
@@ -112,11 +184,13 @@ All four values matter. `hasApiKey: false` is the one that cannot be faked by co
 
 The public demo spends no credits, so the limits protect availability rather than a budget.
 
-| Guard | Fixture | Live |
-| --- | --- | --- |
-| Request body | 32 kB | 42 MB |
-| `/api/*` per IP | 120/min | 120/min |
-| `/analyze`, `/skin-analysis`, `/try-on` per IP | 30/min | 30/min |
+| Guard | Fixture release |
+| --- | --- |
+| Request body | 32 kB |
+| `/api/*` per IP | 120/min |
+| `/analyze`, `/skin-analysis`, `/try-on` per IP | 30/min |
+| Browser origin | exact `YINCOL_ALLOWED_ORIGIN` |
+| Provider access | disabled; no API key |
 
 One generation is three requests, so the generation budget is roughly ten generations a
 minute per address.
@@ -126,30 +200,37 @@ them, so a stale tab or a hand-rolled request cannot upload a photograph to a pr
 has promised not to receive one. The browser does not send bytes in fixture mode either —
 it reads `/api/health` before it reads a file — but the server does not rely on that.
 
+The rate limiter is in memory and the free service runs as one instance. If the service
+ever scales to multiple instances or live provider calls are enabled, add a shared rate
+limit store and stronger anonymous abuse controls before that release.
+
 ---
 
 ## Turning it off
 
-**Disable live paths** (already the public state): remove `YINCOL_API_KEY` and restart.
-Nothing else is required, and nothing else is sufficient — the flags alone do not enable
-live mode without a key, and they do not disable it if a key is present and fixture mode is
-explicitly off.
+**Disable live paths** (already the public state): remove `YINCOL_API_KEY`, set the three
+fixture/live flags explicitly as shown above, and restart the Web Service. Nothing else is
+required, and nothing else is sufficient — the flags alone do not enable live mode without
+a key, and they do not disable it if a key is present and fixture mode is explicitly off.
 
-**Take the demo down:** stop the process, or scale the service to zero. No cleanup follows.
-Nothing was stored, so there is nothing to delete: no user data, no uploads, no database.
+**Take the demo down:** suspend both Render services. No cleanup follows. Nothing was
+stored, so there is nothing to delete: no user data, no uploads, no database.
 
-**Roll back:** redeploy the previous commit and run the same four build commands. There is
-no state, no schema, and no migration, so a rollback is only ever a redeploy. Fixtures are
-committed bytes, so a rolled-back deployment shows exactly what that commit showed.
+**Roll back:** redeploy both Render services to the same previous approved commit, then
+repeat the health, CORS, and browser checks. There is no state, schema, or migration, so a
+rollback is only a pair of redeploys. Fixtures are committed bytes, so a rolled-back
+deployment shows exactly what that commit showed.
 
 ---
 
 ## Known limitations
 
+- **The free API service can sleep after inactivity.** A first visit after sleep can wait
+  for startup. The front end retries the health check and keeps Generate disabled while it
+  waits, but a free instance cannot guarantee an instant response.
 - **The rate limiter is per process.** State is in memory, so two instances behind a load
-  balancer each enforce their own window and the effective limit doubles. The approved
-  shape is one process. Scaling out needs a shared store or the platform's own edge
-  limiter first.
+  balancer each enforce their own window. The approved shape is one free instance. Scaling
+  out needs a shared store or the platform's own edge limiter first.
 - **The server runs TypeScript through `tsx` in production.** It transpiles on startup
   rather than serving precompiled JavaScript. This follows from consuming the shared
   workspace as TypeScript source, which is a deliberate project decision; changing it means
@@ -167,13 +248,16 @@ committed bytes, so a rolled-back deployment shows exactly what that commit show
 - **The demo shows one face.** Fixture mode renders the captured results whatever the
   visitor uploads; their own photograph never leaves the tab and is never processed. The
   previews are of the approved demo portrait, not of them.
+- **3D/2.5D rotation is deferred.** It remains a separate feature for the collaborator
+  and is not part of this closeout release.
 
 ---
 
 ## Not approved
 
-- Deploying from a branch.
+- Deploying from an unmerged feature branch.
 - Any deployment configured with an API key.
 - Public live API access. That is a different release scope — an anonymous,
-  server-mediated live demo — and needs the anonymous abuse controls agreed on issue #4
-  before it goes anywhere public.
+  server-mediated live demo — and needs stronger abuse controls before it goes anywhere
+  public.
+- 3D/2.5D rotation in the closeout release.

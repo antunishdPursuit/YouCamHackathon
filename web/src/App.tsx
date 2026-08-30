@@ -10,11 +10,12 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import {
   ApiError,
-  fetchRuntimeMode,
+  checkRuntimeHealth,
   requestAnalysis,
   requestSkinAnalysis,
   requestTryOn,
 } from './api/client.js';
+import { BackendStatus, type BackendReadiness } from './components/BackendStatus.js';
 import { StateNotice } from './components/StateNotice.js';
 import { PrivacyBar } from './components/PrivacyBar.js';
 import { Wordmark } from './components/ornament.js';
@@ -38,6 +39,12 @@ import {
 
 /** Screens that display the portrait, and therefore carry the privacy affordance. */
 const SHOWS_PORTRAIT = new Set(['inputs', 'generate', 'results']);
+
+const BACKEND_STATUS_DELAY_MS = 1_000;
+const BACKEND_REQUEST_TIMEOUT_MS = 12_000;
+const BACKEND_RETRY_DELAY_MS = 3_000;
+const BACKEND_SLOW_RETRY_DELAY_MS = 12_000;
+const BACKEND_MAX_ATTEMPTS = 6;
 
 const STAGE_LABELS: Readonly<Record<Step, string>> = {
   intro: 'Start',
@@ -85,15 +92,66 @@ export function App() {
    * point of the sentence is that it is true, and a default would be a guess.
    */
   const [imagesLeaveTab, setImagesLeaveTab] = useState<boolean | null>(null);
+  const [backendReadiness, setBackendReadiness] = useState<BackendReadiness>('checking');
+  const [backendRetry, setBackendRetry] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    void fetchRuntimeMode().then((mode) => {
-      if (!cancelled) setImagesLeaveTab(mode.liveSkinAnalysis || mode.liveTryOn);
-    });
+    let retryTimer: number | undefined;
+    let statusTimer: number | undefined;
+    let activeController: AbortController | undefined;
+
+    setBackendReadiness('checking');
+    setImagesLeaveTab(null);
+
+    statusTimer = window.setTimeout(() => {
+      if (!cancelled) {
+        setBackendReadiness((current) => (current === 'checking' ? 'starting' : current));
+      }
+    }, BACKEND_STATUS_DELAY_MS);
+
+    const checkBackend = (attempt: number) => {
+      if (cancelled) return;
+
+      const controller = new AbortController();
+      activeController = controller;
+      const timeout = window.setTimeout(() => controller.abort(), BACKEND_REQUEST_TIMEOUT_MS);
+
+      void checkRuntimeHealth(controller.signal)
+        .then((mode) => {
+          window.clearTimeout(timeout);
+          if (cancelled) return;
+
+          setBackendReadiness('ready');
+          setImagesLeaveTab(mode.liveSkinAnalysis || mode.liveTryOn);
+        })
+        .catch(() => {
+          window.clearTimeout(timeout);
+          if (cancelled) return;
+
+          if (attempt >= BACKEND_MAX_ATTEMPTS) {
+            setBackendReadiness('delayed');
+            return;
+          }
+
+          setBackendReadiness('starting');
+          const delay = attempt < 3 ? BACKEND_RETRY_DELAY_MS : BACKEND_SLOW_RETRY_DELAY_MS;
+          retryTimer = window.setTimeout(() => checkBackend(attempt + 1), delay);
+        });
+    };
+
+    checkBackend(1);
+
     return () => {
       cancelled = true;
+      activeController?.abort();
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer);
+      if (statusTimer !== undefined) window.clearTimeout(statusTimer);
     };
+  }, [backendRetry]);
+
+  const retryBackend = useCallback(() => {
+    setBackendRetry((current) => current + 1);
   }, []);
 
   /**
@@ -127,6 +185,8 @@ export function App() {
    * sent in the same request and uploaded server-side through the feature File APIs.
    */
   const beginAnalysis = useCallback(async () => {
+    if (backendReadiness !== 'ready') return;
+
     // Starting a generation also supersedes any earlier one still in flight.
     generationId.current += 1;
     const runId = generationId.current;
@@ -205,7 +265,7 @@ export function App() {
         code: error instanceof ApiError ? error.code : 'general',
       });
     }
-  }, [state.garmentIds, state.garmentInputs.a, state.garmentInputs.b, state.makeupLookId, state.portrait]);
+  }, [backendReadiness, state.garmentIds, state.garmentInputs.a, state.garmentInputs.b, state.makeupLookId, state.portrait]);
 
   const handleClearPortrait = useCallback(() => {
     voidGeneration();
@@ -303,6 +363,7 @@ export function App() {
             }}
             onContinue={beginAnalysis}
             onBack={() => dispatch({ type: 'goTo', step: 'intro' })}
+            backendReadiness={backendReadiness}
           />
         );
 
@@ -380,6 +441,7 @@ export function App() {
         ) : null}
 
         <main id="main" className="flex-1">
+          <BackendStatus readiness={backendReadiness} onRetry={retryBackend} />
           {screen}
         </main>
       </div>
