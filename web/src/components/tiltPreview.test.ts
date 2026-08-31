@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest';
 import {
   TILT_MAX_DEGREES,
   TILT_NONE,
+  TILT_PREVIEW_NOTE,
   TILT_STEP_DEGREES,
   canTilt,
   clampTilt,
@@ -101,6 +102,28 @@ describe('isTilted', () => {
     expect(isTilted(TILT_NONE)).toBe(false);
     expect(isTilted(6)).toBe(true);
     expect(isTilted(-6)).toBe(true);
+  });
+});
+
+describe('TILT_PREVIEW_NOTE', () => {
+  it('claims no provenance, because the cards it covers do not share one', () => {
+    const note = TILT_PREVIEW_NOTE.toLowerCase();
+
+    // The regression this guards: the note said "the captured result image", which was
+    // true only of the two Rose Veil captures. Every other look falls back to a designed
+    // placeholder, and fixture mode hides the per-image provenance caption — so that
+    // wording described a stand-in as an API result with nothing on screen to correct it.
+    expect(note).not.toContain('captured');
+    expect(note).not.toContain('api result');
+    expect(note).not.toContain('youcam');
+    expect(note).not.toContain('generated');
+  });
+
+  it('still refuses the claims the whole feature exists not to make', () => {
+    const note = TILT_PREVIEW_NOTE.toLowerCase();
+
+    expect(note).toContain('not a 3d model');
+    expect(note).toContain('side or rear');
   });
 });
 

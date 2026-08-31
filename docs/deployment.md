@@ -248,8 +248,18 @@ deployment shows exactly what that commit showed.
 - **The demo shows one face.** Fixture mode renders the captured results whatever the
   visitor uploads; their own photograph never leaves the tab and is never processed. The
   previews are of the approved demo portrait, not of them.
-- **3D/2.5D rotation is deferred.** It remains a separate feature for the collaborator
-  and is not part of this closeout release.
+- **The 2.5D tilt preview is an optional fixture-only expansion, not part of the initial
+  release.** It ships on the Garments axis of the results screen: a bounded ±12° CSS
+  perspective tilt of the image already on the card, stopped by default, with keyboard
+  controls and a note saying it is one photograph tilted rather than a 3D model. It adds
+  no API call, no capture, no source asset, no backend route and no rendering dependency,
+  so it does not change anything on this page — the fixture-only boundary, the absent API
+  key, the limits and the rollback are all unaffected by whether it is included.
+
+  **Which commit the initial deployment uses is a separate decision.** Deploy the merge
+  commit that carries the closeout work if the release should not include the tilt; deploy
+  a later commit to include it. Either way the checks in this document give the same
+  answers, because the feature runs entirely in the browser on an image already served.
 
 ---
 
@@ -260,4 +270,6 @@ deployment shows exactly what that commit showed.
 - Public live API access. That is a different release scope — an anonymous,
   server-mediated live demo — and needs stronger abuse controls before it goes anywhere
   public.
-- 3D/2.5D rotation in the closeout release.
+- True 3D — a body or garment model, or independently generated side or rear views. The
+  2.5D tilt preview is a CSS effect on one photograph and claims nothing more; see the
+  known limitations above.

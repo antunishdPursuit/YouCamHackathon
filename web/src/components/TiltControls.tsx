@@ -12,6 +12,7 @@
 import { Button } from './controls.js';
 import {
   TILT_NONE,
+  TILT_PREVIEW_NOTE,
   canTilt,
   isTilted,
   nextTilt,
@@ -109,12 +110,18 @@ export function TiltControls({
  *
  * Sits with the controls rather than inside each card, because it is one claim about the
  * feature and repeating it per card would make it read as a claim about each image.
+ *
+ * DELIBERATELY SAYS NOTHING ABOUT PROVENANCE. It once said "the captured result image",
+ * which was true only for the two Rose Veil captures: every other look falls back to a
+ * designed placeholder, and fixture mode hides the per-image provenance caption, so that
+ * wording described a stand-in as an API result with nothing on screen to correct it.
+ *
+ * One note covering cards that may differ in provenance can only be honest by not
+ * claiming any. "The image already shown" is true of a capture, a placeholder and a live
+ * result alike, and it leaves the provenance claim to the one component whose job it is.
  */
 export function TiltPreviewNote() {
   return (
-    <p className="text-center text-xs text-ink-soft sm:text-left">
-      2.5D preview tilts the captured result image. It is a visual effect on one
-      photograph, not a 3D model, and it does not show side or rear views.
-    </p>
+    <p className="text-center text-xs text-ink-soft sm:text-left">{TILT_PREVIEW_NOTE}</p>
   );
 }

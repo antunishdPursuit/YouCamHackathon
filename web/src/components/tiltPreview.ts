@@ -75,3 +75,20 @@ export function tiltStatus(degrees: number): string {
 /** Whether a control that steps in this direction has anywhere left to go. */
 export const canTilt = (degrees: number, direction: TiltDirection): boolean =>
   nextTilt(degrees, direction) !== clampTilt(degrees);
+
+/**
+ * The standing note shown beside the controls.
+ *
+ * A string rather than JSX so the claim itself can be tested. It has to hold for every
+ * card the control can appear on, and those differ in provenance: the two Rose Veil
+ * complete looks are captured API results, every other look falls back to a designed
+ * placeholder, and live mode produces a third kind. Naming any one of them here would
+ * describe the other two wrongly — and in fixture mode the per-image provenance caption
+ * is hidden, so nothing on screen would correct it.
+ *
+ * So it claims only what is true of all three: there is an image on the card, and this
+ * tilts it.
+ */
+export const TILT_PREVIEW_NOTE =
+  '2.5D preview tilts the image already shown on each card. It is a visual effect ' +
+  'applied to one photograph, not a 3D model, and it does not add side or rear views.';
