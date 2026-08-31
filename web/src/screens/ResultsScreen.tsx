@@ -214,6 +214,9 @@ export function ResultsScreen({
   // compares a garment-only preview against a complete look, and tilting one of those two
   // would put a difference between them that is not the makeup step.
   const showsTilt = axis === 'garments';
+  const hasTiltableCard = showsTilt && panels.some(
+    (entry) => entry.panel?.result.status === 'ready',
+  );
   const lockedLabel = axis === 'garments'
     ? `Makeup held: ${look?.name ?? 'none'}`
     : `Garment held: ${garmentIds.length > 0 ? garmentSlotLabel(0) : 'none'}`;
@@ -262,7 +265,7 @@ export function ResultsScreen({
 
         <PartialResultsNotice failedLabels={failedLabels} />
 
-        {showsTilt ? <TiltPreviewNote /> : null}
+        {hasTiltableCard ? <TiltPreviewNote /> : null}
 
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
           {panels.map((entry) => {

@@ -90,5 +90,5 @@ export const canTilt = (degrees: number, direction: TiltDirection): boolean =>
  * tilts it.
  */
 export const TILT_PREVIEW_NOTE =
-  '2.5D preview tilts the image already shown on each card. It is a visual effect ' +
-  'applied to one photograph, not a 3D model, and it does not add side or rear views.';
+  '2.5D preview tilts the image shown on a ready card. It is a visual effect, not a ' +
+  '3D model, and it does not add side or rear views.';

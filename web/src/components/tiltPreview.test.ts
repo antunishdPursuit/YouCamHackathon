@@ -117,6 +117,8 @@ describe('TILT_PREVIEW_NOTE', () => {
     expect(note).not.toContain('api result');
     expect(note).not.toContain('youcam');
     expect(note).not.toContain('generated');
+    expect(note).not.toContain('photograph');
+    expect(note).toContain('image shown on a ready card');
   });
 
   it('still refuses the claims the whole feature exists not to make', () => {
