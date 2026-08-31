@@ -6,9 +6,12 @@
  * decision, and every image keeps its provider/fixture provenance below the frame.
  */
 
+import { useState } from 'react';
 import type { AnalyzeResponse, TryOnPanel, TryOnResponse } from '@yincol/shared';
 import { findMakeupLook } from '@yincol/shared';
 import { Button, Chip, Segmented } from '../components/controls.js';
+import { TiltControls, TiltPreviewNote } from '../components/TiltControls.js';
+import { TILT_NONE } from '../components/tiltPreview.js';
 import { PartialResultsNotice } from '../components/StateNotice.js';
 import { PhotoSlot } from '../components/PhotoSlot.js';
 import { DISPLAY_SLOTS, frameAspectRatio, type DisplaySlotConfig } from '../config/displaySlots.js';
@@ -141,6 +144,19 @@ export function ResultsScreen({
   const frame = frameAspectRatio(portraitSize?.width, portraitSize?.height);
 
   /**
+   * One angle per card, keyed by the card, and nothing shared between them.
+   *
+   * Two complete looks side by side are a comparison; a single angle driving both would
+   * make them a slideshow. Keeping the state here rather than inside the card means an
+   * angle survives a re-render without the card having to own it, and a card that is not
+   * showing keeps whatever it had rather than silently snapping back.
+   */
+  const [tiltByCard, setTiltByCard] = useState<Readonly<Record<string, number>>>({});
+  const tiltFor = (key: string): number => tiltByCard[key] ?? TILT_NONE;
+  const setTiltFor = (key: string, degrees: number): void =>
+    setTiltByCard((current) => ({ ...current, [key]: degrees }));
+
+  /**
    * Axis 1 — the two complete looks, side by side.
    *
    * Both carry the same makeup, so the garment is the only thing that changes between
@@ -194,6 +210,13 @@ export function ResultsScreen({
   const failedLabels = panels
     .filter((entry) => entry.panel?.result.status === 'failed')
     .map((entry) => `the ${entry.title} preview`);
+  // Scoped to the Garments axis, where both cards are complete looks. The Makeup axis
+  // compares a garment-only preview against a complete look, and tilting one of those two
+  // would put a difference between them that is not the makeup step.
+  const showsTilt = axis === 'garments';
+  const hasTiltableCard = showsTilt && panels.some(
+    (entry) => entry.panel?.result.status === 'ready',
+  );
   const lockedLabel = axis === 'garments'
     ? `Makeup held: ${look?.name ?? 'none'}`
     : `Garment held: ${garmentIds.length > 0 ? garmentSlotLabel(0) : 'none'}`;
@@ -242,13 +265,22 @@ export function ResultsScreen({
 
         <PartialResultsNotice failedLabels={failedLabels} />
 
+        {hasTiltableCard ? <TiltPreviewNote /> : null}
+
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-          {panels.map((entry) => (
+          {panels.map((entry) => {
+            // The control belongs only to a complete-look card with a picture in it. A
+            // failed or empty card keeps its designed state: there is nothing to tilt,
+            // and offering the control would imply otherwise.
+            const canTiltThisCard = showsTilt && entry.panel?.result.status === 'ready';
+
+            return (
             <article key={entry.key} className="flex flex-col">
               <PhotoSlot
                 slot={entry.slot}
                 aspectRatio={frame}
                 showProvenance={tryOn.mode !== 'fixture'}
+                {...(canTiltThisCard ? { tiltDegrees: tiltFor(entry.key) } : {})}
                 {...(entry.panel
                   ? {
                       result: entry.panel.result,
@@ -271,9 +303,17 @@ export function ResultsScreen({
                   </Button>
                 </div>
                 <p className="text-sm text-ink-soft">{entry.subtitle}</p>
+                {canTiltThisCard ? (
+                  <TiltControls
+                    degrees={tiltFor(entry.key)}
+                    onChange={(degrees) => setTiltFor(entry.key, degrees)}
+                    cardLabel={entry.title}
+                  />
+                ) : null}
               </div>
             </article>
-          ))}
+            );
+          })}
         </div>
 
         <p aria-live="polite" className="sr-only">
