@@ -16,6 +16,7 @@
 
 import type { LookStage, Provenance, TryOnResult } from '@yincol/shared';
 import { PHOTO_ASPECT_RATIO, type DisplaySlotConfig } from '../config/displaySlots.js';
+import { TILT_NONE, tiltTransform } from './tiltPreview.js';
 
 /** The centred motif on an empty slot. Mirror arch, in keeping with the vanity table. */
 function PlaceholderMotif() {
@@ -52,6 +53,7 @@ export function PhotoSlot({
   stage,
   aspectRatio = PHOTO_ASPECT_RATIO,
   showProvenance = true,
+  tiltDegrees = TILT_NONE,
   className = '',
 }: {
   slot: DisplaySlotConfig;
@@ -64,9 +66,19 @@ export function PhotoSlot({
   aspectRatio?: string;
   /** Hide per-image fixture labels when a parent notice already covers the whole set. */
   showProvenance?: boolean;
+  /**
+   * The 2.5D preview angle, in degrees. `0` is the normal presentation and costs nothing.
+   *
+   * Rule 2 above still holds while tilted: the image keeps `object-contain`, so it is
+   * scaled to fit rather than filled, and the tilt cannot crop anything off it. The
+   * rotation happens inside the existing frame, which already clips, so a tilted card
+   * occupies exactly the space an untilted one does and the comparison stays aligned.
+   */
+  tiltDegrees?: number;
   className?: string;
 }) {
   const isReady = result?.status === 'ready';
+  const transform = tiltTransform(tiltDegrees);
 
   return (
     <figure className={`m-0 ${className}`}>
@@ -78,7 +90,12 @@ export function PhotoSlot({
           <img
             src={result.imageUrl}
             alt={result.alt}
-            className="h-full w-full object-contain"
+            // `motion-reduce:transition-none` states the intent locally; the global
+            // prefers-reduced-motion rule in styles/index.css already neuters the
+            // duration, so a reduced-motion visitor gets the angle instantly and keeps
+            // every control.
+            className="h-full w-full object-contain transition-transform duration-200 motion-reduce:transition-none"
+            style={transform === 'none' ? undefined : { transform }}
           />
         ) : (
           // The designed empty state. A judge could see this without embarrassment.
