@@ -441,3 +441,16 @@ The branch history is the work log; each phase is one commit.
 | 6 | Flow simplified from nine screens to the four stages above |
 | 7 | Live File API upload, opt-in live Skin Analysis, opt-in live Clothes and Makeup VTO |
 | 8 | Clothes and Makeup sequenced into one complete-look preview |
+
+## Captured motion sample
+
+The captured red-shirt / Rose Veil complete look now has a five-second motion
+sample. On Results → Garments, choose **Play motion**, **Pause motion**,
+**Replay**, or **Show still**. Playback requires a click or key press; opening
+Results does not start the video. Ordinary browsing still uses local fixtures
+and spends no API units.
+
+Garment B remains a still. The release has no rotatable model. The motion sample is restricted to its captured demo
+source; the Makeup comparison stays on still images. See
+[asset provenance](assets/README.md#local-motion-sample--september-20-2026).
+The release uses the captured motion sample and original still comparisons. True 3D rotation is outside its scope. Public deployment must pass the checks in `docs/deployment.md`.

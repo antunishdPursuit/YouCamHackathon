@@ -1,3 +1,4 @@
+import { asyncRoute } from './asyncRoute.js';
 /**
  * POST /api/try-on — two garment previews, two complete looks, and the portrait.
  *
@@ -77,12 +78,26 @@ const failedOutcome = (reason: unknown): CompleteLookOutcome => ({
   completeLook: failedPanel(reason),
 });
 
-tryOnRouter.post('/try-on', async (req, res) => {
+tryOnRouter.post('/try-on', asyncRoute(async (req, res) => {
   const config = loadConfig();
-  const body = req.body as Partial<TryOnRequest>;
-  const garmentIds = Array.isArray(body?.garmentIds) ? body.garmentIds.slice(0, 2) : [];
-  const makeupLookId = String(body?.makeupLookId ?? '');
-  const look = findMakeupLook(makeupLookId);
+  const body = req.body as Partial<TryOnRequest> | undefined;
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    res.status(400).json({ error: 'A preview request must be a JSON object.' });
+    return;
+  }
+  const garmentIds = body.garmentIds;
+  if (!Array.isArray(garmentIds) || garmentIds.length < 1 || garmentIds.length > 2 ||
+      garmentIds.some((id: unknown) => typeof id !== 'string' || !findGarment(id)) ||
+      new Set(garmentIds).size !== garmentIds.length) {
+    res.status(400).json({ error: 'Choose one or two different garments from the available options.' });
+    return;
+  }
+  const makeupLookId = body.makeupLookId;
+  const look = typeof makeupLookId === 'string' ? findMakeupLook(makeupLookId) : undefined;
+  if (typeof makeupLookId !== 'string' || !look) {
+    res.status(400).json({ error: 'Choose a makeup look from the available options.' });
+    return;
+  }
 
   if (config.fixtureMode && !config.liveTryOn) {
     // The fixture path generates nothing from the shopper's own pictures, so it has no
@@ -216,4 +231,4 @@ tryOnRouter.post('/try-on', async (req, res) => {
     mode: 'live',
   };
   res.json(response);
-});
+}));

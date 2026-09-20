@@ -98,7 +98,7 @@ function WhatYouGet() {
         What you&apos;ll get
       </SectionHeading>
       <p className="mt-3 text-base text-ink-soft">
-        A short, explainable comparison built from your portrait and two garment references.
+        An explainable comparison of two garment options and a makeup direction.
       </p>
       <ul className="mt-6 space-y-4 text-base text-ink">
         <li className="flex gap-3">
@@ -132,12 +132,12 @@ function ComparisonGuide() {
         How you&apos;ll compare
       </SectionHeading>
       <p className="mt-3 text-base text-ink-soft">
-        Your portrait stays the same while you compare one choice at a time.
+        The same portrait is used across the previews while you compare one choice at a time.
       </p>
 
       <div className="mt-6 space-y-3 text-base" aria-label="Comparison structure">
         <div className="rounded-card border border-gold/40 bg-surface px-4 py-3">
-          <span className="font-semibold text-ink">Your portrait</span>
+          <span className="font-semibold text-ink">The preview portrait</span>
           <span className="ml-2 text-ink-soft">stays the same</span>
         </div>
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
@@ -193,14 +193,17 @@ export function IntroScreen({
             Before we begin
           </SectionHeading>
           <p className="mt-3 text-lg text-ink-soft">
-            Add one portrait and two garment references. We&apos;ll use them to make a focused comparison.
+            {imagesLeaveTab === false
+              ? 'Explore the comparison with saved demo results. The photos you select stay in this tab and do not change those results.'
+              : 'Add one portrait and two garment references. Each result will identify whether it is a saved demo or generated from your uploads.'}
           </p>
           <dl className="mt-5 space-y-4 text-base">
             <div>
-              <dt className="font-semibold text-ink">What is analysed</dt>
+              <dt className="font-semibold text-ink">How the comparison works</dt>
               <dd className="text-ink-soft">
-                The colours in your photograph — your skin, hair, eyes and lips — and how
-                light or deep they are. Nothing else is read from it.
+                {imagesLeaveTab === false
+                  ? 'The demo uses example colour readings and saved previews of a demo subject. It does not analyse your photograph.'
+                  : 'The palette follows a visible colour rule. Results identify saved examples and any live previews separately.'}
               </dd>
             </div>
             <div>

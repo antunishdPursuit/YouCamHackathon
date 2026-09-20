@@ -19,6 +19,7 @@ import { createCorsMiddleware } from './cors.js';
 import { analyzeRouter } from './routes/analyze.js';
 import { skinAnalysisRouter } from './routes/skinAnalysis.js';
 import { tryOnRouter } from './routes/tryOn.js';
+import { logFailure } from './youcam/publicError.js';
 
 loadRootEnv();
 
@@ -124,7 +125,12 @@ app.use((error: Error, _req: express.Request, res: express.Response, _next: expr
     return;
   }
 
-  console.error('[yincol]', error.message);
+  if ((error as { type?: string }).type === 'entity.parse.failed') {
+    res.status(400).json({ error: 'Send a valid JSON request.' });
+    return;
+  }
+
+  logFailure('unhandled request', error);
   res.status(500).json({ error: 'Something went wrong on our side.' });
 });
 

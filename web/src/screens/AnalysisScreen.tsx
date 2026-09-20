@@ -9,6 +9,8 @@ import { useEffect, useState } from 'react';
 import { PearlDivider, SectionHeading } from '../components/ornament.js';
 import { duringGenerationSentence } from '../config/privacyCopy.js';
 
+const FIXTURE_LABELS = ['Checking input choices', 'Loading example colour context', 'Loading saved garment previews', 'Loading saved makeup comparisons'];
+
 const STEPS = [
   { id: 'images', label: 'Checking your images' },
   { id: 'colour', label: 'Reading your colour context' },
@@ -54,7 +56,7 @@ export function AnalysisScreen({
   return (
     <div className="animate-soft-fade flex min-h-[60vh] flex-col justify-center space-y-6 text-center">
       <SectionHeading className="text-4xl">
-        {cached ? 'Using your saved previews' : 'Generating your previews'}
+        {cached ? 'Using your saved previews' : imagesLeaveTab === false ? 'Loading demo previews' : 'Generating your previews'}
       </SectionHeading>
 
       <PearlDivider />
@@ -87,7 +89,7 @@ export function AnalysisScreen({
               <span
                 className={`text-base ${state === 'waiting' ? 'text-ink-soft' : 'font-semibold text-ink'}`}
               >
-                {step.label}
+                {imagesLeaveTab === false ? FIXTURE_LABELS[index] : step.label}
                 {/* State in words, so it is not signalled by tint alone. */}
                 <span className="sr-only">
                   {state === 'done' ? ' — finished' : state === 'active' ? ' — in progress' : ' — waiting'}

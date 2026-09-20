@@ -91,3 +91,21 @@ cream panel with a gold hairline frame and a quiet caption — an intentional em
 not a broken image. Nothing here blocks development, and the whole four-stage flow —
 Start, Add inputs, Generate, Results — is demonstrable before a single source photograph
 exists.
+
+## Local motion sample — September 20, 2026
+
+`web/public/fixtures/garment-a-motion-sample.mp4` is a captured YouCam Image to
+Video V2 result generated from `complete-look-a-result.jpg`. One five-second,
+720p task was approved, submitted once, and downloaded immediately after
+success. The output is 720 × 896 and its encoded duration is 5.0625 seconds.
+Documented cost is 10 units; the billed balance was not separately checked.
+The source/output hashes, request, and redacted result shape are recorded in
+`docs/captured-shapes/garment-a-motion-sample.json`. This was a separate bounded
+capture, not a change to the ordinary fixture-generation or browser API flow.
+
+The Garments comparison offers playback only for the matching captured
+red-shirt complete-look fixture. It never substitutes the clip for a live
+visitor result, another makeup preset, or a placeholder. The original still
+remains available. Expressions and fine details can change in generated motion;
+the video does not establish garment fit and is not a rotatable 3D model.
+Garment B remains a still. The release does not include a 3D model or reconstruction.

@@ -1,0 +1,41 @@
+{
+  "capturedAt": "2026-09-20T19:24:40.346Z",
+  "sourceImage": "web/public/fixtures/complete-look-a-result.jpg",
+  "sourceSha256": "34620aacf4fcbe67af138c5c1d779d28437da20b548345fc56ee356992176c72",
+  "provider": "YouCam AI Image to Video V2",
+  "endpoint": "/s2s/v2.0/task/image-to-video/youcam",
+  "taskId": "qag_YdZZO4ukbqN5d-wtKEqw1FvLevsYd82OruCSDMc_KQSv3_rG2Eb0ZLk1udtQ",
+  "request": {
+    "src_file_url": "https://raw.githubusercontent.com/antunishdPursuit/YouCamHackathon/874bc5e5bdb66592e79062af02d47d28373bf3b0/web/public/fixtures/complete-look-a-result.jpg",
+    "resolution": "720",
+    "dst_duration": 5,
+    "model": "youcam-video-v2",
+    "prompt": "Fixed camera, same head-and-shoulders framing. The woman breathes gently, blinks, and makes a small natural head and shoulder turn, then looks back toward the camera. Preserve her face, hairstyle, makeup, red shirt, and cream background.",
+    "negative_prompt": "camera movement, zoom, large turn, different person, face distortion, changing clothes, changing colors, talking, exaggerated movement"
+  },
+  "expectedUnits": 10,
+  "actualBilledUnits": "not separately verified",
+  "tasksSubmitted": 1,
+  "automaticTaskRetries": 0,
+  "output": {
+    "file": "web/public/fixtures/garment-a-motion-sample.mp4",
+    "bytes": 2077378,
+    "sha256": "ae2a1bcfd48185654f565df020e8f8622640b2b674bd9f882b9ace52ccd27815",
+    "contentType": "video/mp4",
+    "width": 720,
+    "height": 896,
+    "encodedDurationSeconds": 5.0625
+  },
+  "resultShape": {
+    "status": 200,
+    "data": {
+      "error": null,
+      "results": {
+        "url": "[URL redacted]"
+      },
+      "task_status": "success"
+    }
+  },
+  "limitations": "Generated motion of the captured demo subject. Not a rotatable 3D model, not a new visitor result, and not evidence of physical garment fit.",
+  "visualInspection": "Browser inspection shows a head/shoulder turn and a smile; generated expressions and fine detail differ from the source. Original still retained."
+}
