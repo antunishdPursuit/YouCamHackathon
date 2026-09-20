@@ -14,6 +14,8 @@ import { TiltControls, TiltPreviewNote } from '../components/TiltControls.js';
 import { TILT_NONE } from '../components/tiltPreview.js';
 import { PartialResultsNotice } from '../components/StateNotice.js';
 import { PhotoSlot } from '../components/PhotoSlot.js';
+import { MotionPreview } from '../components/MotionPreview.js';
+import { motionSampleKind } from '../components/motionSample.js';
 import { DISPLAY_SLOTS, frameAspectRatio, type DisplaySlotConfig } from '../config/displaySlots.js';
 import { SectionHeading, YincolCard } from '../components/ornament.js';
 import type { CompareAxis, MakeupChoice } from '../state/session.js';
@@ -62,7 +64,9 @@ function PaletteSummary({ analysis }: { analysis: AnalyzeResponse }) {
             Your colour direction
           </SectionHeading>
           <p className="mt-2 text-sm text-ink-soft">
-            Six colours chosen from your portrait by a visible rule.
+            {analysis.mode === 'fixture'
+              ? 'Six example colours chosen by the demo’s visible rule.'
+              : 'Six colours chosen from your portrait by a visible rule.'}
           </p>
         </div>
         <Chip>{derivation.axes.undertone} · {derivation.axes.depth} · {derivation.axes.contrast} contrast</Chip>
@@ -83,6 +87,7 @@ function PaletteSummary({ analysis }: { analysis: AnalyzeResponse }) {
       <details className="mt-4 rounded-card border border-gold/40 bg-ground px-3 py-2.5">
         <summary className="cursor-pointer text-sm font-semibold text-ink">How this was chosen</summary>
         <div className="mt-3 space-y-3 text-sm text-ink-soft">
+          <p>{analysis.mode === 'fixture' ? 'These readings describe the demo subject, not your uploaded portrait.' : null}</p>
           <ul className="space-y-2">
             {derivation.notes.map((note) => (
               <li key={note} className="flex gap-3">
@@ -215,7 +220,7 @@ export function ResultsScreen({
   // would put a difference between them that is not the makeup step.
   const showsTilt = axis === 'garments';
   const hasTiltableCard = showsTilt && panels.some(
-    (entry) => entry.panel?.result.status === 'ready',
+    (entry) => entry.panel?.result.status === 'ready' && !motionSampleKind(entry.panel, tryOn.mode),
   );
   const lockedLabel = axis === 'garments'
     ? `Makeup held: ${look?.name ?? 'none'}`
@@ -226,9 +231,10 @@ export function ResultsScreen({
       <header className="text-center">
         <SectionHeading className="text-4xl">Your comparison</SectionHeading>
         <p className="mx-auto mt-3 max-w-reading text-base text-ink-soft">
-          Each garment was rendered on your portrait, then the makeup was applied to that
-          result. Compare the two complete looks, or see what the makeup step changed, then
-          keep any options that work for you.
+          {tryOn.mode === 'fixture'
+            ? 'Compare saved demo looks, or switch to Makeup to compare garment-only and complete-look previews. Your photos are not used to generate these results.'
+            : 'Each garment was rendered on your portrait, then the makeup was applied to that result. Compare the complete looks or see what the makeup step changed.'}
+          {' '}Keep any options that work for you.
         </p>
       </header>
 
@@ -272,46 +278,45 @@ export function ResultsScreen({
             // The control belongs only to a complete-look card with a picture in it. A
             // failed or empty card keeps its designed state: there is nothing to tilt,
             // and offering the control would imply otherwise.
-            const canTiltThisCard = showsTilt && entry.panel?.result.status === 'ready';
+            const motionKind = axis === 'garments' ? motionSampleKind(entry.panel, tryOn.mode) : undefined;
+            const canTiltThisCard = showsTilt && !motionKind && entry.panel?.result.status === 'ready';
 
-            return (
-            <article key={entry.key} className="flex flex-col">
-              <PhotoSlot
-                slot={entry.slot}
-                aspectRatio={frame}
-                showProvenance={tryOn.mode !== 'fixture'}
-                {...(canTiltThisCard ? { tiltDegrees: tiltFor(entry.key) } : {})}
-                {...(entry.panel
-                  ? {
-                      result: entry.panel.result,
-                      provenance: entry.panel.provenance,
-                      ...(entry.panel.stage ? { stage: entry.panel.stage } : {}),
-                    }
-                  : {})}
-              />
+            const caption = (
               <div className="mt-3 flex flex-col items-center gap-2">
                 <div className="flex flex-wrap items-center justify-center gap-3">
                   <h3 className="text-base font-semibold text-ink">{entry.title}</h3>
-                  <Button
-                    variant={entry.chosen ? 'primary' : 'quiet'}
-                    aria-pressed={entry.chosen}
-                    onClick={entry.choose}
-                    className="!px-4 text-sm"
-                  >
+                  <Button variant={entry.chosen ? 'primary' : 'quiet'}
+                    aria-pressed={entry.chosen} disabled={entry.panel?.result.status !== 'ready'} onClick={entry.choose} className="!px-4 text-sm">
                     {entry.chosen ? 'Kept' : 'Keep this'}
                     <span className="sr-only"> — {entry.title}</span>
                   </Button>
                 </div>
                 <p className="text-sm text-ink-soft">{entry.subtitle}</p>
                 {canTiltThisCard ? (
-                  <TiltControls
-                    degrees={tiltFor(entry.key)}
-                    onChange={(degrees) => setTiltFor(entry.key, degrees)}
-                    cardLabel={entry.title}
-                  />
+                  <TiltControls degrees={tiltFor(entry.key)}
+                    onChange={(degrees) => setTiltFor(entry.key, degrees)} cardLabel={entry.title} />
                 ) : null}
               </div>
-            </article>
+            );
+
+            return (
+              <article key={entry.key} className="flex flex-col">
+                {motionKind === 'video' && entry.panel?.result.status === 'ready' ? (
+                  <MotionPreview key={entry.panel.result.imageUrl}
+                    imageUrl={entry.panel.result.imageUrl} alt={entry.panel.result.alt}
+                    slot={entry.slot} aspectRatio={frame}>{caption}</MotionPreview>
+                ) : <>
+                  <PhotoSlot slot={entry.slot} aspectRatio={frame}
+                    showProvenance={tryOn.mode !== 'fixture'}
+                    {...(canTiltThisCard ? { tiltDegrees: tiltFor(entry.key) } : {})}
+                    {...(entry.panel ? {
+                      result: entry.panel.result,
+                      provenance: entry.panel.provenance,
+                      ...(entry.panel.stage ? { stage: entry.panel.stage } : {}),
+                    } : {})} />
+                  {caption}
+                </>}
+              </article>
             );
           })}
         </div>

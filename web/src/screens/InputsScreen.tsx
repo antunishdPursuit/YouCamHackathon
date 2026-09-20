@@ -233,8 +233,10 @@ export function InputsScreen({
     <div className="animate-soft-fade space-y-10">
       <header className="text-center">
         <SectionHeading>Add your inputs</SectionHeading>
-        <p className="mx-auto mt-3 text-base text-ink-soft xl:whitespace-nowrap">
-          Add one portrait, two garment references, and one makeup direction to compare.
+        <p className="mx-auto mt-3 max-w-reading text-base text-ink-soft">
+          {imagesLeaveTab === false
+            ? 'Choose photos to try the workflow. This demo shows saved examples instead of generating from your photos.'
+            : 'Add one portrait, two garment references, and one makeup direction to compare.'}
         </p>
       </header>
 
@@ -274,7 +276,7 @@ export function InputsScreen({
             Makeup direction
           </h3>
           <p className="mt-2 text-base text-ink-soft">
-            Choose the preset to compare on your portrait.
+            Choose a makeup direction to compare.
           </p>
           <div className="mt-4 grid gap-3">
           {MAKEUP_LOOKS.map((look) => {

@@ -1,3 +1,4 @@
+import { asyncRoute } from './asyncRoute.js';
 /**
  * POST /api/skin-analysis — the browser-held portrait → YouCam Skin Analysis.
  *
@@ -64,7 +65,7 @@ function isNoFaceFailure(error: unknown): boolean {
   return /face|no_face|src_face/i.test(error.message);
 }
 
-skinAnalysisRouter.post('/skin-analysis', async (req, res) => {
+skinAnalysisRouter.post('/skin-analysis', asyncRoute(async (req, res) => {
   const config = loadConfig();
 
   // The route remains safe to call in the normal fixture demo. The explicit env flag
@@ -126,4 +127,4 @@ skinAnalysisRouter.post('/skin-analysis', async (req, res) => {
     };
     res.status(noFace ? 422 : 502).json(body);
   }
-});
+}));

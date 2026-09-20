@@ -1,3 +1,5 @@
+import { asyncRoute } from './asyncRoute.js';
+import { rejectImageBytesInFixtureMode } from './fixtureGuard.js';
 /**
  * POST /api/analyze — colour tone + skin appearance → palette.
  *
@@ -52,9 +54,11 @@ async function readSkinLive(portraitUrl: string): Promise<SkinAppearance> {
   return adaptSkinAnalysis(raw);
 }
 
-analyzeRouter.post('/analyze', async (req, res) => {
+analyzeRouter.post('/analyze', asyncRoute(async (req, res) => {
   const config = loadConfig();
-  const portraitRef = String((req.body as { portraitRef?: unknown })?.portraitRef ?? '');
+  if (config.fixtureMode && rejectImageBytesInFixtureMode(req.body, res)) return;
+  const rawRef = (req.body as { portraitRef?: unknown } | undefined)?.portraitRef;
+  const portraitRef = typeof rawRef === 'string' ? rawRef : '';
 
   const [toneSettled, skinSettled] = await Promise.allSettled([
     config.fixtureMode
@@ -102,4 +106,4 @@ analyzeRouter.post('/analyze', async (req, res) => {
   };
 
   res.json(response);
-});
+}));

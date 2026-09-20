@@ -26,6 +26,7 @@ const IMAGE_FIELDS = ['image', 'portrait', 'garmentImages'] as const;
 export function carriesImageBytes(body: unknown): boolean {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return false;
   const record = body as Record<string, unknown>;
+  if (typeof record.portraitRef === 'string' && record.portraitRef.startsWith('data:')) return true;
 
   return IMAGE_FIELDS.some((field) => {
     const value = record[field];
