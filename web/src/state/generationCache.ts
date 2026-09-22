@@ -7,21 +7,22 @@
  */
 
 import type { AnalyzeResponse, TryOnResponse } from '@yincol/shared';
-import type { CapturedImage } from './session.js';
+import type { CapturedImage, FullBodyInputs } from './session.js';
 
 /**
- * Bumped to v2 when the try-on response gained its complete-look panels.
- *
- * The version belongs in BOTH the storage key and the cache key. A v1 entry left in a
- * reopened tab would parse cleanly and then render a Results screen with no complete
- * looks in it — a stale-cache bug that looks exactly like a failed generation.
+ * Version 4 includes the optional full-body portrait and trousers. Switching the
+ * server's image features must never reuse results from a different mode.
  */
-const STORAGE_KEY = 'yincol:generation-cache:v2';
+const STORAGE_KEY = 'yincol:generation-cache:v4';
+let memoryCache: CachedGeneration | null = null;
 
 export interface GenerationCacheInput {
   readonly portrait: CapturedImage | null;
+  readonly fullBody?: FullBodyInputs;
   readonly garmentInputs: readonly (CapturedImage | null)[];
   readonly makeupLookId: string | null;
+  readonly liveSkinAnalysis: boolean;
+  readonly liveTryOn: boolean;
 }
 
 export interface CachedGeneration {
@@ -56,16 +57,23 @@ export async function generationCacheKey(input: GenerationCacheInput): Promise<s
     return null;
   }
 
+  if (input.fullBody?.enabled && (!input.fullBody.portrait || !input.fullBody.trousers)) return null;
   const fingerprints = await Promise.all([
     fileFingerprint(input.portrait.file),
     fileFingerprint(input.garmentInputs[0].file),
     fileFingerprint(input.garmentInputs[1].file),
+    ...(input.fullBody?.enabled ? [
+      fileFingerprint(input.fullBody.portrait!.file),
+      fileFingerprint(input.fullBody.trousers!.file),
+    ] : []),
   ]);
 
-  return JSON.stringify({ version: 2, makeupLookId: input.makeupLookId, fingerprints });
+  return JSON.stringify({ version: 4, fullBody: input.fullBody?.enabled === true, makeupLookId: input.makeupLookId, fingerprints,
+    liveSkinAnalysis: input.liveSkinAnalysis, liveTryOn: input.liveTryOn });
 }
 
 export function readGenerationCache(key: string): CachedGeneration | null {
+  if (memoryCache?.key === key) return memoryCache;
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
@@ -78,19 +86,23 @@ export function readGenerationCache(key: string): CachedGeneration | null {
 }
 
 export function writeGenerationCache(cache: CachedGeneration): boolean {
+  memoryCache = cache;
   try {
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(cache));
     return true;
   } catch {
     // A live response can exceed the browser's sessionStorage quota. The app still
-    // works; it simply cannot reuse that response after the current React state resets.
+    // still reuses it from memory while this page remains open.
     return false;
   }
 }
 
 export function clearGenerationCache(): void {
+  memoryCache = null;
   try {
     sessionStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem('yincol:generation-cache:v3');
+    sessionStorage.removeItem('yincol:generation-cache:v2');
   } catch {
     // Storage can be unavailable in privacy-restricted browser contexts.
   }

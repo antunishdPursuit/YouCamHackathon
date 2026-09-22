@@ -61,6 +61,11 @@ export interface TryOnImageInput {
   readonly fileName: string;
 }
 
+export interface FullBodyInput {
+  readonly portrait: TryOnImageInput;
+  readonly trousers: TryOnImageInput;
+}
+
 export interface TryOnRequest {
   readonly portraitRef: string;
   readonly garmentIds: readonly string[];
@@ -69,6 +74,7 @@ export interface TryOnRequest {
   readonly portrait?: TryOnImageInput;
   /** Keyed by the selected catalogue id so the server can preserve slot order. */
   readonly garmentImages?: Readonly<Record<string, TryOnImageInput>>;
+  readonly fullBody?: FullBodyInput;
 }
 
 /**
@@ -88,7 +94,7 @@ export interface TryOnPanel {
   readonly stage?: LookStage;
 }
 
-export interface TryOnResponse {
+export interface TryOnView {
   /** Garment-only previews — the garment task's own output. Keyed by garment id. */
   readonly garments: Readonly<Record<string, TryOnPanel>>;
   /**
@@ -99,6 +105,11 @@ export interface TryOnResponse {
   readonly completeLooks: Readonly<Record<string, TryOnPanel>>;
   readonly portrait: TryOnPanel;
   readonly mode: 'fixture' | 'live';
+}
+
+export interface TryOnResponse extends TryOnView {
+  /** Present only when the current request includes full-body inputs. */
+  readonly fullBody?: Omit<TryOnView, 'portrait'>;
 }
 
 /**

@@ -15,6 +15,7 @@ import { GARMENTS, MAKEUP_LOOKS } from '@yincol/shared';
 import { loadRootEnv } from './loadEnv.js';
 import { loadConfig, liveWasRequestedWithoutKey, TASK_PATH_VERIFIED } from './youcam/config.js';
 import { createRateLimiter } from './rateLimit.js';
+import { createRequestBodyParser } from './requestBody.js';
 import { createCorsMiddleware } from './cors.js';
 import { analyzeRouter } from './routes/analyze.js';
 import { skinAnalysisRouter } from './routes/skinAnalysis.js';
@@ -45,13 +46,13 @@ if ((process.env['YINCOL_TRUST_PROXY'] ?? '').toLowerCase() === 'true') {
  * The request-size ceiling follows the mode, because the mode decides what a legitimate
  * request can contain.
  *
- * In fixture mode the browser sends fixture metadata — a few hundred bytes — and the
- * routes refuse image bytes outright, so 32 kB is generous. In live mode three sub-10 MB
- * images become just under 40 MB as base64 JSON, and each is still rejected at or above
+ * When all image features use fixtures the browser sends fixture metadata — a few hundred bytes — and the
+ * routes refuse image bytes outright, so 32 kB is generous. With any live image feature,
+ * five sub-10 MB
+ * images become just under 67 MB as base64 JSON, and each is still rejected at or above
  * the provider's 10 MB limit before upload.
  */
-const BODY_LIMIT = startupConfig.fixtureMode ? '32kb' : '42mb';
-app.use(express.json({ limit: BODY_LIMIT }));
+app.use(createRequestBodyParser(startupConfig));
 
 /**
  * Two limits, because the two kinds of request cost different amounts.
@@ -67,6 +68,10 @@ app.use('/api', generalLimit);
 
 app.get('/api/health', (_req, res) => {
   const config = loadConfig();
+  if (liveWasRequestedWithoutKey()) {
+    res.status(503).json({ ok: false, error: 'Live generation is not configured. Please contact the studio owner.' });
+    return;
+  }
   res.json({
     ok: true,
     mode: config.fixtureMode ? 'fixture' : 'live',
@@ -75,6 +80,7 @@ app.get('/api/health', (_req, res) => {
     // Never echo the key itself, only whether one is present.
     hasApiKey: config.apiKey.length > 0,
     verifiedTaskPaths: TASK_PATH_VERIFIED,
+    fullBodyTryOn: config.liveTryOn,
   });
 });
 
@@ -138,20 +144,20 @@ const port = Number(process.env['PORT'] ?? 8787);
 app.listen(port, () => {
   console.log(`[yincol] server listening on http://localhost:${port}`);
   console.log(
-    `[yincol] mode: ${startupConfig.fixtureMode ? 'FIXTURE (no network, no credits)' : 'LIVE'}`,
+    `[yincol] palette: ${startupConfig.fixtureMode ? 'FIXTURE' : 'LIVE'}; live try-on: ${startupConfig.liveTryOn}; live skin analysis: ${startupConfig.liveSkinAnalysis}`,
   );
-  console.log(`[yincol] request body limit: ${BODY_LIMIT}`);
+  console.log(`[yincol] request body limit: ${!startupConfig.fixtureMode || startupConfig.liveSkinAnalysis || startupConfig.liveTryOn ? '70mb' : '32kb'}`);
   console.log(
     hasBuiltWeb
       ? `[yincol] serving the built front end from ${WEB_DIST}`
       : '[yincol] no web build found — run `npm run build` for single-process serving',
   );
 
-  // Fail-closed is silent by design, which is exactly why it gets said out loud here.
+  // Health checks also refuse readiness when live generation has no credential.
   if (liveWasRequestedWithoutKey()) {
     console.warn(
       '[yincol] a live path was requested but YINCOL_API_KEY is empty — ' +
-        'staying on fixtures. Set a key to enable live mode.',
+        'generation is unavailable until the server key is configured.',
     );
   }
 });

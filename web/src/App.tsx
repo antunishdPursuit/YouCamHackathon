@@ -14,6 +14,7 @@ import {
   requestAnalysis,
   requestSkinAnalysis,
   requestTryOn,
+  type RuntimeMode,
 } from './api/client.js';
 import { BackendStatus, type BackendReadiness } from './components/BackendStatus.js';
 import { StateNotice } from './components/StateNotice.js';
@@ -26,6 +27,7 @@ import { AnalysisScreen } from './screens/AnalysisScreen.js';
 import { ResultsScreen } from './screens/ResultsScreen.js';
 import {
   initialState,
+  inputsComplete,
   sessionReducer,
   STEP_ORDER,
   type Step,
@@ -53,7 +55,12 @@ const STAGE_LABELS: Readonly<Record<Step, string>> = {
   results: 'Results',
 };
 
-function StageProgress({ step }: { step: Step }) {
+function StageProgress({ step, consentGiven, busy, onNavigate }: {
+  step: Step;
+  consentGiven: boolean;
+  busy: boolean;
+  onNavigate: (step: 'intro' | 'inputs') => void;
+}) {
   const activeIndex = STEP_ORDER.indexOf(step);
 
   return (
@@ -62,17 +69,30 @@ function StageProgress({ step }: { step: Step }) {
         {STEP_ORDER.map((stage, index) => {
           const current = stage === step;
           const complete = index < activeIndex;
+          const canNavigate = !current && !busy && (
+            stage === 'intro' || (stage === 'inputs' && consentGiven)
+          );
+          const className = `flex min-h-[44px] w-full items-center justify-center border-t-2 py-3 text-center text-xs sm:text-sm ${
+            current || complete || canNavigate
+              ? 'border-gold font-semibold text-ink'
+              : 'border-gold/30 text-ink-soft'
+          }`;
           return (
             <li key={stage}>
-              <span
-                aria-current={current ? 'step' : undefined}
-                className={`block border-t-2 pt-2.5 text-center text-xs sm:text-sm ${
-                  current || complete ? 'border-gold font-semibold text-ink' : 'border-gold/30 text-ink-soft'
-                }`}
-              >
-                <span className="sr-only">{complete ? 'Complete: ' : current ? 'Current: ' : ''}</span>
-                {STAGE_LABELS[stage]}
-              </span>
+              {canNavigate && (stage === 'intro' || stage === 'inputs') ? (
+                <button
+                  type="button"
+                  onClick={() => onNavigate(stage)}
+                  className={`${className} underline underline-offset-4 hover:bg-surface`}
+                >
+                  {STAGE_LABELS[stage]}
+                </button>
+              ) : (
+                <span aria-current={current ? 'step' : undefined} className={className}>
+                  <span className="sr-only">{current ? 'Current: ' : complete ? 'Complete: ' : ''}</span>
+                  {STAGE_LABELS[stage]}
+                </span>
+              )}
             </li>
           );
         })}
@@ -83,6 +103,26 @@ function StageProgress({ step }: { step: Step }) {
 
 export function App() {
   const [state, dispatch] = useReducer(sessionReducer, initialState);
+  const [runtimeMode, setRuntimeMode] = useState<RuntimeMode | null>(null);
+  const [inputSessionId, setInputSessionId] = useState(0);
+  const [generationPhase, setGenerationPhase] = useState<'checking' | 'analysis' | 'previews'>('checking');
+  const generationRunning = useRef(false);
+  const mainRef = useRef<HTMLElement>(null);
+  const currentView = state.step;
+  const previousStep = useRef(currentView);
+  useEffect(() => {
+    // Old gallery bookmarks now enter the regular consent/upload flow.
+    if (window.location.hash === '#full-body') {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (previousStep.current === currentView) return;
+    previousStep.current = currentView;
+    mainRef.current?.focus({ preventScroll: true });
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [currentView]);
   const [generationSource, setGenerationSource] = useState<'cache' | 'network' | null>(null);
 
   /**
@@ -103,6 +143,7 @@ export function App() {
 
     setBackendReadiness('checking');
     setImagesLeaveTab(null);
+    setRuntimeMode(null);
 
     statusTimer = window.setTimeout(() => {
       if (!cancelled) {
@@ -124,6 +165,7 @@ export function App() {
 
           setBackendReadiness('ready');
           setImagesLeaveTab(mode.liveSkinAnalysis || mode.liveTryOn);
+          setRuntimeMode(mode);
         })
         .catch(() => {
           window.clearTimeout(timeout);
@@ -175,6 +217,7 @@ export function App() {
     generationId.current += 1;
     clearGenerationCache();
     setGenerationSource(null);
+    generationRunning.current = false;
   }, []);
 
   /**
@@ -185,7 +228,9 @@ export function App() {
    * sent in the same request and uploaded server-side through the feature File APIs.
    */
   const beginAnalysis = useCallback(async () => {
-    if (backendReadiness !== 'ready') return;
+    if (backendReadiness !== 'ready' || generationRunning.current || !inputsComplete(state)) return;
+    generationRunning.current = true;
+    setGenerationPhase('checking');
 
     // Starting a generation also supersedes any earlier one still in flight.
     generationId.current += 1;
@@ -194,15 +239,30 @@ export function App() {
 
     setGenerationSource(null);
     dispatch({ type: 'analysisStarted' });
+    const currentRuntime = runtimeMode;
     const portraitRef = 'fixture:portrait';
     const portrait = state.portrait;
     const garmentInputs = [state.garmentInputs.a, state.garmentInputs.b] as const;
 
     try {
+      const mode = await checkRuntimeHealth();
+      if (superseded()) return;
+      const willUpload = mode.liveSkinAnalysis || mode.liveTryOn;
+      setImagesLeaveTab(willUpload);
+      setRuntimeMode(mode);
+      if (state.fullBody.enabled && !mode.fullBodyTryOn) {
+        throw new ApiError('Full-body generation is unavailable. Return to inputs and turn off the option.', 'general');
+      }
+      if ((willUpload && imagesLeaveTab !== true) || (mode.liveSkinAnalysis !== currentRuntime?.liveSkinAnalysis || mode.liveTryOn !== currentRuntime?.liveTryOn)) {
+        throw new ApiError('Generation settings changed. Return to inputs to review the updated upload and unit estimate before generating.', 'general');
+      }
       const cacheKey = await generationCacheKey({
         portrait,
+        fullBody: state.fullBody,
         garmentInputs,
         makeupLookId: state.makeupLookId,
+        liveSkinAnalysis: mode.liveSkinAnalysis,
+        liveTryOn: mode.liveTryOn,
       });
       const cached = cacheKey ? readGenerationCache(cacheKey) : null;
       if (superseded()) return;
@@ -215,6 +275,7 @@ export function App() {
       }
 
       setGenerationSource('network');
+      setGenerationPhase('analysis');
 
       const [analysis, skinAnalysis] = await Promise.all([
         requestAnalysis(portraitRef),
@@ -237,9 +298,11 @@ export function App() {
           : analysis;
       dispatch({ type: 'analysisReady', analysis: combinedAnalysis });
 
+      setGenerationPhase('previews');
       const tryOn = await requestTryOn({
         portraitRef,
         portrait,
+        fullBody: state.fullBody,
         garmentIds: state.garmentIds,
         garmentInputs,
         makeupLookId: state.makeupLookId ?? '',
@@ -264,11 +327,14 @@ export function App() {
         message: error instanceof Error ? error.message : 'Something went wrong.',
         code: error instanceof ApiError ? error.code : 'general',
       });
+    } finally {
+      if (!superseded()) generationRunning.current = false;
     }
-  }, [backendReadiness, state.garmentIds, state.garmentInputs.a, state.garmentInputs.b, state.makeupLookId, state.portrait]);
+  }, [imagesLeaveTab, backendReadiness, runtimeMode, state]);
 
   const handleClearPortrait = useCallback(() => {
     voidGeneration();
+    setInputSessionId(current => current + 1);
     dispatch({ type: 'clearPortrait' });
   }, [voidGeneration]);
 
@@ -301,6 +367,15 @@ export function App() {
     };
   }, [state.garmentInputs.b?.previewUrl]);
 
+  useEffect(() => {
+    const url = state.fullBody.portrait?.previewUrl;
+    return () => { if (url) URL.revokeObjectURL(url); };
+  }, [state.fullBody.portrait?.previewUrl]);
+  useEffect(() => {
+    const url = state.fullBody.trousers?.previewUrl;
+    return () => { if (url) URL.revokeObjectURL(url); };
+  }, [state.fullBody.trousers?.previewUrl]);
+
   const analysisDone = state.analysis !== null && state.tryOn !== null;
 
   const screen = (() => {
@@ -329,11 +404,14 @@ export function App() {
             garmentIds={state.garmentIds}
             keptGarmentIds={state.keptGarmentIds}
             keptMakeupWinners={state.keptMakeupWinners}
+            fullBodyKeptGarmentIds={state.fullBodyKeptGarmentIds}
+            fullBodyKeptMakeupWinners={state.fullBodyKeptMakeupWinners}
             makeupLookId={state.makeupLookId}
             imagesLeaveTab={imagesLeaveTab}
+            resuming={Boolean(state.fullBody.enabled || state.portrait || state.garmentInputs.a || state.garmentInputs.b || state.makeupLookId)}
             onBegin={() => {
               dispatch({ type: 'giveConsent' });
-              dispatch({ type: 'goTo', step: 'inputs' });
+              dispatch({ type: 'editInputs' });
             }}
           />
         );
@@ -341,6 +419,7 @@ export function App() {
       case 'inputs':
         return (
           <InputsScreen
+            key={inputSessionId}
             portrait={state.portrait}
             garmentInputs={state.garmentInputs}
             makeupLookId={state.makeupLookId}
@@ -358,12 +437,25 @@ export function App() {
               dispatch({ type: 'clearGarmentInput', slot });
             }}
             onChooseMakeup={(lookId) => {
+              if (lookId === state.makeupLookId) return;
               voidGeneration();
               dispatch({ type: 'chooseMakeup', lookId });
             }}
             onContinue={beginAnalysis}
             onBack={() => dispatch({ type: 'goTo', step: 'intro' })}
             backendReadiness={backendReadiness}
+            fullBody={state.fullBody}
+            fullBodyAvailable={runtimeMode?.fullBodyTryOn === true}
+            onEnableFullBody={(enabled) => {
+              voidGeneration();
+              dispatch({ type: 'enableFullBody', enabled });
+            }}
+            onFullBodyInput={(slot, image) => {
+              voidGeneration();
+              dispatch({ type: 'setFullBodyInput', slot, image });
+            }}
+            estimatedUnits={runtimeMode ? (runtimeMode.liveTryOn ? 6 : 0) +
+              (runtimeMode.liveSkinAnalysis ? 12 : 0) + (state.fullBody.enabled ? 8 : 0) : null}
           />
         );
 
@@ -371,6 +463,10 @@ export function App() {
         return (
           <AnalysisScreen
             done={analysisDone}
+            phase={generationPhase}
+            failed={Boolean(state.error)}
+            fullBody={state.fullBody.enabled}
+            onBack={() => dispatch({ type: 'editInputs' })}
             cached={generationSource === 'cache'}
             imagesLeaveTab={imagesLeaveTab}
             onFinished={() => dispatch({ type: 'goTo', step: 'results' })}
@@ -381,12 +477,17 @@ export function App() {
         return state.analysis && state.tryOn ? (
           <ResultsScreen
             analysis={state.analysis}
+            resultView={state.resultView}
+            onResultView={(view) => dispatch({ type: 'setResultView', view })}
+            {...(state.fullBody.portrait ? { fullBodySize: {
+              width: state.fullBody.portrait.width, height: state.fullBody.portrait.height,
+            } } : {})}
             tryOn={state.tryOn}
             garmentIds={state.garmentIds}
             makeupLookId={state.makeupLookId}
             axis={state.axis}
-            keptGarmentIds={state.keptGarmentIds}
-            keptMakeupWinners={state.keptMakeupWinners}
+            keptGarmentIds={state.resultView === 'fullBody' ? state.fullBodyKeptGarmentIds : state.keptGarmentIds}
+            keptMakeupWinners={state.resultView === 'fullBody' ? state.fullBodyKeptMakeupWinners : state.keptMakeupWinners}
             {...(state.portrait
               ? { portraitSize: { width: state.portrait.width, height: state.portrait.height } }
               : {})}
@@ -415,7 +516,9 @@ export function App() {
       <div className="mx-auto flex min-h-dvh w-full max-w-yincol flex-col px-6 pb-16 pt-6 sm:px-8 lg:px-10 xl:px-12">
         <header className="mb-7 flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:justify-center sm:gap-8">
           <Wordmark size="sm" />
-          <StageProgress step={state.step} />
+          <StageProgress step={state.step} consentGiven={state.consentGiven} busy={state.busy}
+            onNavigate={(step) => dispatch(step === 'inputs'
+              ? { type: 'editInputs' } : { type: 'goTo', step: 'intro' })} />
         </header>
 
         {SHOWS_PORTRAIT.has(state.step) && state.portrait ? (
@@ -430,17 +533,18 @@ export function App() {
             className="mb-6 rounded-card border border-gold/60 bg-powder px-5 py-4 text-base text-ink"
           >
             <p>{state.error}</p>
-            <Button
+            {state.step !== 'generate' ? <Button
               variant="quiet"
               className="mt-3 !px-3 text-sm"
               onClick={() => dispatch({ type: 'dismissError' })}
             >
               Dismiss
-            </Button>
+            </Button> : null}
           </div>
         ) : null}
 
-        <main id="main" className="flex-1">
+        <main id="main" ref={mainRef} tabIndex={-1}
+          aria-label={STAGE_LABELS[state.step]} className="flex-1">
           <BackendStatus readiness={backendReadiness} onRetry={retryBackend} />
           {screen}
         </main>

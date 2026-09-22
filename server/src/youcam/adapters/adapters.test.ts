@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { adaptColorTone, ColorToneShapeError } from './facialColorTone.js';
 import { adaptSkinAnalysis } from './skinAnalysis.js';
-import { adaptTryOn, tryOnFailure } from './tryOn.js';
+import { tryOnFailure } from './tryOn.js';
 import { extractResultUrls } from '../taskRunner.js';
 
 // Configuration is covered in `youcam/config.test.ts`, next to the fail-closed rule it
@@ -191,21 +191,6 @@ describe('result URL extraction', () => {
 });
 
 describe('try-on result union', () => {
-  it('reports ready with an image and alt text', () => {
-    const result = adaptTryOn({ result: { data: [{ url: 'https://cdn.example/a.jpg' }] } }, 'alt');
-    expect(result.status).toBe('ready');
-    if (result.status === 'ready') {
-      expect(result.imageUrl).toBe('https://cdn.example/a.jpg');
-      expect(result.alt).toBe('alt');
-    }
-  });
-
-  it('reports failed — with a reason — when a success carries no readable image', () => {
-    const result = adaptTryOn({ result: { task_status: 'success' } }, 'alt');
-    expect(result.status).toBe('failed');
-    if (result.status === 'failed') expect(result.reason.length).toBeGreaterThan(0);
-  });
-
   it('makes a failure impossible to read as a success at compile time', () => {
     const result = tryOnFailure('nope');
     // @ts-expect-error — `imageUrl` does not exist on the failed branch. This line

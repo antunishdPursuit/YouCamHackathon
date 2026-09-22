@@ -1,11 +1,22 @@
 # API findings — Perfect Corp / YouCam S2S v2.0
 
-**Last reviewed:** August 29, 2026
+**Historical provider evidence:** August 29, 2026
+**Status clarification:** September 21, 2026
 **Evidence rule:** Official documentation is documented evidence, not live verification.
 Skin Analysis, Clothes VTO, and Makeup VTO have now been verified end to end with our
 account and the selected close-up portrait. Facial Color Tone remains open for a live
 task and response-shape check; its current task path is now recorded from the provider's
 read-only feature-cost response.
+
+The detailed observations below retain their original date and scope. They are
+not a fresh provider test or an account-balance check. Current behavior and cost
+combinations are summarized in the [README](../README.md); partner instructions
+are in the [English / 简体中文 guide](partner-guide.md).
+
+The later full-body path adds one trousers task plus two top-and-makeup sequences
+(8 estimated units) to the existing close-up flow. A saved five-second video is
+available, but live video generation, makeup on the unchanged original portrait,
+IndexedDB history and shared daily unit limits are still planned.
 
 This file separates what we treat as **documented**, what we have **verified locally**,
 and what remains **open**. Nothing marked open should be repeated as fact in a demo, a
@@ -74,8 +85,8 @@ normalized into the latter signal and was not returned to the browser.
 - **Feature costs.** The read-only feature-cost response returned these current values:
   Clothes VTO V3 = 2 units per result image; Makeup VTO = 1; Skin Analysis V2.0 SD with
   1–4 concerns = 9 or 5–8 concerns = 12; Facial Color Tones Analyzer = 20. YINCOL's
-  current five-action Skin Analysis request uses the 12-unit bracket, so one fully
-  successful opt-in flow uses **18 units**: Skin Analysis 12, plus two Clothes results at
+  recorded five-action Skin Analysis request uses the 12-unit bracket, so the close-up
+  flow with Skin Analysis uses **18 units**: Skin Analysis 12, plus two Clothes results at
   2 each, plus two Makeup results at 1 each. This was 17 before the complete-look
   sequence landed and each garment gained its own makeup task; both figures in this file
   and in the README were corrected on August 29, 2026. The current account balance is not
@@ -138,16 +149,18 @@ normalized into the latter signal and was not returned to the browser.
 - [ ] **File API reuse across features.** Skin Analysis metadata and upload are verified.
       Whether a `file_id` can be reused across current feature-specific File API paths is
       unknown. Treat each feature's File API path as separate until confirmed.
-- [ ] **Clothes VTO `garment_category` vocabulary.** We assume `upper_body`, `lower_body`,
-      `full_body`. The official example shows `full_body`; confirm the accepted enum.
-      → `GARMENT_CATEGORIES` in `server/src/youcam/config.ts`.
+- [ ] **Complete Clothes VTO `garment_category` vocabulary.** `upper_body` was used
+      by the close-up capture. The September 21 full-body batch also succeeded with
+      `lower_body` for trousers and `upper_body` for tops. This does not validate
+      every possible enum value. See `GARMENT_CATEGORIES` in
+      `server/src/youcam/config.ts` and [capture provenance](../assets/README.md).
 - [x] **Result field names on success.** Both live smoke tests returned
       `data.results.url`, and both result downloads succeeded. Keep the adapter tolerant
       until more than one successful response is captured per feature.
 - [x] **Feature cost.** The read-only feature-cost response recorded the scoped costs:
       Clothes VTO V3 = 2 units/result, Makeup VTO = 1, Skin Analysis V2.0 SD = 9 for 1–4
       concerns or 12 for 5–8, and Facial Color Tones Analyzer = 20. YINCOL's request sits
-      in the 12-unit bracket; a fully successful opt-in flow is 18 units. See the feature
+      in the 12-unit bracket; the close-up flow with Skin Analysis is 18 units, before the optional full-body path. See the feature
       costs bullet above for the breakdown.
 - [ ] **Available balance.** Check the account console before spending on a live Facial
       Color Tones task or a repeated demo run.
@@ -321,10 +334,11 @@ garment: both panels fail (the garment task never produced an image), the garmen
 survives and the complete look fails (the makeup step failed), or both succeed.
 `YINCOL_SIMULATE=completeLookFailure` reproduces the middle one on fixtures.
 
-**Not yet verified live.** The sequence itself has been verified by direct local smoke test
-per the handoff note, and the browser route is covered by stubbed-`fetch` tests, but the
-browser route running the sequence against the live API has not been re-run since this
-change. That check is the one thing outstanding before this path is called live-verified.
+**Historical verification note.** The complete-look sequence was subsequently
+captured and merged in PR #5. That capture proves the provider sequence for the
+recorded inputs, not every later browser change. Use the dated
+[verification record](verification.md) for the scope of each browser check;
+ordinary tests stub provider calls and do not spend units.
 
 ## Contrast audit
 

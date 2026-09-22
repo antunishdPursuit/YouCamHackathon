@@ -23,6 +23,9 @@ export default {
       borderRadius: {
         card: '20px',
       },
+      maxHeight: {
+        portrait: '70svh',
+      },
       maxWidth: {
         yincol: '100rem',
         reading: '60ch',
@@ -36,35 +39,13 @@ export default {
         card: '0 4px 18px rgba(78,50,59,0.07)',
       },
       keyframes: {
-        // Soft and slow. Nothing bouncy.
-        'swatch-rise': {
-          '0%': { opacity: '0', transform: 'translateY(4px)' },
-          '100%': { opacity: '1', transform: 'translateY(0)' },
-        },
         'soft-fade': {
           '0%': { opacity: '0' },
           '100%': { opacity: '1' },
         },
-        shimmer: {
-          '0%': { transform: 'translateX(-120%)' },
-          '100%': { transform: 'translateX(220%)' },
-        },
-        'slide-in-right': {
-          '0%': { opacity: '0', transform: 'translateX(24px)' },
-          '100%': { opacity: '1', transform: 'translateX(0)' },
-        },
-        'slide-in-left': {
-          '0%': { opacity: '0', transform: 'translateX(-24px)' },
-          '100%': { opacity: '1', transform: 'translateX(0)' },
-        },
       },
       animation: {
-        'swatch-rise': 'swatch-rise 520ms ease-out both',
         'soft-fade': 'soft-fade 420ms ease-out both',
-        // One sweep when the look card is saved — once, never looping.
-        shimmer: 'shimmer 1400ms ease-in-out 1 both',
-        'slide-in-right': 'slide-in-right 380ms ease-out both',
-        'slide-in-left': 'slide-in-left 380ms ease-out both',
       },
     },
   },

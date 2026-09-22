@@ -21,15 +21,11 @@ describe('fit scoring', () => {
 
     expect(score.total).toBe(6);
     expect(score.breakdown).toHaveLength(6);
+    expect(FIT_THRESHOLD).toBe(25);
     expect(score.threshold).toBe(FIT_THRESHOLD);
     expect(score.matched).toBe(score.breakdown.filter((entry) => entry.within).length);
     expect(score.matched).toBeGreaterThanOrEqual(0);
     expect(score.matched).toBeLessThanOrEqual(6);
-  });
-
-  it('exposes the threshold so the UI can show it', () => {
-    expect(FIT_THRESHOLD).toBe(25);
-    expect(scoreGarmentFit('#000000', palette).threshold).toBe(25);
   });
 
   it('honours a caller-supplied threshold', () => {

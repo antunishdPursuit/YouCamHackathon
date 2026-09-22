@@ -1,5 +1,64 @@
 # Verification record
 
+## September 21, 2026 cleanup verification
+
+This section records the cleanup increment separately from the historical runs
+below. A local pass is not a Render deployment check or a new provider test.
+
+本节记录本次清理的验证结果，与下方历史记录分开。本地通过不代表 Render 已部署，
+也不代表重新验证了付费接口。合作开发说明见[中英双语指南](partner-guide.md)。
+
+| Check | Current evidence |
+| --- | --- |
+| Baseline before cleanup | 268 tests passed; typecheck and build passed before cleanup. |
+| Final tests, typecheck and build | **259 tests passed** (72 shared, 147 server, 40 web); all three typechecks and production build passed. JS 204.05 kB / 63.78 kB gzip. |
+| Final contrast and browser checks | Contrast: four documented token gaps, no new failures. Chrome walkthrough passed at desktop and 390 px; details below. |
+| Dependency audit | `npm audit --json`: **0 known vulnerabilities** after owner approval for the package metadata query. Historical counts below are not current. |
+| Paid provider generation | Not run during cleanup. |
+| Render deployment | Not performed during cleanup; main and the deployed release are separate from the cleanup branch. |
+| GitHub CI | No GitHub Actions workflow currently exists in this repository. |
+
+### Cleanup scope and browser evidence
+
+- Preserved the current full-body input and result flow, captured website demo,
+  saved motion sample, and fixture-safe defaults.
+- Fixed repeated-makeup cache invalidation, stale image decode callbacks, and
+  missing full-body labels in the Start summary. Removed unused adapters, UI
+  exports and animations. Consolidated duplicate tests instead of dropping
+  failure-path coverage; the suite is nine tests smaller than the baseline.
+- Malformed image base64 is rejected before provider work; provider response
+  bodies are omitted from logs. Environment variants and private captures stay
+  ignored. Removed the two obsolete proposal documents with owner approval.
+- A temporary source-based harness prefilled synthetic input objects and served
+  the existing public fixture images. Its separate API had no key and both live
+  flags false. It exercised the real app, reducer, client and fixture routes.
+- Verified Start -> Add inputs -> Generate -> Results; return navigation; both
+  comparison tabs; arrow-key focus; matching saved video playback (5.0625 s);
+  retained choices after re-selecting the same makeup; and confirmed removal,
+  which cleared inputs and disabled Generate. Images loaded, the 390 px layout
+  stacked correctly with no horizontal overflow, and there were no app warnings
+  or errors (unrelated browser-extension warnings were excluded).
+- Native file-picker interaction, new paid generation, and full-body provider
+  execution were not repeated. Decode races, full-body rendering, validation and
+  partial failures are covered by the local automated tests.
+- The retired port 8788 design preview and temporary browser-check processes
+  were removed. The saved website demo assets remain.
+
+### Remaining release work
+
+The [partner guide](partner-guide.md) describes the next increment: original-
+portrait makeup comparison, automatic IndexedDB history, live video, and server
+unit reservations in separate Render Key Value. Public live rollout also needs
+request guards before large-body parsing, bounded provider network timeouts,
+and duplicate-submission protection. None of those safeguards is claimed here.
+No GitHub CI or target-environment deployment was verified during this cleanup.
+
+## Historical verification — August 29, 2026
+
+The sections below are retained evidence for older trees. Their counts,
+dependency findings, bundles and browser observations are not the current
+release status. References to "current" within a dated run mean that run's tree.
+
 **Record updated:** August 29, 2026
 **Final verification tree:** captured-fixture tree represented by `7412d68`, later
 merged into `main` by PR #5. The capture commit was subsequently rewritten to remove
@@ -11,11 +70,9 @@ browser verification.
 This file records what was run and what came back. Where a check could not be run, it
 says so and why, rather than leaving the row out.
 
-**Three runs are recorded, oldest first. The third is the current state** — it was run
-after the captured fixtures landed, and it supersedes the two below it wherever they
-disagree. Skip to [the third run](#third-run--final-after-the-captured-fixtures) for what
-is true now; the earlier two are kept because they record when each property was
-established.
+**Four historical runs are recorded, oldest first.** The third followed captured
+fixtures; the fourth followed split-deployment hardening. They preserve when each
+property was established. Use the dated cleanup section above for current checks.
 
 ---
 
@@ -33,7 +90,7 @@ established.
 ---
 
 The entries below are the first recorded run. They are retained as historical evidence;
-the current values are in the third run.
+that historical capture's final values are in the third run.
 
 ## Tests — 131 passed
 
@@ -173,7 +230,7 @@ Aborting them touches the request layer that #4 items 4, 6 and 9 cover.
 
 Re-run after the commits that made fixture mode send no image bytes, made the
 configuration fail closed, added the request limits, and put the front end and `/api` in
-one process. **This is a historical run record; the third run below is current.** At the
+one process. **This is a historical run record; the third run below superseded it for that tree.** At the
 time of this run, the captured fixtures were still queued, and the browser portion would
 be re-run once they landed; that rerun is recorded in the third run.
 
@@ -303,7 +360,7 @@ in any case.
 
 **Run on:** August 29, 2026, against the captured-fixture tree, now represented by
 rewritten commit `7412d68`, and the closeout commits on top of it. **This section is the
-current verified state.**
+verified state at that time.**
 
 | Check | Result |
 | --- | --- |

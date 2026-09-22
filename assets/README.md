@@ -1,17 +1,22 @@
 # Assets
 
-There are two kinds of image in YINCOL and they must never be confused.
+Keep source inputs, captured provider results, and labelled placeholders separate.
+Reference or design mock images must never be described as YouCam results.
 
-**SOURCE** images are shot or licensed by the team and fed *into* the API.
-**RESULT** images come *out* of the API and are produced only by the capture script.
+**SOURCE** images are approved inputs with permission for this use.
+**CAPTURED RESULT** means bytes returned by a successful YouCam task, downloaded
+with evidence of their source and output. The standard image batch uses
+`npm run capture-fixtures`; the bounded video and private full-body captures below
+used separate approved procedures. File presence alone does not establish provenance.
+**PLACEHOLDER** means a designed stand-in, never a generated provider result.
 
-A result image is never hand-supplied. If a picture in `web/public/fixtures/` did not come
-from `npm run capture-fixtures`, it is not a result — it is a mock-up, and presenting it as
-an API output would be dishonest.
+原始输入、真实 API 结果与占位图必须分开。设计参考图不能称为 YouCam 结果。
+真实结果必须来自成功的接口任务，并保留来源记录；仅有一个图片文件不能证明其来源。
+运行与交接请参阅[中英双语指南](../docs/partner-guide.md)。
 
 ---
 
-## SOURCE — three images, supplied by the team
+## SOURCE — standard image capture inputs
 
 These live in `assets/source/`, which is **gitignored**. They are read by the capture
 script and never committed. The current documented Makeup VTO endpoint does not take a
@@ -20,12 +25,14 @@ file unless a separate provider endpoint is verified and approved.
 
 | File | What it must be |
 | --- | --- |
-| `assets/source/portrait.png` | Bare-face selfie. Upper body clearly visible, one person, plain uncluttered background, even front lighting, no makeup. This is the face every preview is generated from. |
+| `assets/source/portrait.png` | Bare-face portrait. Upper body clearly visible, one person, plain uncluttered background, even front lighting. Used by the standard close-up capture. |
 | `assets/source/garment-a.jpg` | Garment product image — flat-lay or on-model, full garment in frame, plain background. |
 | `assets/source/garment-b.jpg` | Second garment, shot the same way. Pick something that genuinely differs in colour from A, otherwise the comparison screen has nothing to show. |
 
-The makeup choice is currently represented by a documented `effects` configuration in the
-Makeup VTO request, not by a fourth image.
+The makeup choice is an `effects` configuration in the Makeup VTO request, not a
+makeup reference image. Optional full-body generation also requires a full-body
+portrait of the same person and a trousers reference with the target garment visible.
+These additional private inputs are not included in the standard three-file capture.
 
 ### Specs — feature-specific
 
@@ -109,3 +116,21 @@ visitor result, another makeup preset, or a placeholder. The original still
 remains available. Expressions and fine details can change in generated motion;
 the video does not establish garment fit and is not a rotatable 3D model.
 Garment B remains a still. The release does not include a 3D model or reconstruction.
+
+## Private full-body captures — September 21, 2026
+
+The separately approved full-body batch produced two complete looks using the
+original full-body portrait, a worn cream-trouser reference, the red/blue top
+references, and Champagne Halo makeup. Clothes VTO applied the trousers once,
+then each top independently; Makeup VTO received each clothed result. All five
+tasks succeeded with no generation retries. Expected usage was 8 units; the
+billing balance was not checked. The final PNGs are 1002 × 1568 pixels.
+
+These captured bytes and their private evidence are kept in ignored
+`assets/private-results/full-body/`, separate from source inputs and public
+fixtures. These are private test evidence; no captures, manifests, or
+intermediate files are served or substituted for a visitor's results.
+This batch used a bounded local capture script, rather than the normal
+fixture script, to preserve existing head-and-shoulders captures and skip skin
+analysis. Both final images were visually reviewed for outfit changes and
+uncropped framing. Fine facial and clothing details remain AI interpretations.

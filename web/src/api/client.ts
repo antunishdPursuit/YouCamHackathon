@@ -20,7 +20,7 @@ import type {
   TryOnResponse,
 } from '@yincol/shared';
 import { IMAGE_SPEC } from '@yincol/shared';
-import type { CapturedImage, CapturedPortrait } from '../state/session.js';
+import type { CapturedImage, CapturedPortrait, FullBodyInputs } from '../state/session.js';
 
 /**
  * Static deployments set the API origin at build time. Keeping the default relative
@@ -72,21 +72,14 @@ export const requestAnalysis = (portraitRef: string): Promise<AnalyzeResponse> =
 /**
  * Which live paths the server has enabled.
  *
- * Read once and remembered, because it cannot change under a running tab — the flags are
- * process-level and a change means a restart.
+ * Refreshed before each generation, because a server restart can change the mode
+ * while a browser tab and its saved results remain open.
  */
 export interface RuntimeMode {
+  readonly fullBodyTryOn: boolean;
   readonly liveSkinAnalysis: boolean;
   readonly liveTryOn: boolean;
 }
-
-/**
- * What we assume when the server has not told us otherwise.
- *
- * Fail closed, and note which way "closed" points here: the safe default is to send
- * nothing. A failed health check must never be the reason a photograph gets uploaded.
- */
-const FIXTURE_ONLY: RuntimeMode = { liveSkinAnalysis: false, liveTryOn: false };
 
 let modeRequest: Promise<RuntimeMode> | null = null;
 
@@ -102,15 +95,15 @@ async function readRuntimeMode(signal?: AbortSignal): Promise<RuntimeMode> {
   return {
     liveSkinAnalysis: body.liveSkinAnalysis === true,
     liveTryOn: body.liveTryOn === true,
+    fullBodyTryOn: body.fullBodyTryOn === true,
   };
 }
 
 /**
  * Check readiness without converting a failed health check into fixture mode.
  *
- * The app uses this for its warm-up gate. The generation functions keep using
- * `fetchRuntimeMode`, whose fail-closed fallback protects privacy if a caller reaches
- * them outside the normal UI path.
+ * The app uses this at startup and before consulting cached results. A failed
+ * check prevents generation instead of silently choosing demo results.
  */
 export async function checkRuntimeHealth(signal?: AbortSignal): Promise<RuntimeMode> {
   const mode = await readRuntimeMode(signal);
@@ -120,10 +113,8 @@ export async function checkRuntimeHealth(signal?: AbortSignal): Promise<RuntimeM
 
 export function fetchRuntimeMode(): Promise<RuntimeMode> {
   modeRequest ??= readRuntimeMode().catch(() => {
-    // Forget the failure rather than the answer: a blip should not pin the whole session
-    // to fixtures, but until it is asked again the answer stays the safe one.
     modeRequest = null;
-    return FIXTURE_ONLY;
+    throw new ApiError('We could not confirm the generation mode. Please try again.', 'general');
   });
 
   return modeRequest;
@@ -192,14 +183,22 @@ export async function requestTryOn({
   garmentIds,
   garmentInputs,
   makeupLookId,
+  fullBody,
 }: {
   portraitRef: string;
   portrait: CapturedPortrait | null;
   garmentIds: readonly string[];
   garmentInputs: readonly (CapturedImage | null)[];
   makeupLookId: string;
+  fullBody?: FullBodyInputs;
 }): Promise<TryOnResponse> {
-  const { liveTryOn } = await fetchRuntimeMode();
+  const { liveTryOn, fullBodyTryOn } = await fetchRuntimeMode();
+  if (fullBody?.enabled && (!liveTryOn || !fullBodyTryOn)) {
+    throw new ApiError('Full-body generation is unavailable. Turn off the full-body option to continue.', 'general');
+  }
+  if (fullBody?.enabled && (!fullBody.portrait || !fullBody.trousers)) {
+    throw new ApiError('Add a full-body photo and trousers before generating.', 'general');
+  }
 
   // The fixture path generates from shipped results, not from these files. Returning
   // early keeps them unread: no base64, no request body carrying them, nothing to undo.
@@ -219,6 +218,10 @@ export async function requestTryOn({
     garmentIds,
     makeupLookId,
     ...(portrait ? { portrait: await fileAsImageInput(portrait.file) } : {}),
+    ...(fullBody?.enabled ? { fullBody: {
+      portrait: await fileAsImageInput(fullBody.portrait!.file),
+      trousers: await fileAsImageInput(fullBody.trousers!.file),
+    } } : {}),
     ...(Object.keys(garmentImages).length > 0 ? { garmentImages } : {}),
   };
 
