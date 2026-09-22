@@ -7,7 +7,7 @@
  * provider paths; this screen keeps that boundary visible.
  */
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { checkImageDimensions, IMAGE_SPEC, MAKEUP_LOOKS, type ImageCheck } from '@yincol/shared';
 import type { BackendReadiness } from '../components/BackendStatus.js';
 import { Button } from '../components/controls.js';
@@ -18,6 +18,7 @@ import {
   type CapturedPortrait,
 } from '../state/session.js';
 import { uploadsSentence } from '../config/privacyCopy.js';
+import { createImageReader } from '../components/imageRead.js';
 
 type InputSlot = 'portrait' | 'garmentA' | 'garmentB' | 'fullPortrait' | 'trousers';
 
@@ -82,9 +83,16 @@ function ImagePickerCard({
   const [reading, setReading] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const copy = SLOT_COPY[slot];
+  const reader = useRef<ReturnType<typeof createImageReader> | null>(null);
+  reader.current ??= createImageReader();
+
+  // A discarded input must not return when its pending image decode finishes.
+  useEffect(() => () => reader.current?.cancel(), [image]);
 
   const handleFile = (file: File | undefined) => {
     if (!file) return;
+    reader.current?.cancel();
+    setReading(false);
 
     if (file.type !== 'image/jpeg' && file.type !== 'image/png') {
       setCheck({
@@ -105,39 +113,28 @@ function ImagePickerCard({
     }
 
     setReading(true);
-    const previewUrl = URL.createObjectURL(file);
-    const imageElement = new Image();
-
-    imageElement.onload = () => {
-      const verdict = checkImageDimensions(imageElement.naturalWidth, imageElement.naturalHeight);
+    reader.current?.read(file, (decoded) => {
+      const verdict = checkImageDimensions(decoded.width, decoded.height);
       setCheck(verdict);
       setReading(false);
 
       if (!verdict.usable) {
-        URL.revokeObjectURL(previewUrl);
+        URL.revokeObjectURL(decoded.previewUrl);
         return;
       }
 
       onChange({
-        previewUrl,
-        file,
-        width: imageElement.naturalWidth,
-        height: imageElement.naturalHeight,
+        ...decoded,
         ...(verdict.code === 'belowHd' ? { note: verdict.message } : {}),
       });
-    };
-
-    imageElement.onerror = () => {
-      URL.revokeObjectURL(previewUrl);
+    }, () => {
       setReading(false);
       setCheck({
         code: 'tooSmall',
         usable: false,
         message: 'That file could not be read as an image. Please try another.',
       });
-    };
-
-    imageElement.src = previewUrl;
+    });
   };
 
   return (
@@ -175,18 +172,26 @@ function ImagePickerCard({
         <input
           ref={fileInput}
           type="file"
+          tabIndex={-1}
+          aria-hidden="true"
+          aria-label={copy.acceptLabel}
           accept="image/jpeg,image/png"
-          className="sr-only"
+          className="hidden"
           onChange={(event) => {
             handleFile(event.target.files?.[0]);
             event.currentTarget.value = '';
           }}
         />
         <Button className="!px-4 text-sm" onClick={() => fileInput.current?.click()}>
-          {image ? 'Replace' : copy.acceptLabel}
+          {image ? 'Replace ' + copy.title.toLowerCase() : copy.acceptLabel}
         </Button>
         {image && onClear ? (
-          <Button variant="link" className="text-sm" onClick={onClear}>
+          <Button variant="link" className="text-sm" onClick={() => {
+            reader.current?.cancel();
+            setReading(false);
+            setCheck(null);
+            onClear();
+          }}>
             Remove
           </Button>
         ) : null}

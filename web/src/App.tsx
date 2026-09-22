@@ -86,6 +86,7 @@ function StageProgress({ step }: { step: Step }) {
 export function App() {
   const [state, dispatch] = useReducer(sessionReducer, initialState);
   const [runtimeMode, setRuntimeMode] = useState<RuntimeMode | null>(null);
+  const [inputSessionId, setInputSessionId] = useState(0);
   const generationRunning = useRef(false);
   useEffect(() => {
     // Old gallery bookmarks now enter the regular consent/upload flow.
@@ -302,6 +303,7 @@ export function App() {
 
   const handleClearPortrait = useCallback(() => {
     voidGeneration();
+    setInputSessionId(current => current + 1);
     dispatch({ type: 'clearPortrait' });
   }, [voidGeneration]);
 
@@ -386,6 +388,7 @@ export function App() {
       case 'inputs':
         return (
           <InputsScreen
+            key={inputSessionId}
             portrait={state.portrait}
             garmentInputs={state.garmentInputs}
             makeupLookId={state.makeupLookId}
