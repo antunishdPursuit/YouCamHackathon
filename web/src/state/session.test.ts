@@ -91,3 +91,15 @@ describe('guided comparison navigation', () => {
     expect(state.tryOn).toBe(closeOnly);
   });
 });
+
+
+it('preserves completed work when choosing the selected makeup again, but invalidates a changed choice', () => {
+  const generated = { ...ready, analysis: {} as NonNullable<SessionState['analysis']>,
+    tryOn: {} as NonNullable<SessionState['tryOn']>, keptGarmentIds: ['a'], fullBodyKeptGarmentIds: ['b'] };
+  expect(sessionReducer(generated, { type: 'chooseMakeup', lookId: ready.makeupLookId! })).toBe(generated);
+  const changed = sessionReducer(generated, { type: 'chooseMakeup', lookId: 'rose-veil' });
+  expect(changed.tryOn).toBeNull();
+  expect(changed.analysis).toBeNull();
+  expect(changed.keptGarmentIds).toEqual([]);
+  expect(changed.fullBodyKeptGarmentIds).toEqual([]);
+});

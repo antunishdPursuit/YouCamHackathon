@@ -27,6 +27,7 @@ import { AnalysisScreen } from './screens/AnalysisScreen.js';
 import { ResultsScreen } from './screens/ResultsScreen.js';
 import {
   initialState,
+  inputsComplete,
   sessionReducer,
   STEP_ORDER,
   type Step,
@@ -85,6 +86,7 @@ function StageProgress({ step }: { step: Step }) {
 export function App() {
   const [state, dispatch] = useReducer(sessionReducer, initialState);
   const [runtimeMode, setRuntimeMode] = useState<RuntimeMode | null>(null);
+  const generationRunning = useRef(false);
   useEffect(() => {
     // Old gallery bookmarks now enter the regular consent/upload flow.
     if (window.location.hash === '#full-body') {
@@ -186,6 +188,7 @@ export function App() {
     generationId.current += 1;
     clearGenerationCache();
     setGenerationSource(null);
+    generationRunning.current = false;
   }, []);
 
   /**
@@ -196,7 +199,8 @@ export function App() {
    * sent in the same request and uploaded server-side through the feature File APIs.
    */
   const beginAnalysis = useCallback(async () => {
-    if (backendReadiness !== 'ready') return;
+    if (backendReadiness !== 'ready' || generationRunning.current || !inputsComplete(state)) return;
+    generationRunning.current = true;
 
     // Starting a generation also supersedes any earlier one still in flight.
     generationId.current += 1;
@@ -205,16 +209,30 @@ export function App() {
 
     setGenerationSource(null);
     dispatch({ type: 'analysisStarted' });
+    const currentRuntime = runtimeMode;
     const portraitRef = 'fixture:portrait';
     const portrait = state.portrait;
     const garmentInputs = [state.garmentInputs.a, state.garmentInputs.b] as const;
 
     try {
+      const mode = await checkRuntimeHealth();
+      if (superseded()) return;
+      const willUpload = mode.liveSkinAnalysis || mode.liveTryOn;
+      setImagesLeaveTab(willUpload);
+      setRuntimeMode(mode);
+      if (state.fullBody.enabled && !mode.fullBodyTryOn) {
+        throw new ApiError('Full-body generation is unavailable. Return to inputs and turn off the option.', 'general');
+      }
+      if ((willUpload && imagesLeaveTab !== true) || (mode.liveSkinAnalysis !== currentRuntime?.liveSkinAnalysis || mode.liveTryOn !== currentRuntime?.liveTryOn)) {
+        throw new ApiError('Generation settings changed. Return to inputs to review the updated upload and unit estimate before generating.', 'general');
+      }
       const cacheKey = await generationCacheKey({
         portrait,
         fullBody: state.fullBody,
         garmentInputs,
         makeupLookId: state.makeupLookId,
+        liveSkinAnalysis: mode.liveSkinAnalysis,
+        liveTryOn: mode.liveTryOn,
       });
       const cached = cacheKey ? readGenerationCache(cacheKey) : null;
       if (superseded()) return;
@@ -277,8 +295,10 @@ export function App() {
         message: error instanceof Error ? error.message : 'Something went wrong.',
         code: error instanceof ApiError ? error.code : 'general',
       });
+    } finally {
+      if (!superseded()) generationRunning.current = false;
     }
-  }, [backendReadiness, state.garmentIds, state.garmentInputs.a, state.garmentInputs.b, state.makeupLookId, state.portrait, state.fullBody]);
+  }, [imagesLeaveTab, backendReadiness, runtimeMode, state]);
 
   const handleClearPortrait = useCallback(() => {
     voidGeneration();
@@ -383,6 +403,7 @@ export function App() {
               dispatch({ type: 'clearGarmentInput', slot });
             }}
             onChooseMakeup={(lookId) => {
+              if (lookId === state.makeupLookId) return;
               voidGeneration();
               dispatch({ type: 'chooseMakeup', lookId });
             }}

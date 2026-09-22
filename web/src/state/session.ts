@@ -201,6 +201,7 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
       };
 
     case 'chooseMakeup':
+      if (action.lookId === state.makeupLookId) return state;
       return {
         ...state,
         ...clearedResults,
