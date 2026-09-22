@@ -86,3 +86,42 @@ describe('createCorsMiddleware', () => {
     });
   });
 });
+
+
+describe('multiple exact preview origins', () => {
+  const privateOrigin = 'https://preview.example.ts.net:8443';
+  const localOrigin = 'http://localhost:8787';
+  const configured = ` ${privateOrigin}/, ${localOrigin}/ `;
+
+  it.each([privateOrigin, localOrigin])('accepts %s and returns only that origin', (origin) => {
+    const { res, next } = run(configured, origin);
+    expect(next).toHaveBeenCalledOnce();
+    expect(res.headers['Access-Control-Allow-Origin']).toBe(origin);
+    expect(res.headers['Vary']).toBe('Origin');
+  });
+
+  it.each([privateOrigin, localOrigin])('allows preflight for %s', (origin) => {
+    const { res, next } = run(configured, origin, 'OPTIONS');
+    expect(next).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(204);
+    expect(res.headers['Access-Control-Allow-Origin']).toBe(origin);
+  });
+
+  it.each([
+    'https://other.example',
+    'http://localhost:8788',
+    'https://localhost:8787',
+    'https://preview.example.ts.net:8443.other.example',
+  ])('rejects unlisted origin %s', (origin) => {
+    const { res, next } = run(configured, origin);
+    expect(next).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(403);
+    expect(res.headers['Access-Control-Allow-Origin']).toBeUndefined();
+  });
+
+  it.each([', ,', '*'])('does not open access for an invalid list %s', (origins) => {
+    const { res, next } = run(origins, 'https://other.example');
+    expect(next).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(403);
+  });
+});

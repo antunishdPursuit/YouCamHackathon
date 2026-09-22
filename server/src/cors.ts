@@ -12,20 +12,26 @@ function normaliseOrigin(origin: string | undefined): string | undefined {
  * Allow the static site to call the API without opening the API to every browser origin.
  *
  * Requests without an Origin header still pass through for local tooling and direct
- * health checks. Once an origin is configured, browser origins must match exactly.
+ * health checks. A comma-separated list can allow both local and private preview
+ * addresses. Every browser origin must still match one configured value exactly.
  */
 export function createCorsMiddleware(configuredOrigin?: string) {
-  const allowedOrigin = normaliseOrigin(configuredOrigin);
+  const configured = Boolean(configuredOrigin?.trim());
+  const allowedOrigins = new Set(
+    (configuredOrigin ?? '').split(',').map(normaliseOrigin).filter(
+      (origin): origin is string => Boolean(origin) && origin !== '*',
+    ),
+  );
 
   return (req: Request, res: Response, next: NextFunction): void => {
     const requestOrigin = req.get('Origin');
 
-    if (!allowedOrigin || !requestOrigin) {
+    if (!configured || !requestOrigin) {
       next();
       return;
     }
 
-    if (requestOrigin !== allowedOrigin) {
+    if (!allowedOrigins.has(requestOrigin)) {
       res.status(403).json({
         code: 'general',
         error: 'This origin is not allowed.',
@@ -33,7 +39,7 @@ export function createCorsMiddleware(configuredOrigin?: string) {
       return;
     }
 
-    res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+    res.setHeader('Access-Control-Allow-Origin', requestOrigin);
     res.setHeader('Access-Control-Allow-Methods', ALLOWED_METHODS);
     res.setHeader('Access-Control-Allow-Headers', ALLOWED_HEADERS);
     res.setHeader('Access-Control-Max-Age', '600');
