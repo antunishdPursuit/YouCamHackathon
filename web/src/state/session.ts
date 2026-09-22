@@ -36,6 +36,12 @@ export type CapturedPortrait = CapturedImage;
 
 /** Which axis the results workspace is showing. */
 export type CompareAxis = 'garments' | 'makeup';
+export type ResultView = 'closeup' | 'fullBody';
+export interface FullBodyInputs {
+  readonly enabled: boolean;
+  readonly portrait: CapturedImage | null;
+  readonly trousers: CapturedImage | null;
+}
 
 /**
  * The two panels on the makeup axis.
@@ -57,6 +63,10 @@ export interface SessionState {
   /** Fixture catalog ids used only to keep the current local result pipeline working. */
   readonly garmentIds: readonly string[];
   readonly makeupLookId: string | null;
+  readonly fullBody: FullBodyInputs;
+  readonly resultView: ResultView;
+  readonly fullBodyKeptGarmentIds: readonly string[];
+  readonly fullBodyKeptMakeupWinners: readonly MakeupChoice[];
   readonly analysis: AnalyzeResponse | null;
   readonly tryOn: TryOnResponse | null;
   readonly axis: CompareAxis;
@@ -76,6 +86,10 @@ export const initialState: SessionState = {
   garmentInputs: { a: null, b: null },
   garmentIds: [],
   makeupLookId: null,
+  fullBody: { enabled: false, portrait: null, trousers: null },
+  resultView: 'closeup',
+  fullBodyKeptGarmentIds: [],
+  fullBodyKeptMakeupWinners: [],
   analysis: null,
   tryOn: null,
   axis: 'garments',
@@ -88,6 +102,9 @@ export const initialState: SessionState = {
 
 export type SessionAction =
   | { type: 'giveConsent' }
+  | { type: 'enableFullBody'; enabled: boolean }
+  | { type: 'setFullBodyInput'; slot: 'portrait' | 'trousers'; image: CapturedImage | null }
+  | { type: 'setResultView'; view: ResultView }
   | { type: 'goTo'; step: Step }
   | { type: 'setPortrait'; portrait: CapturedPortrait }
   | { type: 'clearPortrait' }
@@ -110,7 +127,14 @@ export const inputsComplete = (state: SessionState): boolean =>
   state.portrait !== null &&
   state.garmentInputs.a !== null &&
   state.garmentInputs.b !== null &&
-  state.makeupLookId !== null;
+  state.makeupLookId !== null &&
+  (!state.fullBody.enabled || (state.fullBody.portrait !== null && state.fullBody.trousers !== null));
+
+const clearedResults = {
+  analysis: null, tryOn: null, keptGarmentIds: [], keptMakeupWinners: [],
+  fullBodyKeptGarmentIds: [], fullBodyKeptMakeupWinners: [],
+  resultView: 'closeup' as const, error: null, errorCode: null,
+};
 
 export function sessionReducer(state: SessionState, action: SessionAction): SessionState {
   switch (action.type) {
@@ -118,15 +142,21 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
       return { ...state, consentGiven: true };
 
     case 'goTo':
-      return { ...state, step: action.step, error: null };
+      return { ...state, step: action.step, error: null, errorCode: null };
 
+    case 'enableFullBody':
+      return { ...state, ...clearedResults, fullBody: action.enabled
+        ? { ...state.fullBody, enabled: true }
+        : { enabled: false, portrait: null, trousers: null } };
+    case 'setFullBodyInput':
+      return { ...state, ...clearedResults, fullBody: { ...state.fullBody, [action.slot]: action.image } };
+    case 'setResultView':
+      return { ...state, resultView: action.view === 'fullBody' && !state.tryOn?.fullBody ? 'closeup' : action.view };
     case 'setPortrait':
       return {
         ...state,
+        ...clearedResults,
         portrait: action.portrait,
-        keptGarmentIds: [],
-        keptMakeupWinners: [],
-        error: null,
       };
 
     case 'clearPortrait':
@@ -140,30 +170,22 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
       };
 
     case 'setGarmentInput': {
-      const fixtureId = action.slot === 'a' ? 'rosewater-cardigan' : 'sage-linen-shirt';
-      const otherId = action.slot === 'a'
-        ? state.garmentIds[1] ?? 'sage-linen-shirt'
-        : state.garmentIds[0] ?? 'rosewater-cardigan';
       return {
         ...state,
+        ...clearedResults,
         garmentInputs: { ...state.garmentInputs, [action.slot]: action.image },
-        garmentIds: action.slot === 'a' ? [fixtureId, otherId] : [otherId, fixtureId],
-        keptGarmentIds: [],
-        keptMakeupWinners: [],
-        error: null,
+        garmentIds: ['rosewater-cardigan', 'sage-linen-shirt'],
       };
     }
 
     case 'clearGarmentInput':
       return {
         ...state,
+        ...clearedResults,
         garmentInputs: { ...state.garmentInputs, [action.slot]: null },
         garmentIds: state.garmentIds.filter((_id, index) =>
           action.slot === 'a' ? index !== 0 : index !== 1,
         ),
-        keptGarmentIds: [],
-        keptMakeupWinners: [],
-        error: null,
       };
 
     case 'editInputs':
@@ -181,25 +203,33 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
     case 'chooseMakeup':
       return {
         ...state,
+        ...clearedResults,
         makeupLookId: action.lookId,
-        keptGarmentIds: [],
-        keptMakeupWinners: [],
-        error: null,
       };
 
     case 'analysisStarted':
-      return { ...state, busy: true, error: null, step: 'generate' };
+      return { ...state, ...clearedResults, busy: true, step: 'generate' };
 
     case 'analysisReady':
       return { ...state, analysis: action.analysis };
 
     case 'tryOnReady':
-      return { ...state, tryOn: action.tryOn, busy: false };
+      return { ...state, tryOn: action.tryOn, busy: false, axis: 'garments',
+        resultView: action.tryOn.fullBody ? 'fullBody' : 'closeup' };
 
     case 'setAxis':
-      return { ...state, axis: action.axis };
+      // A comparison opens on the view best suited to its task. Explicit view changes
+      // remain available, and no generated data or kept choices are changed here.
+      return { ...state, axis: action.axis,
+        resultView: action.axis === 'garments' && state.tryOn?.fullBody ? 'fullBody' : 'closeup' };
 
     case 'toggleGarmentKept': {
+      if (state.resultView === 'fullBody') {
+        const kept = state.fullBodyKeptGarmentIds.includes(action.garmentId);
+        return { ...state, fullBodyKeptGarmentIds: kept
+          ? state.fullBodyKeptGarmentIds.filter(id => id !== action.garmentId)
+          : [...state.fullBodyKeptGarmentIds, action.garmentId] };
+      }
       const kept = state.keptGarmentIds.includes(action.garmentId);
       return {
         ...state,
@@ -210,6 +240,12 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
     }
 
     case 'toggleMakeupKept': {
+      if (state.resultView === 'fullBody') {
+        const kept = state.fullBodyKeptMakeupWinners.includes(action.winner);
+        return { ...state, fullBodyKeptMakeupWinners: kept
+          ? state.fullBodyKeptMakeupWinners.filter(id => id !== action.winner)
+          : [...state.fullBodyKeptMakeupWinners, action.winner] };
+      }
       const kept = state.keptMakeupWinners.includes(action.winner);
       return {
         ...state,

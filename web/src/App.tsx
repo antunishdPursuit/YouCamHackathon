@@ -14,6 +14,7 @@ import {
   requestAnalysis,
   requestSkinAnalysis,
   requestTryOn,
+  type RuntimeMode,
 } from './api/client.js';
 import { BackendStatus, type BackendReadiness } from './components/BackendStatus.js';
 import { StateNotice } from './components/StateNotice.js';
@@ -83,6 +84,14 @@ function StageProgress({ step }: { step: Step }) {
 
 export function App() {
   const [state, dispatch] = useReducer(sessionReducer, initialState);
+  const [runtimeMode, setRuntimeMode] = useState<RuntimeMode | null>(null);
+  useEffect(() => {
+    // Old gallery bookmarks now enter the regular consent/upload flow.
+    if (window.location.hash === '#full-body') {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+  }, []);
+
   const [generationSource, setGenerationSource] = useState<'cache' | 'network' | null>(null);
 
   /**
@@ -103,6 +112,7 @@ export function App() {
 
     setBackendReadiness('checking');
     setImagesLeaveTab(null);
+    setRuntimeMode(null);
 
     statusTimer = window.setTimeout(() => {
       if (!cancelled) {
@@ -124,6 +134,7 @@ export function App() {
 
           setBackendReadiness('ready');
           setImagesLeaveTab(mode.liveSkinAnalysis || mode.liveTryOn);
+          setRuntimeMode(mode);
         })
         .catch(() => {
           window.clearTimeout(timeout);
@@ -201,6 +212,7 @@ export function App() {
     try {
       const cacheKey = await generationCacheKey({
         portrait,
+        fullBody: state.fullBody,
         garmentInputs,
         makeupLookId: state.makeupLookId,
       });
@@ -240,6 +252,7 @@ export function App() {
       const tryOn = await requestTryOn({
         portraitRef,
         portrait,
+        fullBody: state.fullBody,
         garmentIds: state.garmentIds,
         garmentInputs,
         makeupLookId: state.makeupLookId ?? '',
@@ -265,7 +278,7 @@ export function App() {
         code: error instanceof ApiError ? error.code : 'general',
       });
     }
-  }, [backendReadiness, state.garmentIds, state.garmentInputs.a, state.garmentInputs.b, state.makeupLookId, state.portrait]);
+  }, [backendReadiness, state.garmentIds, state.garmentInputs.a, state.garmentInputs.b, state.makeupLookId, state.portrait, state.fullBody]);
 
   const handleClearPortrait = useCallback(() => {
     voidGeneration();
@@ -301,6 +314,15 @@ export function App() {
     };
   }, [state.garmentInputs.b?.previewUrl]);
 
+  useEffect(() => {
+    const url = state.fullBody.portrait?.previewUrl;
+    return () => { if (url) URL.revokeObjectURL(url); };
+  }, [state.fullBody.portrait?.previewUrl]);
+  useEffect(() => {
+    const url = state.fullBody.trousers?.previewUrl;
+    return () => { if (url) URL.revokeObjectURL(url); };
+  }, [state.fullBody.trousers?.previewUrl]);
+
   const analysisDone = state.analysis !== null && state.tryOn !== null;
 
   const screen = (() => {
@@ -329,11 +351,14 @@ export function App() {
             garmentIds={state.garmentIds}
             keptGarmentIds={state.keptGarmentIds}
             keptMakeupWinners={state.keptMakeupWinners}
+            fullBodyKeptGarmentIds={state.fullBodyKeptGarmentIds}
+            fullBodyKeptMakeupWinners={state.fullBodyKeptMakeupWinners}
             makeupLookId={state.makeupLookId}
             imagesLeaveTab={imagesLeaveTab}
+            resuming={Boolean(state.fullBody.enabled || state.portrait || state.garmentInputs.a || state.garmentInputs.b || state.makeupLookId)}
             onBegin={() => {
               dispatch({ type: 'giveConsent' });
-              dispatch({ type: 'goTo', step: 'inputs' });
+              dispatch({ type: 'editInputs' });
             }}
           />
         );
@@ -364,6 +389,18 @@ export function App() {
             onContinue={beginAnalysis}
             onBack={() => dispatch({ type: 'goTo', step: 'intro' })}
             backendReadiness={backendReadiness}
+            fullBody={state.fullBody}
+            fullBodyAvailable={runtimeMode?.fullBodyTryOn === true}
+            onEnableFullBody={(enabled) => {
+              voidGeneration();
+              dispatch({ type: 'enableFullBody', enabled });
+            }}
+            onFullBodyInput={(slot, image) => {
+              voidGeneration();
+              dispatch({ type: 'setFullBodyInput', slot, image });
+            }}
+            estimatedUnits={runtimeMode ? (runtimeMode.liveTryOn ? 6 : 0) +
+              (runtimeMode.liveSkinAnalysis ? 12 : 0) + (state.fullBody.enabled ? 8 : 0) : null}
           />
         );
 
@@ -381,12 +418,17 @@ export function App() {
         return state.analysis && state.tryOn ? (
           <ResultsScreen
             analysis={state.analysis}
+            resultView={state.resultView}
+            onResultView={(view) => dispatch({ type: 'setResultView', view })}
+            {...(state.fullBody.portrait ? { fullBodySize: {
+              width: state.fullBody.portrait.width, height: state.fullBody.portrait.height,
+            } } : {})}
             tryOn={state.tryOn}
             garmentIds={state.garmentIds}
             makeupLookId={state.makeupLookId}
             axis={state.axis}
-            keptGarmentIds={state.keptGarmentIds}
-            keptMakeupWinners={state.keptMakeupWinners}
+            keptGarmentIds={state.resultView === 'fullBody' ? state.fullBodyKeptGarmentIds : state.keptGarmentIds}
+            keptMakeupWinners={state.resultView === 'fullBody' ? state.fullBodyKeptMakeupWinners : state.keptMakeupWinners}
             {...(state.portrait
               ? { portraitSize: { width: state.portrait.width, height: state.portrait.height } }
               : {})}

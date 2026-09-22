@@ -14,33 +14,44 @@ import { Button } from '../components/controls.js';
 import { GildedFrame, Ribbon, SectionHeading, YincolCard } from '../components/ornament.js';
 import {
   type CapturedImage,
+  type FullBodyInputs,
   type CapturedPortrait,
 } from '../state/session.js';
 import { uploadsSentence } from '../config/privacyCopy.js';
 
-type InputSlot = 'portrait' | 'garmentA' | 'garmentB';
+type InputSlot = 'portrait' | 'garmentA' | 'garmentB' | 'fullPortrait' | 'trousers';
 
 const SLOT_COPY: Record<
   InputSlot,
   { title: string; description: string; emptyAlt: string; acceptLabel: string }
 > = {
   portrait: {
-    title: 'Portrait',
+    title: 'Close-up portrait',
     description: 'One person, face-on, with the face clearly visible and evenly lit. On a phone, your file picker may also offer the camera.',
     emptyAlt: 'No portrait selected',
     acceptLabel: 'Choose portrait',
   },
   garmentA: {
     title: 'Garment A',
-    description: 'One garment reference with most of the item visible.',
+    description: 'A top reference with most of the item visible. Also used for full-body outfit A.',
     emptyAlt: 'No first garment selected',
     acceptLabel: 'Choose garment A',
   },
   garmentB: {
     title: 'Garment B',
-    description: 'A second garment reference to compare with the first.',
+    description: 'A second top to compare with the first. Also used for full-body outfit B.',
     emptyAlt: 'No second garment selected',
     acceptLabel: 'Choose garment B',
+  },
+  fullPortrait: {
+    title: 'Full-body photo',
+    description: 'The same person standing face-on, with the head, legs, and feet visible.',
+    emptyAlt: 'No full-body photo selected', acceptLabel: 'Choose full-body photo',
+  },
+  trousers: {
+    title: 'Trousers',
+    description: 'A front-facing photo of someone wearing the trousers, with both legs fully visible. Used with both tops.',
+    emptyAlt: 'No trousers selected', acceptLabel: 'Choose trousers',
   },
 };
 
@@ -206,6 +217,7 @@ export function InputsScreen({
   onBack,
   imagesLeaveTab,
   backendReadiness,
+  fullBody, fullBodyAvailable, onEnableFullBody, onFullBodyInput, estimatedUnits,
 }: {
   portrait: CapturedPortrait | null;
   garmentInputs: { readonly a: CapturedImage | null; readonly b: CapturedImage | null };
@@ -218,16 +230,21 @@ export function InputsScreen({
   onBack: () => void;
   imagesLeaveTab: boolean | null;
   backendReadiness: BackendReadiness;
+  fullBody: FullBodyInputs;
+  fullBodyAvailable: boolean;
+  onEnableFullBody: (enabled: boolean) => void;
+  onFullBodyInput: (slot: 'portrait' | 'trousers', image: CapturedImage | null) => void;
+  estimatedUnits: number | null;
 }) {
-  const inputsReady = portrait !== null && garmentInputs.a !== null && garmentInputs.b !== null && makeupLookId !== null;
-  const ready = inputsReady && backendReadiness === 'ready';
+  const inputsReady = portrait !== null && garmentInputs.a !== null && garmentInputs.b !== null && makeupLookId !== null && (!fullBody.enabled || (fullBody.portrait !== null && fullBody.trousers !== null));
+  const ready = inputsReady && backendReadiness === 'ready' && (!fullBody.enabled || fullBodyAvailable);
   const helperText = !inputsReady
-    ? 'Add your portrait, two garments, and a makeup direction to continue.'
+    ? fullBody.enabled ? 'Add both portraits, two tops, trousers, and a makeup direction to continue.' : 'Add your portrait, two garments, and a makeup direction to continue.'
     : backendReadiness === 'delayed'
       ? 'The studio is not ready yet. Try again above when it is available.'
       : backendReadiness !== 'ready'
         ? 'The studio is warming up. Generate previews will be available when it is ready.'
-        : null;
+        : fullBody.enabled && !fullBodyAvailable ? 'Full-body generation is unavailable. Turn off the option to continue with close-up previews.' : null;
 
   return (
     <div className="animate-soft-fade space-y-10">
@@ -261,9 +278,32 @@ export function InputsScreen({
               onClear={() => onClearGarment('b')}
             />
           </div>
-          <p className="mt-4 rounded-card border border-gold/40 bg-surface px-4 py-3 text-sm text-ink-soft">
-            {uploadsSentence(imagesLeaveTab)}
-          </p>
+          <section aria-labelledby="full-body-input-heading" className="mt-6 space-y-4 rounded-card border border-gold/50 bg-surface p-5">
+            <label className="flex min-h-[44px] cursor-pointer items-center gap-3 text-base font-semibold text-ink">
+              <input type="checkbox" checked={fullBody.enabled}
+                disabled={!fullBodyAvailable && !fullBody.enabled}
+                onChange={event => onEnableFullBody(event.target.checked)} />
+              <span id="full-body-input-heading">Include full-body previews</span>
+            </label>
+            <p className="text-sm text-ink-soft">
+              {fullBodyAvailable
+                ? 'Compare your two tops with the same trousers, using an additional full-body photo.'
+                : 'Full-body previews need live generation and are unavailable in the saved demo.'}
+            </p>
+            {fullBody.enabled ? <div className="grid items-start gap-5 sm:grid-cols-2">
+              <ImagePickerCard slot="fullPortrait" image={fullBody.portrait}
+                onChange={image => onFullBodyInput('portrait', image)}
+                onClear={() => onFullBodyInput('portrait', null)} />
+              <ImagePickerCard slot="trousers" image={fullBody.trousers}
+                onChange={image => onFullBodyInput('trousers', image)}
+                onClear={() => onFullBodyInput('trousers', null)} />
+            </div> : null}
+          </section>
+          {!portrait ? (
+            <p className="mt-4 rounded-card border border-gold/40 bg-surface px-4 py-3 text-sm text-ink-soft">
+              {uploadsSentence(imagesLeaveTab)}
+            </p>
+          ) : null}
         </section>
 
         <YincolCard
@@ -317,11 +357,17 @@ export function InputsScreen({
 
       <div className="flex flex-wrap items-center justify-start gap-3">
         <Button variant="quiet" className="w-full sm:w-auto" onClick={onBack}>
-          Back
+          Back to Start
         </Button>
         <Button className="w-full !px-4 text-sm sm:w-auto" disabled={!ready} onClick={onContinue}>
           Generate previews
         </Button>
+        {estimatedUnits !== null && estimatedUnits > 0 ? (
+          <p className="basis-full text-sm text-ink-soft">
+            A new generation uses about {estimatedUnits} YouCam units{fullBody.enabled ? ', including 8 for full-body outfits' : ''}.
+            {' '}Unchanged previews are reused in this tab when available. Changing photos or makeup starts a new generation.
+          </p>
+        ) : null}
         {helperText ? <p className="basis-full text-sm text-ink-soft">{helperText}</p> : null}
       </div>
     </div>

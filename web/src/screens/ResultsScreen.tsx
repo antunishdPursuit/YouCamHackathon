@@ -18,7 +18,7 @@ import { MotionPreview } from '../components/MotionPreview.js';
 import { motionSampleKind } from '../components/motionSample.js';
 import { DISPLAY_SLOTS, frameAspectRatio, type DisplaySlotConfig } from '../config/displaySlots.js';
 import { SectionHeading, YincolCard } from '../components/ornament.js';
-import type { CompareAxis, MakeupChoice } from '../state/session.js';
+import type { CompareAxis, MakeupChoice, ResultView } from '../state/session.js';
 
 interface ResultPanel {
   readonly key: string;
@@ -116,7 +116,8 @@ function PaletteSummary({ analysis }: { analysis: AnalyzeResponse }) {
 
 export function ResultsScreen({
   analysis,
-  tryOn,
+  tryOn: generation,
+  resultView, onResultView, fullBodySize,
   garmentIds,
   makeupLookId,
   axis,
@@ -131,6 +132,9 @@ export function ResultsScreen({
 }: {
   analysis: AnalyzeResponse;
   tryOn: TryOnResponse;
+  resultView: ResultView;
+  onResultView: (view: ResultView) => void;
+  fullBodySize?: { readonly width: number; readonly height: number };
   garmentIds: readonly string[];
   makeupLookId: string | null;
   axis: CompareAxis;
@@ -144,9 +148,12 @@ export function ResultsScreen({
   onEditInputs: () => void;
   onStartOver: () => void;
 }) {
+  const fullBody = resultView === 'fullBody' && Boolean(generation.fullBody);
+  const tryOn = fullBody ? generation.fullBody! : generation;
+  const size = fullBody ? fullBodySize : portraitSize;
   const look = makeupLookId ? findMakeupLook(makeupLookId) : undefined;
   const lookName = look?.name ?? 'the chosen';
-  const frame = frameAspectRatio(portraitSize?.width, portraitSize?.height);
+  const frame = frameAspectRatio(size?.width, size?.height);
 
   /**
    * One angle per card, keyed by the card, and nothing shared between them.
@@ -218,7 +225,7 @@ export function ResultsScreen({
   // Scoped to the Garments axis, where both cards are complete looks. The Makeup axis
   // compares a garment-only preview against a complete look, and tilting one of those two
   // would put a difference between them that is not the makeup step.
-  const showsTilt = axis === 'garments';
+  const showsTilt = axis === 'garments' && !fullBody;
   const hasTiltableCard = showsTilt && panels.some(
     (entry) => entry.panel?.result.status === 'ready' && !motionSampleKind(entry.panel, tryOn.mode),
   );
@@ -230,6 +237,16 @@ export function ResultsScreen({
     <div className="animate-soft-fade space-y-8">
       <header className="text-center">
         <SectionHeading className="text-4xl">Your comparison</SectionHeading>
+          {generation.fullBody ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-ink-soft">View</span>
+              <Segmented label="Preview view" value={resultView} onChange={onResultView}
+                options={[
+                  { value: 'closeup', label: 'Close-up', hint: 'your close-up portrait previews' },
+                  { value: 'fullBody', label: 'Full body', hint: 'your uploaded full-body photo with both tops and trousers' },
+                ]} />
+            </div>
+          ) : null}
         <p className="mx-auto mt-3 max-w-reading text-base text-ink-soft">
           {tryOn.mode === 'fixture'
             ? 'Compare saved demo looks, or switch to Makeup to compare garment-only and complete-look previews. Your photos are not used to generate these results.'
@@ -278,7 +295,7 @@ export function ResultsScreen({
             // The control belongs only to a complete-look card with a picture in it. A
             // failed or empty card keeps its designed state: there is nothing to tilt,
             // and offering the control would imply otherwise.
-            const motionKind = axis === 'garments' ? motionSampleKind(entry.panel, tryOn.mode) : undefined;
+            const motionKind = axis === 'garments' && !fullBody ? motionSampleKind(entry.panel, tryOn.mode) : undefined;
             const canTiltThisCard = showsTilt && !motionKind && entry.panel?.result.status === 'ready';
 
             const caption = (
@@ -300,13 +317,14 @@ export function ResultsScreen({
             );
 
             return (
-              <article key={entry.key} className="flex flex-col">
+              <article key={resultView + entry.key} className="flex flex-col">
                 {motionKind === 'video' && entry.panel?.result.status === 'ready' ? (
                   <MotionPreview key={entry.panel.result.imageUrl}
                     imageUrl={entry.panel.result.imageUrl} alt={entry.panel.result.alt}
                     slot={entry.slot} aspectRatio={frame}>{caption}</MotionPreview>
                 ) : <>
                   <PhotoSlot slot={entry.slot} aspectRatio={frame}
+                    className={fullBody ? "[&>div]:max-h-portrait [&>div]:w-full" : ""}
                     showProvenance={tryOn.mode !== 'fixture'}
                     {...(canTiltThisCard ? { tiltDegrees: tiltFor(entry.key) } : {})}
                     {...(entry.panel ? {

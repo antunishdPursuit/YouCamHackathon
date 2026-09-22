@@ -23,6 +23,9 @@ export default {
       borderRadius: {
         card: '20px',
       },
+      maxHeight: {
+        portrait: '70svh',
+      },
       maxWidth: {
         yincol: '100rem',
         reading: '60ch',

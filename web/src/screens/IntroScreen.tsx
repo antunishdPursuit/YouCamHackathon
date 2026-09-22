@@ -23,30 +23,35 @@ function KeptLooks({
   garmentIds,
   keptGarmentIds,
   keptMakeupWinners,
+  fullBodyKeptGarmentIds,
+  fullBodyKeptMakeupWinners,
   makeupLookId,
   className = '',
 }: {
   garmentIds: readonly string[];
   keptGarmentIds: readonly string[];
   keptMakeupWinners: readonly MakeupChoice[];
+  fullBodyKeptGarmentIds: readonly string[];
+  fullBodyKeptMakeupWinners: readonly MakeupChoice[];
   makeupLookId: string | null;
   className?: string;
 }) {
   const keptOptions = [
-    ...keptGarmentIds.map((garmentId) => {
+    { view: 'Close-up', garmentIds: keptGarmentIds, makeupWinners: keptMakeupWinners },
+    { view: 'Full body', garmentIds: fullBodyKeptGarmentIds, makeupWinners: fullBodyKeptMakeupWinners },
+  ].flatMap(({ view, garmentIds: keptIds, makeupWinners }) => [
+    ...keptIds.map((garmentId) => {
       const index = garmentIds.indexOf(garmentId);
-      return {
-        id: `garment:${garmentId}`,
-        label: index === 0 ? 'Garment A' : index === 1 ? 'Garment B' : 'Garment option',
-      };
+      const garment = index === 0 ? 'Garment A' : index === 1 ? 'Garment B' : 'Garment option';
+      return { id: `${view}:garment:${garmentId}`, label: `${view} · ${garment}` };
     }),
-    ...keptMakeupWinners.map((winner) => ({
-      id: `makeup:${winner}`,
-      label: winner === 'garmentOnly'
+    ...makeupWinners.map((winner) => ({
+      id: `${view}:makeup:${winner}`,
+      label: `${view} · ${winner === 'garmentOnly'
         ? 'Garment without makeup'
-        : `Complete look — ${(makeupLookId ? findMakeupLook(makeupLookId)?.name : undefined) ?? 'makeup'}`,
+        : `Complete look — ${(makeupLookId ? findMakeupLook(makeupLookId)?.name : undefined) ?? 'makeup'}`}`,
     })),
-  ];
+  ]);
 
   return (
     <YincolCard
@@ -56,7 +61,6 @@ function KeptLooks({
       <h3 id="kept-heading" className="font-display text-2xl text-ink">
         Looks kept
       </h3>
-      <p className="mt-1 text-sm text-ink-soft">Your kept options for this session.</p>
 
       {keptOptions.length === 0 ? (
         <div className="mt-6 rounded-card border border-dashed border-gold/50 px-4 py-8 text-center">
@@ -69,7 +73,7 @@ function KeptLooks({
             />
             <circle cx="30" cy="18" r="2.4" fill="currentColor" opacity="0.6" />
           </svg>
-          <p className="mt-2 text-base text-ink">Nothing kept in this session.</p>
+          <p className="mt-2 text-base text-ink">Nothing kept yet.</p>
           <p className="mt-1 text-sm text-ink-soft">Keep an option and it will appear here while this tab stays open.</p>
         </div>
       ) : (
@@ -97,9 +101,6 @@ function WhatYouGet() {
       <SectionHeading id="get-heading" className="text-2xl">
         What you&apos;ll get
       </SectionHeading>
-      <p className="mt-3 text-base text-ink-soft">
-        An explainable comparison of two garment options and a makeup direction.
-      </p>
       <ul className="mt-6 space-y-4 text-base text-ink">
         <li className="flex gap-3">
           <span aria-hidden="true" className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gold" />
@@ -107,11 +108,7 @@ function WhatYouGet() {
         </li>
         <li className="flex gap-3">
           <span aria-hidden="true" className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gold" />
-          Two garment previews of the same portrait.
-        </li>
-        <li className="flex gap-3">
-          <span aria-hidden="true" className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gold" />
-          Each of those with the configured makeup applied to it.
+          Two garment previews, with and without makeup.
         </li>
         <li className="flex gap-3">
           <span aria-hidden="true" className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gold" />
@@ -132,7 +129,7 @@ function ComparisonGuide() {
         How you&apos;ll compare
       </SectionHeading>
       <p className="mt-3 text-base text-ink-soft">
-        The same portrait is used across the previews while you compare one choice at a time.
+        Compare one choice at a time.
       </p>
 
       <div className="mt-6 space-y-3 text-base" aria-label="Comparison structure">
@@ -152,25 +149,28 @@ function ComparisonGuide() {
         </div>
       </div>
 
-      <p className="mt-5 text-sm text-ink-soft">
-        This is the comparison map, not a generated result. Previews appear after you add your inputs.
-      </p>
     </YincolCard>
   );
 }
 
 export function IntroScreen({
   onBegin,
+  resuming,
   garmentIds,
   keptGarmentIds,
   keptMakeupWinners,
+  fullBodyKeptGarmentIds,
+  fullBodyKeptMakeupWinners,
   makeupLookId,
   imagesLeaveTab,
 }: {
   onBegin: () => void;
+  resuming: boolean;
   garmentIds: readonly string[];
   keptGarmentIds: readonly string[];
   keptMakeupWinners: readonly MakeupChoice[];
+  fullBodyKeptGarmentIds: readonly string[];
+  fullBodyKeptMakeupWinners: readonly MakeupChoice[];
   makeupLookId: string | null;
   imagesLeaveTab: boolean | null;
 }) {
@@ -194,7 +194,7 @@ export function IntroScreen({
           </SectionHeading>
           <p className="mt-3 text-lg text-ink-soft">
             {imagesLeaveTab === false
-              ? 'Explore the comparison with saved demo results. The photos you select stay in this tab and do not change those results.'
+              ? 'Try the comparison with saved demo results.'
               : 'Add one portrait and two garment references. Each result will identify whether it is a saved demo or generated from your uploads.'}
           </p>
           <dl className="mt-5 space-y-4 text-base">
@@ -202,7 +202,7 @@ export function IntroScreen({
               <dt className="font-semibold text-ink">How the comparison works</dt>
               <dd className="text-ink-soft">
                 {imagesLeaveTab === false
-                  ? 'The demo uses example colour readings and saved previews of a demo subject. It does not analyse your photograph.'
+                  ? 'Example colour readings and saved previews show a demo subject. Your selected photos do not change these results and are not analysed.'
                   : 'The palette follows a visible colour rule. Results identify saved examples and any live previews separately.'}
               </dd>
             </div>
@@ -215,8 +215,8 @@ export function IntroScreen({
             <div>
               <dt className="font-semibold text-ink">Deleting it</dt>
               <dd className="text-ink-soft">
-                A delete link stays on every screen that shows your photograph. One tap
-                removes the photograph and everything derived from it.
+                Use “Remove photo and results” wherever your photograph appears to clear
+                it and its results from this session.
               </dd>
             </div>
           </dl>
@@ -227,7 +227,7 @@ export function IntroScreen({
           </p>
 
           <Button className="mt-6 w-full" onClick={onBegin}>
-            Start with a photo
+            {resuming ? 'Continue with your inputs' : 'Start with a photo'}
           </Button>
     </YincolCard>
 
@@ -243,6 +243,8 @@ export function IntroScreen({
           garmentIds={garmentIds}
           keptGarmentIds={keptGarmentIds}
           keptMakeupWinners={keptMakeupWinners}
+          fullBodyKeptGarmentIds={fullBodyKeptGarmentIds}
+          fullBodyKeptMakeupWinners={fullBodyKeptMakeupWinners}
           makeupLookId={makeupLookId}
           className="xl:col-start-1 xl:row-start-1"
         />

@@ -7,19 +7,16 @@
  */
 
 import type { AnalyzeResponse, TryOnResponse } from '@yincol/shared';
-import type { CapturedImage } from './session.js';
+import type { CapturedImage, FullBodyInputs } from './session.js';
 
 /**
- * Bumped to v2 when the try-on response gained its complete-look panels.
- *
- * The version belongs in BOTH the storage key and the cache key. A v1 entry left in a
- * reopened tab would parse cleanly and then render a Results screen with no complete
- * looks in it — a stale-cache bug that looks exactly like a failed generation.
+ * Version 4 includes the optional full-body portrait and trousers.
  */
-const STORAGE_KEY = 'yincol:generation-cache:v2';
+const STORAGE_KEY = 'yincol:generation-cache:v4';
 
 export interface GenerationCacheInput {
   readonly portrait: CapturedImage | null;
+  readonly fullBody?: FullBodyInputs;
   readonly garmentInputs: readonly (CapturedImage | null)[];
   readonly makeupLookId: string | null;
 }
@@ -56,13 +53,18 @@ export async function generationCacheKey(input: GenerationCacheInput): Promise<s
     return null;
   }
 
+  if (input.fullBody?.enabled && (!input.fullBody.portrait || !input.fullBody.trousers)) return null;
   const fingerprints = await Promise.all([
     fileFingerprint(input.portrait.file),
     fileFingerprint(input.garmentInputs[0].file),
     fileFingerprint(input.garmentInputs[1].file),
+    ...(input.fullBody?.enabled ? [
+      fileFingerprint(input.fullBody.portrait!.file),
+      fileFingerprint(input.fullBody.trousers!.file),
+    ] : []),
   ]);
 
-  return JSON.stringify({ version: 2, makeupLookId: input.makeupLookId, fingerprints });
+  return JSON.stringify({ version: 4, fullBody: input.fullBody?.enabled === true, makeupLookId: input.makeupLookId, fingerprints });
 }
 
 export function readGenerationCache(key: string): CachedGeneration | null {
