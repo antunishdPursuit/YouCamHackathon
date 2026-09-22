@@ -9,9 +9,9 @@
  * describe the credential it rejected. Even the bare status is a probing signal: it
  * tells an anonymous caller whether the key behind this server is live.
  *
- * So the detail goes one way and the sentence goes the other. `logFailure` writes the
- * full thing to the server console; `publicFailureReason` returns the sentence the
- * caller wrote for a person. Do both at every public failure site.
+ * Logs retain only structured provider metadata and a bounded error code, never the
+ * raw provider response body. `publicFailureReason` returns the sentence the caller
+ * wrote for a person. Do both at every public failure site.
  *
  * THE RULE. Those two classes are the only places a provider interaction is wrapped, so
  * an error of either class is never published — its message is replaced wholesale by the
@@ -23,7 +23,7 @@
 
 import { ImageUploadError } from './imageInput.js';
 import { YouCamError } from './taskRunner.js';
-import { redactUrls } from './redact.js';
+import { redactUrls, redactUrlsDeep } from './redact.js';
 
 /**
  * Signed provider URLs turn up inside error text, and they are credentials of a sort for
@@ -51,14 +51,19 @@ export function publicFailureReason(error: unknown, fallback: string): string {
 }
 
 /**
- * The other half: the detail, kept where a local tester can see it.
+ * Keep useful diagnostics without retaining provider bodies or signed image URLs.
  *
  * @param context Where the failure happened, e.g. `'try-on garment upload'`.
  */
 export function logFailure(context: string, error: unknown): void {
+  const label = `[yincol] ${redactUrls(context)} —`;
   if (isProviderError(error)) {
-    console.error(`[yincol] ${context} —`, error.message, JSON.stringify(error.detail));
+    const errorCode = /"error_code"\s*:\s*"([A-Za-z0-9_.-]{1,64})"/.exec(error.message)?.[1];
+    const detail = redactUrlsDeep({ ...error.detail, ...(errorCode ? { errorCode } : {}) });
+    console.error(label, error.name, JSON.stringify(detail));
     return;
   }
-  console.error(`[yincol] ${context} —`, error instanceof Error ? error.message : error);
+  const message = error instanceof Error ? error.message
+    : typeof error === 'string' ? error : 'Unexpected error.';
+  console.error(label, redactUrls(message));
 }

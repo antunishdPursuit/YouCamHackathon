@@ -236,8 +236,12 @@ describe('the complete-look sequence', () => {
     expect(reason).not.toContain('E1004');
     expect(reason).not.toContain('clothes-1');
 
-    // It is not simply discarded — the detail is still on the console for a local tester.
+    // Logs keep a useful code, but neither the signed URL nor the provider body.
     expect(consoleError).toHaveBeenCalled();
-    expect(JSON.stringify(consoleError.mock.calls)).toContain('E1004');
+    const logged = JSON.stringify(consoleError.mock.calls);
+    expect(logged).toContain('E1004');
+    expect(logged).not.toContain('token=secret');
+    expect(logged).not.toContain('results.example');
+    expect(logged).not.toContain('task_status');
   });
 });

@@ -1,7 +1,7 @@
 # Secrets — never commit. Use .env.example as the template.
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
 # Dependencies and build output
 node_modules/
@@ -13,6 +13,9 @@ coverage/
 # Source imagery is supplied per-team and carries likeness rights.
 # See assets/README.md. Real faces must never enter version control.
 assets/source/
+
+# Private downloaded YouCam results and their local capture evidence.
+assets/private-results/
 
 # Build brief — kept local, not part of the deliverable.
 PROMPT.md
