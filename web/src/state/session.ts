@@ -1,9 +1,8 @@
 /**
  * The session state machine.
  *
- * One reducer, one shape. There is no database and no account — source uploads live in
- * memory, while completed generated results may be reused from sessionStorage until the
- * tab closes, which is exactly what the consent panel promises.
+ * Source uploads live in memory. Completed outputs are saved separately in browser
+ * history; opening a saved result never restores source uploads or starts provider work.
  */
 
 import type { AnalyzeResponse, TryOnResponse } from '@yincol/shared';
@@ -101,6 +100,7 @@ export const initialState: SessionState = {
 };
 
 export type SessionAction =
+  | { type: 'restoreGeneration'; analysis: AnalyzeResponse; tryOn: TryOnResponse; garmentIds: readonly string[]; makeupLookId: string | null }
   | { type: 'giveConsent' }
   | { type: 'enableFullBody'; enabled: boolean }
   | { type: 'setFullBodyInput'; slot: 'portrait' | 'trousers'; image: CapturedImage | null }
@@ -138,6 +138,12 @@ const clearedResults = {
 
 export function sessionReducer(state: SessionState, action: SessionAction): SessionState {
   switch (action.type) {
+    case 'restoreGeneration':
+      return { ...initialState, consentGiven: state.consentGiven, step: 'results',
+        analysis: action.analysis, tryOn: action.tryOn, garmentIds: action.garmentIds,
+        makeupLookId: action.makeupLookId, resultView: action.tryOn.fullBody ? 'fullBody' : 'closeup',
+        fullBody: { enabled: Boolean(action.tryOn.fullBody), portrait: null, trousers: null } };
+
     case 'giveConsent':
       return { ...state, consentGiven: true };
 

@@ -42,7 +42,7 @@ export function AnalysisScreen({
         Both views will appear in Results when generation finishes.
       </p> : null}
       {failed ? <div><Button variant="quiet" onClick={onBack}>Back to inputs</Button></div> : null}
-      {cached ? <p className="text-sm text-ink-soft">These previews are reused from this session without another generation.</p> : null}
+      {cached ? <p className="text-sm text-ink-soft">These saved previews are reused without another generation.</p> : null}
     </div>
   );
 }

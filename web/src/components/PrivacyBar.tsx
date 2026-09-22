@@ -19,9 +19,11 @@ import { privacyBarSentence } from '../config/privacyCopy.js';
 export function PrivacyBar({
   onDelete,
   imagesLeaveTab,
+  disabled = false,
 }: {
   onDelete: () => void;
   imagesLeaveTab: boolean | null;
+  disabled?: boolean;
 }) {
   const [confirming, setConfirming] = useState(false);
 
@@ -30,7 +32,7 @@ export function PrivacyBar({
       {confirming ? (
         <div className="space-y-2">
           <p className="text-sm text-ink">
-            Remove your photo and results?
+            Remove current photos and all saved looks, including their photos and videos, from this browser?
           </p>
           <div className="flex gap-2">
             <Button
@@ -40,14 +42,14 @@ export function PrivacyBar({
                 onDelete();
               }}
             >
-              Delete it
+              Delete all
             </Button>
             <Button
               variant="quiet"
               className="flex-1 !px-3 text-sm"
               onClick={() => setConfirming(false)}
             >
-              Keep it
+              Cancel
             </Button>
           </div>
         </div>
@@ -70,10 +72,11 @@ export function PrivacyBar({
           </p>
           <button
             type="button"
+            disabled={disabled}
             onClick={() => setConfirming(true)}
             className="min-h-[44px] rounded-full px-3 text-sm font-semibold text-ink underline underline-offset-4"
           >
-            Remove photo and results
+            Remove photos and saved results
           </button>
         </div>
       )}

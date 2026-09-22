@@ -129,6 +129,8 @@ export function ResultsScreen({
   onToggleMakeup,
   onEditInputs,
   onStartOver,
+  videoByImage = {},
+  motionKindByImage = {},
 }: {
   analysis: AnalyzeResponse;
   tryOn: TryOnResponse;
@@ -147,6 +149,8 @@ export function ResultsScreen({
   onToggleMakeup: (winner: MakeupChoice) => void;
   onEditInputs: () => void;
   onStartOver: () => void;
+  videoByImage?: Readonly<Record<string, string>>;
+  motionKindByImage?: Readonly<Record<string, 'video' | 'still'>>;
 }) {
   const fullBody = resultView === 'fullBody' && Boolean(generation.fullBody);
   const tryOn = fullBody ? generation.fullBody! : generation;
@@ -154,6 +158,8 @@ export function ResultsScreen({
   const look = makeupLookId ? findMakeupLook(makeupLookId) : undefined;
   const lookName = look?.name ?? 'the chosen';
   const frame = frameAspectRatio(size?.width, size?.height);
+  const motionForPanel = (panel: TryOnPanel | undefined) => panel?.result.status === 'ready'
+    ? motionKindByImage[panel.result.imageUrl] ?? motionSampleKind(panel, tryOn.mode) : undefined;
 
   /**
    * One angle per card, keyed by the card, and nothing shared between them.
@@ -228,7 +234,7 @@ export function ResultsScreen({
   // would put a difference between them that is not the makeup step.
   const showsTilt = axis === 'garments' && !fullBody;
   const hasTiltableCard = showsTilt && panels.some(
-    (entry) => entry.panel?.result.status === 'ready' && entry.panel.provenance !== 'placeholder' && !motionSampleKind(entry.panel, tryOn.mode),
+    (entry) => entry.panel?.result.status === 'ready' && entry.panel.provenance !== 'placeholder' && !motionForPanel(entry.panel),
   );
   const comparisonNote = axis === 'garments'
     ? `Compare the two outfits with the same ${look?.name ?? 'selected'} makeup. Keep any you like.`
@@ -269,7 +275,8 @@ export function ResultsScreen({
 
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
           {panels.map((entry) => {
-            const motionKind = axis === 'garments' && !fullBody ? motionSampleKind(entry.panel, tryOn.mode) : undefined;
+            const savedVideo = entry.panel?.result.status === 'ready' ? videoByImage[entry.panel.result.imageUrl] : undefined;
+            const motionKind = axis === 'garments' && !fullBody ? (savedVideo ? 'video' : motionForPanel(entry.panel)) : undefined;
             const canTiltThisCard = showsTilt && !motionKind && entry.panel?.provenance !== 'placeholder' && entry.panel?.result.status === 'ready';
             const titleId = `result-${resultView}-${entry.key}`;
             const actions = (
@@ -294,7 +301,7 @@ export function ResultsScreen({
                 </header>
                 {motionKind === 'video' && entry.panel?.result.status === 'ready' ? (
                   <MotionPreview key={entry.panel.result.imageUrl}
-                    imageUrl={entry.panel.result.imageUrl} alt={entry.panel.result.alt}
+                    videoUrl={savedVideo} imageUrl={entry.panel.result.imageUrl} alt={entry.panel.result.alt}
                     slot={entry.slot} aspectRatio={frame}>{actions}</MotionPreview>
                 ) : <>
                   <PhotoSlot slot={entry.slot} aspectRatio={frame}

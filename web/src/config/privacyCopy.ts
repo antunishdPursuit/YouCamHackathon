@@ -14,11 +14,11 @@
 
 /** The persistent privacy bar, on every screen showing the portrait. */
 export function privacyBarSentence(imagesLeaveTab: boolean | null): string {
-  if (imagesLeaveTab === null) return 'No account, no database.';
+  if (imagesLeaveTab === null) return 'Completed previews save on this browser. No account.';
   if (imagesLeaveTab) {
-    return 'Your photograph is sent to the preview service to generate your results. No account, no database.';
+    return 'Your photograph is sent to the preview service to generate your results. Completed previews save on this browser. No account.';
   }
-  return 'Your photograph stays in this tab. No account, no database.';
+  return 'Your photograph stays in this tab. Completed previews save on this browser. No account.';
 }
 
 /** Under the upload slots, where the shopper is deciding whether to hand a file over. */
@@ -42,15 +42,7 @@ export function duringGenerationSentence(imagesLeaveTab: boolean | null): string
 
 /** The "Where it is stored" row of the intro's plain-language privacy table. */
 export function storageSentence(imagesLeaveTab: boolean | null): string {
-  const local =
-    'In this browser tab only, for as long as it stays open. There is no account and no database. Closing the tab ends it.';
-
-  if (imagesLeaveTab === null) return local;
-  if (imagesLeaveTab) {
-    return (
-      'In this browser tab, and sent to the preview service each time you generate results. ' +
-      'There is no account and no database here. Closing the tab ends what this app holds.'
-    );
-  }
-  return local;
+  return (imagesLeaveTab ? 'Uploads are sent to the preview service when you generate. ' : '') +
+    'Source uploads stay in memory. Completed previews and the matching demo video save automatically on this browser. ' +
+    'Closing the browser does not normally remove saved looks. Clearing browser data or storage eviction can remove them; download a backup.';
 }

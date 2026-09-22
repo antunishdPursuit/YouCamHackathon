@@ -21,6 +21,10 @@ import { StateNotice } from './components/StateNotice.js';
 import { PrivacyBar } from './components/PrivacyBar.js';
 import { Wordmark } from './components/ornament.js';
 import { Button } from './components/controls.js';
+import { PreviousLooks, SavedMediaDownloads, CurrentMediaDownloads } from './components/PreviousLooks.js';
+import { useSavedLooks } from './state/useSavedLooks.js';
+import { readSavedLook, openSavedLook, type LookSettings, type OpenedLook } from './state/savedLooks.js';
+import type { CachedGeneration } from './state/generationCache.js';
 import { IntroScreen } from './screens/IntroScreen.js';
 import { InputsScreen } from './screens/InputsScreen.js';
 import { AnalysisScreen } from './screens/AnalysisScreen.js';
@@ -107,6 +111,21 @@ export function App() {
   const [inputSessionId, setInputSessionId] = useState(0);
   const [generationPhase, setGenerationPhase] = useState<'checking' | 'analysis' | 'previews'>('checking');
   const generationRunning = useRef(false);
+  const { looks, loading: historyLoading, error: historyError, saveStatus, setSaveStatus,
+    save: saveLook, remove: removeLook, refresh: refreshHistory } = useSavedLooks();
+  const [activeHistoryKey, setActiveHistoryKey] = useState<string | null>(null);
+  const [openedLook, setOpenedLook] = useState<OpenedLook | null>(null);
+  const [historyBusy, setHistoryBusy] = useState(false);
+  const [historyActionError, setHistoryActionError] = useState<{ message: string; retryRemoval?: boolean } | null>(null);
+  const lastCompleted = useRef<{ cache: CachedGeneration; settings: LookSettings } | null>(null);
+  useEffect(() => () => openedLook?.dispose(), [openedLook]);
+  const saveCompleted = useCallback((cache: CachedGeneration, settings: LookSettings) => {
+    lastCompleted.current = { cache, settings };
+    setActiveHistoryKey(cache.key);
+    void saveLook(cache, settings, () => true);
+  }, [saveLook]);
+  const activeSavedLook = looks.find(look => look.key === activeHistoryKey);
+
   const mainRef = useRef<HTMLElement>(null);
   const currentView = state.step;
   const previousStep = useRef(currentView);
@@ -217,6 +236,9 @@ export function App() {
     generationId.current += 1;
     clearGenerationCache();
     setGenerationSource(null);
+    setOpenedLook(null);
+    setActiveHistoryKey(null);
+    lastCompleted.current = null;
     generationRunning.current = false;
   }, []);
 
@@ -243,6 +265,12 @@ export function App() {
     const portraitRef = 'fixture:portrait';
     const portrait = state.portrait;
     const garmentInputs = [state.garmentInputs.a, state.garmentInputs.b] as const;
+    const settings: LookSettings = { garmentIds: state.garmentIds, makeupLookId: state.makeupLookId,
+      ...(portrait ? { portraitSize: { width: portrait.width, height: portrait.height } } : {}),
+      ...(state.fullBody.portrait ? { fullBodySize: { width: state.fullBody.portrait.width, height: state.fullBody.portrait.height } } : {}) };
+    setOpenedLook(null);
+    setActiveHistoryKey(null);
+    lastCompleted.current = null;
 
     try {
       const mode = await checkRuntimeHealth();
@@ -264,13 +292,32 @@ export function App() {
         liveSkinAnalysis: mode.liveSkinAnalysis,
         liveTryOn: mode.liveTryOn,
       });
-      const cached = cacheKey ? readGenerationCache(cacheKey) : null;
+      if (!cacheKey) throw new ApiError('Could not match your photos to saved looks. Use HTTPS or localhost and try again; no new previews were generated.', 'general');
+      const cached = readGenerationCache(cacheKey);
       if (superseded()) return;
+
+      // A failed history read must never silently trigger paid work for an existing look.
+      const saved = !cached ? await readSavedLook(cacheKey).catch(() => {
+        throw new ApiError('Could not check saved looks. Check browser storage and try again before generating.', 'general');
+      }) : undefined;
+      if (superseded()) return;
+      if (saved) {
+        const restored = openSavedLook(saved);
+        setOpenedLook(restored);
+        setActiveHistoryKey(saved.key);
+        setGenerationSource('cache');
+        setSaveStatus('saved');
+        dispatch({ type: 'analysisReady', analysis: saved.analysis });
+        dispatch({ type: 'tryOnReady', tryOn: restored.tryOn });
+        void refreshHistory();
+        return;
+      }
 
       if (cached) {
         setGenerationSource('cache');
         dispatch({ type: 'analysisReady', analysis: cached.analysis });
         dispatch({ type: 'tryOnReady', tryOn: cached.tryOn });
+        saveCompleted(cached, settings);
         return;
       }
 
@@ -309,15 +356,10 @@ export function App() {
       });
       if (superseded()) return;
 
-      if (cacheKey) {
-        writeGenerationCache({
-          key: cacheKey,
-          savedAt: Date.now(),
-          analysis: combinedAnalysis,
-          tryOn,
-        });
-      }
+      const completed = { key: cacheKey, savedAt: Date.now(), analysis: combinedAnalysis, tryOn };
+      writeGenerationCache(completed);
       dispatch({ type: 'tryOnReady', tryOn });
+      saveCompleted(completed, settings);
     } catch (error) {
       // A discarded generation must not raise a banner about itself either.
       if (superseded()) return;
@@ -330,13 +372,48 @@ export function App() {
     } finally {
       if (!superseded()) generationRunning.current = false;
     }
-  }, [imagesLeaveTab, backendReadiness, runtimeMode, state]);
+  }, [imagesLeaveTab, backendReadiness, runtimeMode, state, saveCompleted, setSaveStatus, refreshHistory]);
 
-  const handleClearPortrait = useCallback(() => {
+  const handleClearPortrait = useCallback(async () => {
     voidGeneration();
     setInputSessionId(current => current + 1);
     dispatch({ type: 'clearPortrait' });
-  }, [voidGeneration]);
+    setHistoryBusy(true);
+    setHistoryActionError(null);
+    try { await removeLook(); }
+    catch { setHistoryActionError({ message: 'Your inputs were cleared, but saved looks could not be deleted. Retry removal to finish.', retryRemoval: true }); }
+    finally { setHistoryBusy(false); }
+  }, [voidGeneration, removeLook]);
+
+  const handleOpenLook = useCallback(async (key: string) => {
+    const openingId = ++generationId.current;
+    setHistoryBusy(true);
+    setHistoryActionError(null);
+    try {
+      const look = await readSavedLook(key);
+      if (openingId !== generationId.current) return;
+      if (!look) { await refreshHistory(); throw new Error('This saved look is no longer on this browser.'); }
+      voidGeneration();
+      const restored = openSavedLook(look);
+      setOpenedLook(restored);
+      setActiveHistoryKey(key);
+      setGenerationSource('cache');
+      setSaveStatus('saved');
+      dispatch({ type: 'restoreGeneration', analysis: look.analysis, tryOn: restored.tryOn,
+        garmentIds: look.garmentIds, makeupLookId: look.makeupLookId });
+    } catch (error) { if (openingId === generationId.current) setHistoryActionError({ message: error instanceof Error ? error.message : 'Could not open this saved look.' }); }
+    finally { setHistoryBusy(false); }
+  }, [refreshHistory, setSaveStatus, voidGeneration]);
+
+  const handleDeleteLook = useCallback(async (key: string) => {
+    setHistoryBusy(true);
+    setHistoryActionError(null);
+    clearGenerationCache();
+    if (activeHistoryKey === key) { voidGeneration(); dispatch({ type: 'startOver' }); }
+    try { await removeLook(key); }
+    catch { /* The history shelf reports the failed deletion. */ }
+    finally { setHistoryBusy(false); }
+  }, [activeHistoryKey, removeLook, voidGeneration]);
 
   const handleStartOver = useCallback(() => {
     voidGeneration();
@@ -401,15 +478,13 @@ export function App() {
       case 'intro':
         return (
           <IntroScreen
-            garmentIds={state.garmentIds}
-            keptGarmentIds={state.keptGarmentIds}
-            keptMakeupWinners={state.keptMakeupWinners}
-            fullBodyKeptGarmentIds={state.fullBodyKeptGarmentIds}
-            fullBodyKeptMakeupWinners={state.fullBodyKeptMakeupWinners}
-            makeupLookId={state.makeupLookId}
+            previousLooks={<PreviousLooks looks={looks} loading={historyLoading} error={historyError}
+              pending={historyBusy} onOpen={handleOpenLook} onDelete={handleDeleteLook}
+              onRetry={() => { void refreshHistory(); }} className="xl:col-start-1 xl:row-start-1" />}
             imagesLeaveTab={imagesLeaveTab}
             resuming={Boolean(state.fullBody.enabled || state.portrait || state.garmentInputs.a || state.garmentInputs.b || state.makeupLookId)}
             onBegin={() => {
+              generationId.current += 1;
               dispatch({ type: 'giveConsent' });
               dispatch({ type: 'editInputs' });
             }}
@@ -482,6 +557,10 @@ export function App() {
             {...(state.fullBody.portrait ? { fullBodySize: {
               width: state.fullBody.portrait.width, height: state.fullBody.portrait.height,
             } } : {})}
+            videoByImage={openedLook?.videoByImage}
+            motionKindByImage={openedLook?.motionKindByImage}
+            {...(openedLook?.look.portraitSize ? { portraitSize: openedLook.look.portraitSize } : {})}
+            {...(openedLook?.look.fullBodySize ? { fullBodySize: openedLook.look.fullBodySize } : {})}
             tryOn={state.tryOn}
             garmentIds={state.garmentIds}
             makeupLookId={state.makeupLookId}
@@ -521,9 +600,9 @@ export function App() {
               ? { type: 'editInputs' } : { type: 'goTo', step: 'intro' })} />
         </header>
 
-        {SHOWS_PORTRAIT.has(state.step) && state.portrait ? (
+        {SHOWS_PORTRAIT.has(state.step) && (state.portrait || state.tryOn) ? (
           <div className="mb-6">
-            <PrivacyBar onDelete={handleClearPortrait} imagesLeaveTab={imagesLeaveTab} />
+            <PrivacyBar onDelete={handleClearPortrait} imagesLeaveTab={imagesLeaveTab} disabled={historyBusy} />
           </div>
         ) : null}
 
@@ -545,7 +624,22 @@ export function App() {
 
         <main id="main" ref={mainRef} tabIndex={-1}
           aria-label={STAGE_LABELS[state.step]} className="flex-1">
-          <BackendStatus readiness={backendReadiness} onRetry={retryBackend} />
+          {state.step !== 'results' ? <BackendStatus readiness={backendReadiness} onRetry={retryBackend} /> : null}
+          {historyActionError ? <div role="alert" className="mb-6 rounded-card border border-gold/40 bg-surface p-4">
+            <p>{historyActionError.message}</p>
+            {historyActionError.retryRemoval ? <Button variant="quiet" className="mt-3" disabled={historyBusy} onClick={() => { void handleClearPortrait(); }}>Retry removing all saved data</Button> : null}
+            <Button variant="link" onClick={() => setHistoryActionError(null)}>Dismiss</Button>
+          </div> : null}
+          {state.step === 'results' && activeHistoryKey ? <section aria-label="Result storage" className="mb-6 rounded-card border border-gold/40 bg-surface p-4">
+            <p role="status" className="text-sm text-ink-soft">{activeSavedLook ? 'Saved on this browser. Find this comparison in Previous looks on Start.'
+              : saveStatus === 'failed' ? 'Not saved: browser storage is full, unavailable, or a media download failed. Your current results are still here.'
+              : saveStatus === 'empty' ? 'There are no completed previews to save.' : 'Saving your completed previews on this browser…'}</p>
+            {!activeSavedLook && saveStatus === 'failed' && lastCompleted.current ? <Button variant="quiet" className="mt-3" onClick={() => {
+              const completed = lastCompleted.current;
+              if (completed) saveCompleted(completed.cache, completed.settings);
+            }}>Retry saving — no new generation</Button> : null}
+            {activeSavedLook ? <SavedMediaDownloads look={activeSavedLook} /> : state.tryOn ? <CurrentMediaDownloads generation={state.tryOn} /> : null}
+          </section> : null}
           {screen}
         </main>
       </div>

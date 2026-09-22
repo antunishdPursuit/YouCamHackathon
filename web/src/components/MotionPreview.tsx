@@ -5,8 +5,9 @@ import { PhotoSlot } from './PhotoSlot.js';
 import { GARMENT_A_MOTION_URL } from './motionSample.js';
 
 /** A captured, silent video. Playback always requires an explicit user action. */
-export function MotionPreview({ imageUrl, alt, slot, aspectRatio, children }: {
+export function MotionPreview({ imageUrl, alt, slot, aspectRatio, children, videoUrl = GARMENT_A_MOTION_URL }: {
   imageUrl: string;
+  videoUrl?: string;
   alt: string;
   slot: DisplaySlotConfig;
   aspectRatio: string;
@@ -52,7 +53,7 @@ export function MotionPreview({ imageUrl, alt, slot, aspectRatio, children }: {
       <div hidden={!showVideo}
         className="overflow-hidden rounded-card border border-gold/60 bg-ground"
         style={{ aspectRatio }}>
-        <video ref={video} src={GARMENT_A_MOTION_URL} poster={imageUrl}
+        <video ref={video} src={videoUrl} poster={imageUrl}
           preload="none" muted playsInline
           aria-label="Garment A natural-motion sample" aria-describedby={descriptionId}
           className="h-full w-full object-contain"

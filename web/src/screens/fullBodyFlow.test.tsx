@@ -4,6 +4,7 @@ import { buildPaletteFromReading, hexToLab, type TryOnPanel, type TryOnResponse 
 import { ResultsScreen } from './ResultsScreen.js';
 import { AnalysisScreen } from './AnalysisScreen.js';
 import { IntroScreen } from './IntroScreen.js';
+import { PreviousLooks } from '../components/PreviousLooks.js';
 const panel = (url: string, stage: 'completeLook' | 'garmentOnly' = 'completeLook'): TryOnPanel => ({
   result: { status: 'ready', imageUrl: url, alt: 'Test-only response' }, provenance: 'live', stage,
 });
@@ -67,13 +68,12 @@ describe('full-body rendering contract', () => {
 });
 
 
-it('lists full-body and close-up kept looks separately on Start', () => {
-  const html = renderToStaticMarkup(<IntroScreen onBegin={noop} resuming imagesLeaveTab={true}
-    garmentIds={['a', 'b']} makeupLookId="champagne-halo"
-    keptGarmentIds={['a']} keptMakeupWinners={[]}
-    fullBodyKeptGarmentIds={['b']} fullBodyKeptMakeupWinners={['completeLook']} />);
-  expect(html).toContain('Close-up · Garment A');
-  expect(html).toContain('Full body · Garment B');
-  expect(html).toContain('Full body · Complete look — Champagne Halo');
-  expect(html).not.toContain('Nothing kept yet');
+it('offers previous looks independently of backend readiness and explains persistent storage', () => {
+  const html = renderToStaticMarkup(<IntroScreen onBegin={noop} resuming={false} imagesLeaveTab={null}
+    previousLooks={<PreviousLooks looks={[]} loading={false} error={null} pending={false}
+      onOpen={noop} onDelete={noop} onRetry={noop} />} />);
+  expect(html).toContain('Previous looks');
+  expect(html).toContain('No saved looks yet');
+  expect(html).toContain('Closing the browser does not normally remove saved looks');
+  expect(html).not.toContain('Looks kept');
 });

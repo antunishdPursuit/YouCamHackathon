@@ -103,3 +103,18 @@ it('preserves completed work when choosing the selected makeup again, but invali
   expect(changed.keptGarmentIds).toEqual([]);
   expect(changed.fullBodyKeptGarmentIds).toEqual([]);
 });
+
+it('opens saved comparisons without restoring uploads or starting generation', () => {
+  const restored = sessionReducer({ ...ready, busy: true, consentGiven: false }, {
+    type: 'restoreGeneration', analysis: {} as NonNullable<SessionState['analysis']>,
+    tryOn: { fullBody: {} } as NonNullable<SessionState['tryOn']>, garmentIds: ['a', 'b'], makeupLookId: 'rose-veil',
+  });
+  expect(restored.step).toBe('results');
+  expect(restored.resultView).toBe('fullBody');
+  expect(restored.fullBody).toEqual({ enabled: true, portrait: null, trousers: null });
+  expect(restored.busy).toBe(false);
+  expect(restored.consentGiven).toBe(false);
+  expect(restored.portrait).toBeNull();
+  expect(restored.garmentInputs).toEqual({ a: null, b: null });
+  expect(inputsComplete(restored)).toBe(false);
+});
