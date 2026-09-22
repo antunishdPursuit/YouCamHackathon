@@ -26,17 +26,6 @@ export function adaptTryOnUrl(raw: RawTaskResult): string | undefined {
   return extractResultUrls(raw)[0];
 }
 
-export function adaptTryOn(raw: RawTaskResult, alt: string): TryOnResult {
-  const url = adaptTryOnUrl(raw);
-  if (!url) {
-    return {
-      status: 'failed',
-      reason: 'The task succeeded but returned no image we could read.',
-    };
-  }
-  return { status: 'ready', imageUrl: url, alt };
-}
-
 /** Downloaded result bytes, kept so a second task can be given the first task's image. */
 export interface TryOnImageBytes {
   readonly bytes: Buffer;
@@ -97,15 +86,6 @@ export async function captureTryOnLive(
       },
     };
   }
-}
-
-/** The browser-facing half of {@link captureTryOnLive}, for callers that need no bytes. */
-export async function adaptTryOnLive(
-  raw: RawTaskResult,
-  feature: FeatureId,
-  alt: string,
-): Promise<TryOnResult> {
-  return (await captureTryOnLive(raw, feature, alt)).result;
 }
 
 /** A failure that the UI can show without the other three panels caring. */

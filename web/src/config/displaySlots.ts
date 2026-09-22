@@ -48,14 +48,6 @@ export const DISPLAY_SLOTS: Readonly<Record<DisplaySlotId, DisplaySlotConfig>> =
   },
 };
 
-export const DISPLAY_SLOT_ORDER: readonly DisplaySlotId[] = [
-  'portrait',
-  'garmentA',
-  'garmentB',
-  'completeLookA',
-  'completeLookB',
-];
-
 /**
  * The default frame shape, used until a portrait says otherwise.
  *

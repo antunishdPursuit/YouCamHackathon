@@ -85,32 +85,6 @@ export function YincolCard({
   );
 }
 
-/**
- * An arched top edge, like a vanity mirror or a chapel window. Used on hero containers
- * only — one per screen at most.
- */
-export function ArchPanel({
-  children,
-  className = '',
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <section
-      className={`relative border border-gold/50 bg-surface px-5 pb-6 pt-8 shadow-card ${className}`}
-      style={{ borderRadius: '140px 140px 20px 20px' }}
-    >
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-4 top-3 bottom-3 border border-gold/30"
-        style={{ borderRadius: '128px 128px 14px 14px' }}
-      />
-      {children}
-    </section>
-  );
-}
-
 /** Pearl-dot divider between sections. */
 export function PearlDivider({ className = '' }: { className?: string }) {
   return (

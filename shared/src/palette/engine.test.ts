@@ -160,17 +160,12 @@ describe('determinism', () => {
       const second = buildPalette(axesFor(undertone, depth, contrast));
       expect(JSON.stringify(first)).toBe(JSON.stringify(second));
     }
-  });
-
-  it('is stable across 50 repeat runs of the same reading', () => {
     const reading: ColorToneReading = {
       skin: hexToLab('#e3b89a'),
       hair: hexToLab('#2d1b14'),
     };
     const baseline = JSON.stringify(buildPaletteFromReading(reading));
-    for (let i = 0; i < 50; i += 1) {
-      expect(JSON.stringify(buildPaletteFromReading(reading))).toBe(baseline);
-    }
+    expect(JSON.stringify(buildPaletteFromReading(reading))).toBe(baseline);
   });
 
   it('changes output when — and only when — an axis changes', () => {

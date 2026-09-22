@@ -122,31 +122,12 @@ describe('the complete-look sequence', () => {
     expect(makeupBody['src_file_id']).not.toBe('portrait-file');
     expect(makeupBody['effects']).toBeInstanceOf(Array);
 
-    expect(outcome.garmentOnly.result.status).toBe('ready');
-    expect(outcome.completeLook.result.status).toBe('ready');
-  });
-
-  it('marks the second image a complete look and the first one not', async () => {
-    stubHappyPath();
-    vi.spyOn(console, 'log').mockImplementation(() => undefined);
-
-    const outcome = await runCompleteLookSequence(request);
-
     expect(outcome.garmentOnly.stage).toBe('garmentOnly');
     expect(outcome.completeLook.stage).toBe('completeLook');
-    expect(outcome.garmentOnly.provenance).toBe('live');
-    expect(outcome.completeLook.provenance).toBe('live');
-  });
-
-  it('returns each image to the browser as data, never as a provider URL', async () => {
-    stubHappyPath();
-    vi.spyOn(console, 'log').mockImplementation(() => undefined);
-
-    const outcome = await runCompleteLookSequence(request);
-
     for (const panel of [outcome.garmentOnly, outcome.completeLook]) {
+      expect(panel.provenance).toBe('live');
       expect(panel.result.status).toBe('ready');
-      if (panel.result.status !== 'ready') return;
+      if (panel.result.status !== 'ready') continue;
       expect(panel.result.imageUrl.startsWith('data:image/jpeg;base64,')).toBe(true);
       expect(panel.result.imageUrl).not.toContain('results.example');
     }
