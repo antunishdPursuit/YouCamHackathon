@@ -1,8 +1,8 @@
 /**
  * Stage 4 — Results.
  *
- * Palette, generated previews, and the two one-variable-at-a-time comparisons now
- * live together. The user does not have to remember which page contains the next
+ * Guided outfit and makeup comparisons lead the Results screen. Colour details
+ * follow the photos. The user does not have to remember which page contains the next
  * decision, and every image keeps its provider/fixture provenance below the frame.
  */
 
@@ -61,7 +61,7 @@ function PaletteSummary({ analysis }: { analysis: AnalyzeResponse }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <SectionHeading id="palette-heading" className="text-2xl">
-            Your colour direction
+            {analysis.mode === 'fixture' ? 'Example colour palette' : 'Your colour direction'}
           </SectionHeading>
           <p className="mt-2 text-sm text-ink-soft">
             {analysis.mode === 'fixture'
@@ -72,7 +72,7 @@ function PaletteSummary({ analysis }: { analysis: AnalyzeResponse }) {
         <Chip>{derivation.axes.undertone} · {derivation.axes.depth} · {derivation.axes.contrast} contrast</Chip>
       </div>
 
-      <ul className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-2">
+      <ul className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
         {palette.swatches.map((swatch) => (
           <li key={swatch.id} className="overflow-hidden rounded-card border border-gold/40 bg-ground">
             <span aria-hidden="true" className="block h-10" style={{ backgroundColor: swatch.hex }} />
@@ -178,7 +178,8 @@ export function ResultsScreen({
     key: garmentId,
     slot: index === 0 ? DISPLAY_SLOTS.completeLookA : DISPLAY_SLOTS.completeLookB,
     panel: tryOn.completeLooks[garmentId],
-    title: `${garmentSlotLabel(index)} complete look`,
+    title: tryOn.completeLooks[garmentId]?.stage === 'completeLook'
+      ? `${garmentSlotLabel(index)} complete look` : `${garmentSlotLabel(index)} preview`,
     subtitle: panelSubtitle(tryOn.completeLooks[garmentId], lookName),
     chosen: keptGarmentIds.includes(garmentId),
     choose: () => onToggleGarment(garmentId),
@@ -221,22 +222,34 @@ export function ResultsScreen({
   // reference to the thing the shopper is looking at.
   const failedLabels = panels
     .filter((entry) => entry.panel?.result.status === 'failed')
-    .map((entry) => `the ${entry.title} preview`);
+    .map((entry) => `the ${entry.title}`);
   // Scoped to the Garments axis, where both cards are complete looks. The Makeup axis
   // compares a garment-only preview against a complete look, and tilting one of those two
   // would put a difference between them that is not the makeup step.
   const showsTilt = axis === 'garments' && !fullBody;
   const hasTiltableCard = showsTilt && panels.some(
-    (entry) => entry.panel?.result.status === 'ready' && !motionSampleKind(entry.panel, tryOn.mode),
+    (entry) => entry.panel?.result.status === 'ready' && entry.panel.provenance !== 'placeholder' && !motionSampleKind(entry.panel, tryOn.mode),
   );
-  const lockedLabel = axis === 'garments'
-    ? `Makeup held: ${look?.name ?? 'none'}`
-    : `Garment held: ${garmentIds.length > 0 ? garmentSlotLabel(0) : 'none'}`;
+  const comparisonNote = axis === 'garments'
+    ? `Compare the two outfits with the same ${look?.name ?? 'selected'} makeup. Keep any you like.`
+    : 'Compare Garment A with and without makeup. Keep either version, or both.';
 
   return (
-    <div className="animate-soft-fade space-y-8">
-      <header className="text-center">
+    <div className="animate-soft-fade space-y-6">
+      <header className="space-y-4">
         <SectionHeading className="text-4xl">Your comparison</SectionHeading>
+        <Segmented id="comparison" controls="comparison-panel" label="What to compare"
+          value={axis} onChange={onAxisChange}
+          options={[
+            { value: 'garments', label: 'Compare outfits' },
+            { value: 'makeup', label: 'Compare makeup' },
+          ]} />
+      </header>
+
+      <section id="comparison-panel" role="tabpanel" aria-labelledby={`comparison-${axis}`}
+        tabIndex={0} className="min-w-0 space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <p className="max-w-reading text-base text-ink-soft">{comparisonNote}</p>
           {generation.fullBody ? (
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm text-ink-soft">View</span>
@@ -247,68 +260,25 @@ export function ResultsScreen({
                 ]} />
             </div>
           ) : null}
-        <p className="mx-auto mt-3 max-w-reading text-base text-ink-soft">
-          {tryOn.mode === 'fixture'
-            ? 'Compare saved demo looks, or switch to Makeup to compare garment-only and complete-look previews. Your photos are not used to generate these results.'
-            : 'Each garment was rendered on your portrait, then the makeup was applied to that result. Compare the complete looks or see what the makeup step changed.'}
-          {' '}Keep any options that work for you.
-        </p>
-      </header>
-
-      <div className="grid gap-8 xl:grid-cols-[minmax(260px,0.34fr)_minmax(0,1fr)] xl:items-start">
-        <PaletteSummary analysis={analysis} />
-
-        <section aria-labelledby="previews-heading" className="min-w-0 space-y-5">
-        <div className="flex flex-wrap items-center gap-3">
-          <SectionHeading id="previews-heading" className="mr-auto text-3xl">Generated previews</SectionHeading>
-          <Segmented
-            label="What to compare"
-            value={axis}
-            onChange={onAxisChange}
-            options={[
-              { value: 'garments', label: 'Garments', hint: 'compare the two complete looks' },
-              { value: 'makeup', label: 'Makeup', hint: 'compare garment A with and without the makeup step' },
-            ]}
-          />
-          <Chip tone="locked">
-            <span aria-hidden="true">🔒</span>
-            {lockedLabel}
-          </Chip>
-          {tryOn.mode === 'fixture' ? (
-            <span className="rounded-full border border-gold/50 bg-surface px-3 py-1.5 text-sm text-ink-soft">
-              Local demo preview · fixture images
-            </span>
-          ) : null}
-          {tryOn.mode === 'live' ? (
-            <span className="rounded-full border border-gold/50 bg-surface px-3 py-1.5 text-sm text-ink-soft">
-              Live YouCam results · uploaded files
-            </span>
-          ) : null}
         </div>
-
+        {tryOn.mode === 'fixture' ? (
+          <p className="text-sm text-ink-soft">Saved demo results · your photos were not used to generate these previews.</p>
+        ) : null}
         <PartialResultsNotice failedLabels={failedLabels} />
-
         {hasTiltableCard ? <TiltPreviewNote /> : null}
 
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
           {panels.map((entry) => {
-            // The control belongs only to a complete-look card with a picture in it. A
-            // failed or empty card keeps its designed state: there is nothing to tilt,
-            // and offering the control would imply otherwise.
             const motionKind = axis === 'garments' && !fullBody ? motionSampleKind(entry.panel, tryOn.mode) : undefined;
-            const canTiltThisCard = showsTilt && !motionKind && entry.panel?.result.status === 'ready';
-
-            const caption = (
-              <div className="mt-3 flex flex-col items-center gap-2">
-                <div className="flex flex-wrap items-center justify-center gap-3">
-                  <h3 className="text-base font-semibold text-ink">{entry.title}</h3>
-                  <Button variant={entry.chosen ? 'primary' : 'quiet'}
-                    aria-pressed={entry.chosen} disabled={entry.panel?.result.status !== 'ready'} onClick={entry.choose} className="!px-4 text-sm">
-                    {entry.chosen ? 'Kept' : 'Keep this'}
-                    <span className="sr-only"> — {entry.title}</span>
-                  </Button>
-                </div>
-                <p className="text-sm text-ink-soft">{entry.subtitle}</p>
+            const canTiltThisCard = showsTilt && !motionKind && entry.panel?.provenance !== 'placeholder' && entry.panel?.result.status === 'ready';
+            const titleId = `result-${resultView}-${entry.key}`;
+            const actions = (
+              <div className="mt-3 flex flex-col items-start gap-2">
+                <Button variant={entry.chosen ? 'primary' : 'quiet'}
+                  aria-pressed={entry.chosen} disabled={entry.panel?.result.status !== 'ready' || entry.panel.provenance === 'placeholder'} onClick={entry.choose} className="!px-4 text-sm">
+                  {entry.chosen ? 'Kept' : 'Keep this'}
+                  <span className="sr-only"> — {entry.title}</span>
+                </Button>
                 {canTiltThisCard ? (
                   <TiltControls degrees={tiltFor(entry.key)}
                     onChange={(degrees) => setTiltFor(entry.key, degrees)} cardLabel={entry.title} />
@@ -317,36 +287,45 @@ export function ResultsScreen({
             );
 
             return (
-              <article key={resultView + entry.key} className="flex flex-col">
+              <article key={resultView + entry.key} aria-labelledby={titleId} className="flex min-w-0 flex-col">
+                <header className="mb-3 space-y-1">
+                  <h3 id={titleId} className="text-base font-semibold">{entry.title}</h3>
+                  <p className="text-sm text-ink-soft">{entry.subtitle}</p>
+                </header>
                 {motionKind === 'video' && entry.panel?.result.status === 'ready' ? (
                   <MotionPreview key={entry.panel.result.imageUrl}
                     imageUrl={entry.panel.result.imageUrl} alt={entry.panel.result.alt}
-                    slot={entry.slot} aspectRatio={frame}>{caption}</MotionPreview>
+                    slot={entry.slot} aspectRatio={frame}>{actions}</MotionPreview>
                 ) : <>
                   <PhotoSlot slot={entry.slot} aspectRatio={frame}
                     className={fullBody ? "[&>div]:max-h-portrait [&>div]:w-full" : ""}
-                    showProvenance={tryOn.mode !== 'fixture'}
+                    showProvenance={tryOn.mode !== 'fixture' || entry.panel?.provenance === 'placeholder'}
                     {...(canTiltThisCard ? { tiltDegrees: tiltFor(entry.key) } : {})}
                     {...(entry.panel ? {
                       result: entry.panel.result,
                       provenance: entry.panel.provenance,
                       ...(entry.panel.stage ? { stage: entry.panel.stage } : {}),
                     } : {})} />
-                  {caption}
+                  {actions}
                 </>}
               </article>
             );
           })}
         </div>
-
         <p aria-live="polite" className="sr-only">
           {axis === 'garments'
             ? `${keptGarmentIds.length} garment option${keptGarmentIds.length === 1 ? '' : 's'} kept.`
             : `${keptMakeupWinners.length} makeup option${keptMakeupWinners.length === 1 ? '' : 's'} kept.`}
         </p>
-        </section>
-      </div>
+      </section>
 
+      <details className="rounded-card border border-gold/40 bg-surface p-4">
+        <summary className="cursor-pointer text-base font-semibold">
+          {analysis.mode === 'fixture' ? 'Example colour palette' : 'Your colour direction'}
+          <span className="ml-2 text-sm font-normal text-ink-soft">View colours and explanation</span>
+        </summary>
+        <div className="mt-4"><PaletteSummary analysis={analysis} /></div>
+      </details>
       <div className="flex w-full flex-col items-start gap-2 sm:flex-row sm:justify-start">
         <Button variant="quiet" className="w-full sm:w-auto" onClick={onEditInputs}>Back to inputs</Button>
         <Button variant="link" className="w-full sm:w-auto" onClick={onStartOver}>Start a new look</Button>

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { buildPaletteFromReading, hexToLab, type TryOnPanel, type TryOnResponse } from '@yincol/shared';
 import { ResultsScreen } from './ResultsScreen.js';
+import { AnalysisScreen } from './AnalysisScreen.js';
 import { IntroScreen } from './IntroScreen.js';
 const panel = (url: string, stage: 'completeLook' | 'garmentOnly' = 'completeLook'): TryOnPanel => ({
   result: { status: 'ready', imageUrl: url, alt: 'Test-only response' }, provenance: 'live', stage,
@@ -56,7 +57,13 @@ describe('full-body rendering contract', () => {
     expect(html).not.toContain('src="/full-b"');
     expect(html).not.toContain('preview preview');
   });
-
+  it('names full-body work in Generate and keeps unfinished work in progress', () => {
+    const html = renderToStaticMarkup(<AnalysisScreen done={false} imagesLeaveTab={true}
+      fullBody phase="previews" failed={false} onFinished={noop} onBack={noop} />);
+    expect(html).toContain('Generating full-body outfits and makeup');
+    expect(html.match(/In progress/g)).toHaveLength(2);
+    expect(html).not.toContain('Saved YouCam results');
+  });
 });
 
 

@@ -55,7 +55,12 @@ const STAGE_LABELS: Readonly<Record<Step, string>> = {
   results: 'Results',
 };
 
-function StageProgress({ step }: { step: Step }) {
+function StageProgress({ step, consentGiven, busy, onNavigate }: {
+  step: Step;
+  consentGiven: boolean;
+  busy: boolean;
+  onNavigate: (step: 'intro' | 'inputs') => void;
+}) {
   const activeIndex = STEP_ORDER.indexOf(step);
 
   return (
@@ -64,17 +69,30 @@ function StageProgress({ step }: { step: Step }) {
         {STEP_ORDER.map((stage, index) => {
           const current = stage === step;
           const complete = index < activeIndex;
+          const canNavigate = !current && !busy && (
+            stage === 'intro' || (stage === 'inputs' && consentGiven)
+          );
+          const className = `flex min-h-[44px] w-full items-center justify-center border-t-2 py-3 text-center text-xs sm:text-sm ${
+            current || complete || canNavigate
+              ? 'border-gold font-semibold text-ink'
+              : 'border-gold/30 text-ink-soft'
+          }`;
           return (
             <li key={stage}>
-              <span
-                aria-current={current ? 'step' : undefined}
-                className={`block border-t-2 pt-2.5 text-center text-xs sm:text-sm ${
-                  current || complete ? 'border-gold font-semibold text-ink' : 'border-gold/30 text-ink-soft'
-                }`}
-              >
-                <span className="sr-only">{complete ? 'Complete: ' : current ? 'Current: ' : ''}</span>
-                {STAGE_LABELS[stage]}
-              </span>
+              {canNavigate && (stage === 'intro' || stage === 'inputs') ? (
+                <button
+                  type="button"
+                  onClick={() => onNavigate(stage)}
+                  className={`${className} underline underline-offset-4 hover:bg-surface`}
+                >
+                  {STAGE_LABELS[stage]}
+                </button>
+              ) : (
+                <span aria-current={current ? 'step' : undefined} className={className}>
+                  <span className="sr-only">{current ? 'Current: ' : complete ? 'Complete: ' : ''}</span>
+                  {STAGE_LABELS[stage]}
+                </span>
+              )}
             </li>
           );
         })}
@@ -87,7 +105,11 @@ export function App() {
   const [state, dispatch] = useReducer(sessionReducer, initialState);
   const [runtimeMode, setRuntimeMode] = useState<RuntimeMode | null>(null);
   const [inputSessionId, setInputSessionId] = useState(0);
+  const [generationPhase, setGenerationPhase] = useState<'checking' | 'analysis' | 'previews'>('checking');
   const generationRunning = useRef(false);
+  const mainRef = useRef<HTMLElement>(null);
+  const currentView = state.step;
+  const previousStep = useRef(currentView);
   useEffect(() => {
     // Old gallery bookmarks now enter the regular consent/upload flow.
     if (window.location.hash === '#full-body') {
@@ -95,6 +117,12 @@ export function App() {
     }
   }, []);
 
+  useEffect(() => {
+    if (previousStep.current === currentView) return;
+    previousStep.current = currentView;
+    mainRef.current?.focus({ preventScroll: true });
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [currentView]);
   const [generationSource, setGenerationSource] = useState<'cache' | 'network' | null>(null);
 
   /**
@@ -202,6 +230,7 @@ export function App() {
   const beginAnalysis = useCallback(async () => {
     if (backendReadiness !== 'ready' || generationRunning.current || !inputsComplete(state)) return;
     generationRunning.current = true;
+    setGenerationPhase('checking');
 
     // Starting a generation also supersedes any earlier one still in flight.
     generationId.current += 1;
@@ -246,6 +275,7 @@ export function App() {
       }
 
       setGenerationSource('network');
+      setGenerationPhase('analysis');
 
       const [analysis, skinAnalysis] = await Promise.all([
         requestAnalysis(portraitRef),
@@ -268,6 +298,7 @@ export function App() {
           : analysis;
       dispatch({ type: 'analysisReady', analysis: combinedAnalysis });
 
+      setGenerationPhase('previews');
       const tryOn = await requestTryOn({
         portraitRef,
         portrait,
@@ -432,6 +463,10 @@ export function App() {
         return (
           <AnalysisScreen
             done={analysisDone}
+            phase={generationPhase}
+            failed={Boolean(state.error)}
+            fullBody={state.fullBody.enabled}
+            onBack={() => dispatch({ type: 'editInputs' })}
             cached={generationSource === 'cache'}
             imagesLeaveTab={imagesLeaveTab}
             onFinished={() => dispatch({ type: 'goTo', step: 'results' })}
@@ -481,7 +516,9 @@ export function App() {
       <div className="mx-auto flex min-h-dvh w-full max-w-yincol flex-col px-6 pb-16 pt-6 sm:px-8 lg:px-10 xl:px-12">
         <header className="mb-7 flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:justify-center sm:gap-8">
           <Wordmark size="sm" />
-          <StageProgress step={state.step} />
+          <StageProgress step={state.step} consentGiven={state.consentGiven} busy={state.busy}
+            onNavigate={(step) => dispatch(step === 'inputs'
+              ? { type: 'editInputs' } : { type: 'goTo', step: 'intro' })} />
         </header>
 
         {SHOWS_PORTRAIT.has(state.step) && state.portrait ? (
@@ -496,17 +533,18 @@ export function App() {
             className="mb-6 rounded-card border border-gold/60 bg-powder px-5 py-4 text-base text-ink"
           >
             <p>{state.error}</p>
-            <Button
+            {state.step !== 'generate' ? <Button
               variant="quiet"
               className="mt-3 !px-3 text-sm"
               onClick={() => dispatch({ type: 'dismissError' })}
             >
               Dismiss
-            </Button>
+            </Button> : null}
           </div>
         ) : null}
 
-        <main id="main" className="flex-1">
+        <main id="main" ref={mainRef} tabIndex={-1}
+          aria-label={STAGE_LABELS[state.step]} className="flex-1">
           <BackendStatus readiness={backendReadiness} onRetry={retryBackend} />
           {screen}
         </main>

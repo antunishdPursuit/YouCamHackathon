@@ -82,32 +82,37 @@ export function Segmented<T extends string>({
   value,
   onChange,
   label,
+  id,
+  controls,
 }: {
   options: readonly SegmentedOption<T>[];
   value: T;
   onChange: (next: T) => void;
   label: string;
+  id?: string;
+  controls?: string;
 }) {
-  const move = (direction: 1 | -1) => {
-    const index = options.findIndex((option) => option.value === value);
-    const next = options[(index + direction + options.length) % options.length];
-    if (next) onChange(next.value);
-  };
 
   return (
     <div
       role="tablist"
       aria-label={label}
-      className="inline-flex rounded-full border border-gold/60 bg-surface p-1"
+      className="inline-flex max-w-full rounded-full border border-gold/60 bg-surface p-1"
       onKeyDown={(event) => {
-        if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
-          event.preventDefault();
-          move(1);
+        const current = options.findIndex((option) => option.value === value);
+        let nextIndex: number;
+        switch (event.key) {
+          case 'ArrowRight': case 'ArrowDown': nextIndex = (current + 1) % options.length; break;
+          case 'ArrowLeft': case 'ArrowUp': nextIndex = (current - 1 + options.length) % options.length; break;
+          case 'Home': nextIndex = 0; break;
+          case 'End': nextIndex = options.length - 1; break;
+          default: return;
         }
-        if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
-          event.preventDefault();
-          move(-1);
-        }
+        event.preventDefault();
+        const next = options[nextIndex];
+        if (!next) return;
+        onChange(next.value);
+        event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')[nextIndex]?.focus();
       }}
     >
       {options.map((option) => {
@@ -116,11 +121,13 @@ export function Segmented<T extends string>({
           <button
             key={option.value}
             role="tab"
+            id={id ? `${id}-${option.value}` : undefined}
+            aria-controls={controls}
             type="button"
             aria-selected={selected}
             tabIndex={selected ? 0 : -1}
             onClick={() => onChange(option.value)}
-            className={`min-h-[44px] rounded-full px-5 text-sm font-semibold transition-shadow duration-200 ${
+            className={`min-h-[44px] min-w-0 flex-auto rounded-full px-3 py-2 text-sm sm:flex-none sm:whitespace-nowrap sm:px-5 font-semibold transition-shadow duration-200 ${
               selected ? 'bg-powder text-ink shadow-emboss' : 'bg-transparent text-ink'
             }`}
           >
