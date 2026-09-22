@@ -1,4 +1,5 @@
 import { asyncRoute } from './asyncRoute.js';
+import { generateFullBodyLooks } from './fullBody.js';
 /**
  * POST /api/try-on — two garment previews, two complete looks, and the portrait.
  *
@@ -51,6 +52,10 @@ function parseLiveImage(value: unknown): ParsedLiveImage | undefined {
     throw new Error('Live previews accept JPEG or PNG images only.');
   }
 
+  if (!input.data || input.data.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(input.data)) {
+    throw new Error('The image payload is not valid base64.');
+  }
+
   const bytes = Buffer.from(input.data, 'base64');
   if (bytes.length === 0) throw new Error('A live preview image is empty.');
   if (bytes.length >= MAX_FILE_BYTES) {
@@ -60,7 +65,7 @@ function parseLiveImage(value: unknown): ParsedLiveImage | undefined {
   return {
     bytes,
     contentType: input.contentType,
-    fileName: typeof input.fileName === 'string' && input.fileName ? input.fileName : 'image',
+    fileName: (typeof input.fileName === 'string' ? input.fileName.slice(0, 255) : '') || 'image',
   };
 }
 
@@ -172,6 +177,29 @@ tryOnRouter.post('/try-on', asyncRoute(async (req, res) => {
     return;
   }
 
+  // Validate every optional input before any paid work starts.
+  let fullBody: { portrait: ParsedLiveImage; trousers: ParsedLiveImage } | undefined;
+  if (body.fullBody !== undefined) {
+    try {
+      if (!body.fullBody || typeof body.fullBody !== 'object' || Array.isArray(body.fullBody)) {
+        throw new Error('Add a full-body photo and a trousers reference.');
+      }
+      const fullPortrait = parseLiveImage(body.fullBody.portrait);
+      const trousers = parseLiveImage(body.fullBody.trousers);
+      if (!fullPortrait || !trousers || garmentIds.some(id => !garmentImages[id])) {
+        throw new Error('Add a full-body photo, trousers, and both top references.');
+      }
+      fullBody = { portrait: fullPortrait, trousers };
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Check the full-body inputs.' });
+      return;
+    }
+  }
+
+  const fullBodyPromise = fullBody ? generateFullBodyLooks({
+    config, ...fullBody, garmentIds, garmentImages, look,
+  }) : undefined;
+
   // Each garment runs the full sequence on its own. Nothing is shared between them, so
   // one garment's failure cannot reach the other's result.
   const settled = await Promise.allSettled(
@@ -229,6 +257,7 @@ tryOnRouter.post('/try-on', asyncRoute(async (req, res) => {
       provenance: 'live',
     },
     mode: 'live',
+    ...(fullBodyPromise ? { fullBody: await fullBodyPromise } : {}),
   };
-  res.json(response);
+  res.set('Cache-Control', 'private, no-store').json(response);
 }));

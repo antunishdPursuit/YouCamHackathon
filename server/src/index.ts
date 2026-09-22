@@ -48,7 +48,8 @@ if ((process.env['YINCOL_TRUST_PROXY'] ?? '').toLowerCase() === 'true') {
  *
  * When all image features use fixtures the browser sends fixture metadata — a few hundred bytes — and the
  * routes refuse image bytes outright, so 32 kB is generous. With any live image feature,
- * three sub-10 MB images become just under 40 MB as base64 JSON, and each is still rejected at or above
+ * five sub-10 MB
+ * images become just under 67 MB as base64 JSON, and each is still rejected at or above
  * the provider's 10 MB limit before upload.
  */
 app.use(createRequestBodyParser(startupConfig));
@@ -79,6 +80,7 @@ app.get('/api/health', (_req, res) => {
     // Never echo the key itself, only whether one is present.
     hasApiKey: config.apiKey.length > 0,
     verifiedTaskPaths: TASK_PATH_VERIFIED,
+    fullBodyTryOn: config.liveTryOn,
   });
 });
 
@@ -144,7 +146,7 @@ app.listen(port, () => {
   console.log(
     `[yincol] palette: ${startupConfig.fixtureMode ? 'FIXTURE' : 'LIVE'}; live try-on: ${startupConfig.liveTryOn}; live skin analysis: ${startupConfig.liveSkinAnalysis}`,
   );
-  console.log(`[yincol] request body limit: ${!startupConfig.fixtureMode || startupConfig.liveSkinAnalysis || startupConfig.liveTryOn ? '42mb' : '32kb'}`);
+  console.log(`[yincol] request body limit: ${!startupConfig.fixtureMode || startupConfig.liveSkinAnalysis || startupConfig.liveTryOn ? '70mb' : '32kb'}`);
   console.log(
     hasBuiltWeb
       ? `[yincol] serving the built front end from ${WEB_DIST}`

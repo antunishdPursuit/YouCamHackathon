@@ -15,7 +15,7 @@ import type { Response } from 'express';
 import type { ApiErrorBody } from '@yincol/shared';
 
 /** Fields on the public API that can carry image bytes. */
-const IMAGE_FIELDS = ['image', 'portrait', 'garmentImages'] as const;
+const IMAGE_FIELDS = ['image', 'portrait', 'garmentImages', 'fullBody'] as const;
 
 /**
  * Whether a request body carries image bytes in any of the shapes the API accepts.
