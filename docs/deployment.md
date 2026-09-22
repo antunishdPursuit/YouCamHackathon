@@ -32,7 +32,8 @@ the exact origin configured in `YINCOL_ALLOWED_ORIGIN`:
 ```
 
 The planned separate free Key Value service, 100-unit site budget, 40-unit browser
-allowance, IndexedDB history and live video route are not present in this release.
+allowance and live video route are not present in this release. IndexedDB history
+is implemented in the web app and requires no server media storage or new service.
 Do not configure public live calls using this fixture-only runbook.
 
 The browser receives the API origin at static-site build time through `VITE_API_URL`.
@@ -288,8 +289,8 @@ deployment shows exactly what that commit showed.
 - Deploying from an unmerged feature branch.
 - Any deployment configured with an API key.
 - Public live API access. The next increment plans an anonymous, server-mediated
-  live trial, but its shared unit budget, browser history and video workflow are
-  not implemented. Complete and verify those controls before activating it.
+  live trial, but its shared unit budget and live video workflow are
+  not implemented. Browser result history is implemented. Complete and verify those controls before activating it.
 - True 3D — a body or garment model, or independently generated side or rear views. The
   2.5D tilt preview is a CSS effect on one photograph and claims nothing more; see the
   known limitations above.

@@ -1,6 +1,6 @@
 # Partner guide / 合作开发指南
 
-**Updated / 更新日期:** September 21, 2026 / 2026年9月21日
+**Updated / 更新日期:** September 22, 2026 / 2026年9月22日
 
 This guide distinguishes the current application from the accepted next increment.
 It does not authorize deployment or new paid API calls.
@@ -18,7 +18,7 @@ It does not authorize deployment or new paid API calls.
 | Makeup comparison / 妆容对比 | Currently Garment A before and after makeup, not makeup on the unchanged original portrait. / 当前对比服装 A 的上妆前后效果，尚未改为原始肖像的纯妆容对比。 |
 | Palette / 配色 | Local rules use an example colour reading; live Facial Color Tone remains unverified. / 本地规则使用示例色彩数据；实时肤色分析的完整接口尚未验证。 |
 | Video / 视频 | One saved five-second red-shirt / Rose Veil clip; no live video route. / 一段已保存的五秒红色上衣、Rose Veil 妆容视频；尚无实时视频生成接口。 |
-| Storage / 存储 | Inputs in memory; generated results in sessionStorage or memory. No durable history. / 输入保存在内存中；结果使用 sessionStorage 或内存缓存，尚无持久历史记录。 |
+| Storage / 存储 | Completed outputs, settings and matching sample video save automatically in IndexedDB; source uploads stay in memory. / 完成的预览、设置与对应演示视频自动保存到 IndexedDB；原始上传文件仅保存在内存中。 |
 | Limits / 限额 | In-process request limits only. No daily unit budget. / 仅有单个服务进程内的请求频率限制，尚无每日 API 用量额度。 |
 
 A complete look means Makeup VTO received the Clothes VTO result. A captured demo
@@ -75,6 +75,40 @@ runs; the repository currently has no GitHub Actions workflow.
 以及对应演示视频的播放、暂停和查看静态图片操作。常规回归测试不应消耗付费额度。
 [验证记录](verification.md)区分最新检查与历史记录；当前仓库没有 GitHub Actions 工作流。
 
+## Saved results / 已保存的结果
+
+Completed previews save automatically; Keep is not required. Open **Previous looks**
+on Start to revisit a comparison without generation, even while the API is unavailable.
+The matching existing five-second sample video also reopens from stored bytes.
+Current comparison controls remain unchanged in this increment.
+
+完成的预览会自动保存，无需点击 Keep。在开始页的 **Previous looks（历史造型）** 打开结果，
+即可直接查看，不会重新生成，也不依赖 API 是否已唤醒。对应的现有五秒演示视频也从本地数据播放。
+本阶段保留现有对比控件，简化对比及实时视频仍属于下一阶段。
+
+History is specific to this browser profile and site address; localhost, Tailscale
+and Render do not share it. Source uploads and echoed source portraits are excluded.
+Reselect source files to change a look. Matching file bytes and settings reuse results;
+generation stops if history cannot be checked or secure file matching is unavailable.
+Use HTTPS or localhost. Failed saves keep the current previews and download links,
+with a save-only retry. Browser cleanup, private browsing and storage eviction can
+remove media, so download a backup.
+
+历史记录仅属于当前浏览器配置与网站地址，localhost、Tailscale 和 Render 之间不会同步。
+原始上传文件与接口回传的原始肖像不进入历史记录；修改造型时需重新选择源文件。
+文件内容和设置相同时复用已有结果；无法检查历史或安全匹配文件时暂停生成，请使用 HTTPS 或 localhost。
+保存失败时仍保留当前预览和下载入口，可只重试保存，不再次调用生成接口。
+清理浏览器数据、隐私浏览或存储回收可能移除媒体，因此请下载备份。
+
+Delete on a history card removes that look. **Remove photos and saved results**
+confirms deletion of current inputs and all saved looks. Late writes cannot restore
+deleted media; other tabs may still hold already-open results in memory until closed
+or cleared. The first valid legacy session cache may migrate once without generation.
+
+历史卡片上的 Delete 仅删除该造型。**Remove photos and saved results** 会确认清除当前输入及所有历史造型。
+延迟写入不能恢复已删除媒体；其他标签页已打开的结果可能仍在内存中，直到关闭或清除。
+首次加载时可迁移一份有效的旧会话缓存，无需重新生成。
+
 ## Next increment / 下一阶段
 
 The following is accepted direction, **not completed functionality**:
@@ -89,11 +123,9 @@ The following is accepted direction, **not completed functionality**:
 2. **Simpler comparisons.** Original portrait versus makeup on that same portrait;
    Outfit A and Outfit B each use trousers and makeup. Remove the extra view switch.
    **简化对比。** 原始肖像与同一肖像的上妆结果对比；服装 A、B 都包含裤装与妆容。移除额外的视图切换。
-3. **Automatic browser history.** Save completed media in IndexedDB, show previous
-   looks on Start, and provide open/download/delete. Reuse matching inputs and settings.
-   Browser storage can be cleared or evicted; it is not a guaranteed backup.
-   **自动保存浏览器历史。** 将完成的媒体保存到 IndexedDB，在开始页显示历史造型，并提供打开、下载和删除。
-   输入和设置相同时复用已有结果。浏览器数据可能被清除，因此不能作为可靠备份。
+3. **Connect future videos to existing history.** Browser history is implemented;
+   reuse its save/open/download/delete flow for the upcoming live video route.
+   **将后续视频接入现有历史记录。** 浏览器历史已实现；实时视频应复用现有保存、打开、下载和删除流程。
 4. **Video per result.** Generate from the chosen completed image, save it beside
    that image, and offer playback/download. Remove the need to mark a result as kept.
    **为结果生成视频。** 使用选定的最终图片生成视频，将其与对应图片一起保存，并提供播放和下载；无需先点击保留。

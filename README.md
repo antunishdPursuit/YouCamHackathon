@@ -10,9 +10,9 @@ rule; its current input is an example reading, not a live analysis of the visito
 
 | Stage | Behavior implemented in this repository |
 | --- | --- |
-| Start | Product introduction and mode-aware privacy information. |
+| Start | Product introduction, mode-aware privacy information, and automatically saved Previous looks. |
 | Add inputs | Portrait, two garment references, a makeup preset, and optional full-body portrait plus trousers reference. |
-| Generate | Explicit generation with progress, input checks, and reuse of a matching result in the current session. |
+| Generate | Explicit generation with progress, input checks, and reuse of a matching result from this browser's saved history. |
 | Results | Compare outfits or makeup; switch between available close-up/full-body results; keep a choice for the session. |
 
 Each garment passes through Clothes VTO, then Makeup VTO receives that garment
@@ -32,15 +32,15 @@ model. A click starts playback; the original still remains available.
 - Compare makeup shows the original portrait against makeup on that same portrait,
   with its clothing unchanged. Compare outfits shows both full-body outfits with
   trousers and makeup. The extra view selector is removed.
-- Completed images and videos save automatically in IndexedDB and appear in
-  previous looks. Keep/kept is replaced by saved results and per-image video actions.
+- Replace the remaining session-only Keep/kept controls with per-image video actions.
+  Completed image history and the matching existing sample video are already saved automatically.
 - Live video generation uses the selected completed image.
 - The API enforces 100 YouCam units per day shared across the site and up to 40
   units per browser per 24 hours, subject to the shared pool, using free Render
   Key Value. A lost counter store pauses live generation instead of resetting credit.
 
-These are planned changes, not current safeguards. There are no accounts or
-persistent result history yet. The current limiter counts requests in one server
+These are planned changes, not current safeguards. There are no accounts. Browser
+history is implemented; the public trial and server unit budget are not. The current limiter counts requests in one server
 process; it does not enforce a daily YouCam budget. The temporary design preview
 is separate from the website demo and is not part of the deployed application.
 
@@ -89,10 +89,34 @@ budget controls before activation; deployment alone does not enable live calls.
 
 The browser sends bounded image data through the server's File API adapter.
 Successful output bytes are downloaded immediately; signed provider URLs do not
-reach the browser. Source uploads remain in memory. Matching results are cached
-in sessionStorage or memory when the response is too large. This is **not durable
-history**. Starting over or removing photos clears the current results and cache.
+reach the browser. Source uploads remain in memory. Completed output images and the matching saved
+demo video are copied into IndexedDB as bytes, with their settings and colour
+context. The API-echoed source portrait is omitted from both persistent history
+and the session cache. Starting a new look preserves history.
 Already-submitted provider work may still finish and consume units after deletion.
+
+### Saved results on this browser
+
+After generation, wait for **Saved on this browser**. Start's **Previous looks**
+opens the comparison directly, including the saved sample video when it matches.
+Reopening works while the API is unavailable and sends no generation request.
+A matching set of file bytes, makeup, full-body inputs and runtime flags reuses
+history. Generation pauses if storage cannot be checked or safe file matching
+is unavailable; use HTTPS or localhost for the browser's file hashing support.
+
+Results offer individual downloads. Starting a new look keeps history. Delete
+on a history entry removes that look; **Remove photos and saved results** confirms
+clearing current inputs and all saved looks. Deletion invalidates pending writes,
+including writes prepared before deletion in another tab. Existing results already
+open in another tab remain in that tab's memory until it is closed or cleared.
+
+History belongs to the same browser profile and site address. It does not sync
+between localhost, Tailscale and Render. Storage quota, private browsing or browser
+data clearing can prevent saving or remove history. A failed save leaves current
+results and downloads available, with a save-only retry that does not call YouCam.
+The first valid older session cache may be imported once without regeneration.
+Source uploads are not restored; reselect them to change or generate a look.
+There is no live video generation route yet.
 
 ### Recorded unit estimates
 

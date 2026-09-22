@@ -1,5 +1,53 @@
 # Verification record
 
+## Saved browser history — locally verified
+
+This increment follows merged PR #11. It does not include a Render release,
+new paid generation, daily usage budgets or a live video endpoint.
+
+本阶段基于已合并的 #11，实现浏览器历史保存；未部署 Render、未进行新的付费生成，
+也未实现每日额度或实时视频接口。
+
+- 267 tests passed: 72 shared, 147 server, 48 web. All three workspace typechecks
+  passed; production build passed (JS 217.58 kB / 68.18 kB gzip).
+- A real Chrome persistent profile exercised the app against an isolated
+  fixture-only API with no key and both live flags disabled. The profile was
+  closed and reopened to verify IndexedDB retention, rather than only reloading
+  a page. Existing public fixture files supplied the test uploads and results.
+- Thirteen browser checks passed: empty history/input flow, automatic saving,
+  image links/video-byte download, matching video playback, start-over retention,
+  browser-restart reopening with the API unavailable, phone/keyboard use, exact
+  reuploaded-input reuse, individual deletion/cancel/reload, storage-quota
+  recovery, confirmed all-history deletion/stale writes, deletion during media
+  saving, and unavailable-storage protection before generation.
+- Reopening, matching reuse and save retries added zero generation POSTs.
+  Three intentional fixture runs made nine local generation POSTs in total,
+  with zero provider calls. There were no uncaught app errors on the final run.
+- Desktop 1440 px and phone 390 px screenshots used the existing theme. Images
+  remained uncropped, the saved video played from a Blob after reopening, and
+  the tested phone layout had no horizontal overflow. No design tokens changed.
+- Unit checks cover byte-based matching, source-portrait exclusion from both
+  history and the session cache, partial/full-body result preservation, media
+  provenance, object-URL cleanup, and reopening without source files or consent
+  being manufactured.
+- Source uploads are not persisted. History uses output Blobs and settings,
+  scoped to one browser profile and site address. A deletion revision prevents
+  pending writes in other tabs from restoring deleted media. Already-open
+  results in another tab can remain in that tab's memory until closed/cleared.
+- Natural browser eviction and every private-browser implementation were not
+  tested. Storage-full and unavailable-storage states were injected. Current
+  downloads remain available when saving fails; clearing storage is not a backup.
+- No dependencies or server routes changed. Full-body provider generation,
+  live provider costs, Render deployment and new video generation were not tested.
+
+The saved-history work is implemented. Remaining application work is the separate
+demo/live entry, original-portrait makeup comparison, per-result live video and
+server budget/failure controls in the partner guide.
+
+自动保存、重新打开、下载和删除已完成本地验证。剩余工作包括演示与实时入口分离、
+原始肖像妆容对比、每个结果的实时视频，以及服务端额度和故障保护。
+The dated cleanup and older records below describe their original snapshots.
+
 ## September 21, 2026 cleanup verification
 
 This section records the cleanup increment separately from the historical runs
