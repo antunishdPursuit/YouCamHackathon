@@ -32,16 +32,15 @@ export interface CachedGeneration {
   readonly tryOn: TryOnResponse;
 }
 
-async function fileFingerprint(file: File): Promise<string> {
-  const fallback = `${file.name}:${file.size}:${file.lastModified}`;
+async function fileFingerprint(file: File): Promise<string | null> {
 
-  if (typeof crypto === 'undefined' || !crypto.subtle) return fallback;
+  if (typeof crypto === 'undefined' || !crypto.subtle) return null;
 
   try {
     const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
     return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
   } catch {
-    return fallback;
+    return null;
   }
 }
 
@@ -68,6 +67,7 @@ export async function generationCacheKey(input: GenerationCacheInput): Promise<s
     ] : []),
   ]);
 
+  if (fingerprints.some(fingerprint => fingerprint === null)) return null;
   return JSON.stringify({ version: 4, fullBody: input.fullBody?.enabled === true, makeupLookId: input.makeupLookId, fingerprints,
     liveSkinAnalysis: input.liveSkinAnalysis, liveTryOn: input.liveTryOn });
 }
@@ -88,7 +88,9 @@ export function readGenerationCache(key: string): CachedGeneration | null {
 export function writeGenerationCache(cache: CachedGeneration): boolean {
   memoryCache = cache;
   try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(cache));
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ ...cache, tryOn: { ...cache.tryOn,
+      portrait: { provenance: cache.tryOn.portrait?.provenance ?? 'live', result: { status: 'failed', reason: 'Source photos are not saved.' } },
+    } }));
     return true;
   } catch {
     // A live response can exceed the browser's sessionStorage quota. The app still
@@ -106,4 +108,14 @@ export function clearGenerationCache(): void {
   } catch {
     // Storage can be unavailable in privacy-restricted browser contexts.
   }
+}
+
+/** Existing completed results can move into browser history without new provider work. */
+export function readLatestGenerationCache(): CachedGeneration | null {
+  if (memoryCache) return memoryCache;
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    const cached = raw ? JSON.parse(raw) as CachedGeneration : null;
+    return cached?.key && cached.analysis?.palette && cached.tryOn?.completeLooks ? cached : null;
+  } catch { return null; }
 }
