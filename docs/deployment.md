@@ -1,6 +1,11 @@
 # Deployment
 
-The approved shape for the first public release: **two free Render services, fixture-only,
+**Scope reviewed: September 21, 2026.** This runbook describes the current
+fixture-only release. The accepted live-trial plan is not implemented here.
+See the [bilingual partner guide / 中英双语合作开发指南](partner-guide.md) for
+current-versus-planned behavior and ownership.
+
+The current release shape is **two free Render services, fixture-only,
 and no API key.**
 
 - a Render Static Site for the React build;
@@ -26,6 +31,10 @@ the exact origin configured in `YINCOL_ALLOWED_ORIGIN`:
                                         └── fixture routes only
 ```
 
+The planned separate free Key Value service, 100-unit site budget, 40-unit browser
+allowance, IndexedDB history and live video route are not present in this release.
+Do not configure public live calls using this fixture-only runbook.
+
 The browser receives the API origin at static-site build time through `VITE_API_URL`.
 The API service accepts browser requests only from the exact `YINCOL_ALLOWED_ORIGIN`.
 There are no accounts, sessions, database writes, or user uploads in the public release.
@@ -34,6 +43,21 @@ The server can still serve `web/dist` for local or single-process previews. The 
 deployment does not depend on that fallback.
 
 ---
+
+## Ownership
+
+Sean can prepare code and configuration templates through a GitHub pull request
+without Dennis's Render credentials. Dennis creates and configures services in
+the personal workspace, enters secrets, and performs release checks. Render's
+Hobby workspace cannot invite a second member. Do not share the account login
+or provider key as a substitute for a code handoff.
+
+A connected branch can auto-deploy on push or merge, depending on service settings.
+Check those settings before merging release changes; a clean Git branch does not
+by itself prove that the deployed site is current or verified.
+
+Sources: [workspace membership](https://render.com/docs/team-members),
+[automatic deploys](https://render.com/docs/deploys).
 
 ## Creation order
 
@@ -254,18 +278,18 @@ deployment shows exactly what that commit showed.
   explicitly played five-second YouCam video. It costs no units to replay. Garment B
   stays a still. Other presets do not reuse the video. A playback failure returns to the
   original still. This release does not include true 3D rotation.
-- **The legacy tilt controls on stand-in cards are a CSS effect only.** They add no side
-  or rear views and make no 3D claim.
+- **Where available, 2.5D tilt is a CSS image effect only.** The current app hides it on placeholders and full-body results. It adds no side
+  or rear views and makes no 3D claim.
 
 ---
 
-## Not approved
+## Outside this deployment runbook
 
 - Deploying from an unmerged feature branch.
 - Any deployment configured with an API key.
-- Public live API access. That is a different release scope — an anonymous,
-  server-mediated live demo — and needs stronger abuse controls before it goes anywhere
-  public.
+- Public live API access. The next increment plans an anonymous, server-mediated
+  live trial, but its shared unit budget, browser history and video workflow are
+  not implemented. Complete and verify those controls before activating it.
 - True 3D — a body or garment model, or independently generated side or rear views. The
   2.5D tilt preview is a CSS effect on one photograph and claims nothing more; see the
   known limitations above.
