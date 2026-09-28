@@ -116,7 +116,8 @@ describe('full-body request boundary', () => {
     const body = await response.json() as TryOnResponse;
     expect(body.completeLooks[ids[0]!]!.stage).toBe('completeLook');
     expect(body.fullBody!.completeLooks[ids[1]!]!.stage).toBe('completeLook');
-    expect(provider.run).toHaveBeenCalledTimes(9); // 4 close-up + 5 full-body tasks
+    expect(body.portraitMadeUp!.stage).toBe('portraitMakeup');
+    expect(provider.run).toHaveBeenCalledTimes(10); // 4 close-up + 5 full-body + 1 portrait-makeup task
     expect(response.headers.get('cache-control')).toBe('private, no-store');
   });
   it('preserves close-up results when the trousers task fails', async () => {

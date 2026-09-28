@@ -5,6 +5,7 @@ import { prepareSavedLook, openSavedLook, hasUsablePreviews, readSavedLook } fro
 
 const panel = (imageUrl: string): TryOnPanel => ({ provenance: 'live', stage: 'completeLook', result: { status: 'ready', imageUrl, alt: 'Outfit preview' } });
 const result: TryOnResponse = { mode: 'live', portrait: panel('data:image/png;base64,cHJpdmF0ZQ=='),
+  portraitMadeUp: { ...panel('data:image/png;base64,bWFkZVVw'), stage: 'portraitMakeup' },
   garments: { a: { ...panel('data:image/png;base64,aW1hZ2U='), stage: 'garmentOnly' } },
   completeLooks: { a: panel('data:image/png;base64,aW1hZ2U=') },
   fullBody: { mode: 'live', garments: {}, completeLooks: { a: panel('data:image/png;base64,ZnVsbA=='),
@@ -18,19 +19,21 @@ describe('saved media boundaries', () => {
     const fetcher = vi.fn().mockImplementation(() => Promise.resolve(new Response(new Blob(['output bytes'], { type: 'image/png' }))));
     vi.stubGlobal('fetch', fetcher);
     const saved = await prepareSavedLook(cache, settings);
-    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher).toHaveBeenCalledTimes(3);
     expect(fetcher.mock.calls.flat()).not.toContain('data:image/png;base64,cHJpdmF0ZQ==');
     expect(saved.tryOn.portrait.result.status).toBe('failed');
+    expect(saved.tryOn.portraitMadeUp?.stage).toBe('portraitMakeup');
     expect(saved.media.every(media => media.blob instanceof Blob)).toBe(true);
     expect(saved.tryOn.fullBody?.completeLooks.b?.result).toEqual({ status: 'failed', reason: 'Top B failed.' });
     expect(saved.fullBodySize).toEqual(settings.fullBodySize);
     const opened = openSavedLook(saved);
     expect(opened.tryOn.completeLooks.a?.result).toMatchObject({ status: 'ready', imageUrl: expect.stringMatching(/^blob:/) });
+    expect(opened.tryOn.portraitMadeUp?.result).toMatchObject({ status: 'ready', imageUrl: expect.stringMatching(/^blob:/) });
     expect(opened.tryOn.fullBody?.completeLooks.a?.provenance).toBe('live');
     expect(opened.videoByImage).toEqual({});
     const revoked = vi.spyOn(URL, 'revokeObjectURL');
     opened.dispose();
-    expect(revoked).toHaveBeenCalledTimes(2);
+    expect(revoked).toHaveBeenCalledTimes(3);
   });
   it('saves the matching demo video with its image and restores their relationship', async () => {
     vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(new Response(new Blob(['captured bytes'], { type: url.endsWith('.mp4') ? 'video/mp4' : 'image/jpeg' })))));
@@ -45,7 +48,7 @@ describe('saved media boundaries', () => {
   });
   it('does not fetch signed provider URLs or claim a failed media save succeeded', async () => {
     const fetcher = vi.fn(); vi.stubGlobal('fetch', fetcher);
-    await expect(prepareSavedLook({ ...cache, tryOn: { ...result, fullBody: undefined, garments: {}, completeLooks: { a: panel('https://provider.example/photo?secret=test') } } }, settings)).rejects.toThrow('safely');
+    await expect(prepareSavedLook({ ...cache, tryOn: { ...result, fullBody: undefined, portraitMadeUp: undefined, garments: {}, completeLooks: { a: panel('https://provider.example/photo?secret=test') } } }, settings)).rejects.toThrow('safely');
     expect(fetcher).not.toHaveBeenCalled();
     fetcher.mockResolvedValue(new Response('unavailable', { status: 503 }));
     await expect(prepareSavedLook(cache, settings)).rejects.toThrow('downloaded');

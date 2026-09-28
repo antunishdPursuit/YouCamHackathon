@@ -13,12 +13,17 @@ const provider = vi.hoisted(() => ({
     garmentOnly: { result: { status: 'ready', imageUrl: 'data:image/png;base64,AAAA', alt: 'Mock garment' }, provenance: 'live', stage: 'garmentOnly' },
     completeLook: { result: { status: 'ready', imageUrl: 'data:image/png;base64,BBBB', alt: 'Mock complete look' }, provenance: 'live', stage: 'completeLook' },
   })),
+  portraitMakeup: vi.fn(async () => ({
+    result: { status: 'ready', imageUrl: 'data:image/png;base64,CCCC', alt: 'Mock portrait makeup' },
+    provenance: 'live', stage: 'portraitMakeup',
+  })),
 }));
 vi.mock('../youcam/imageInput.js', async original => ({
   ...await original<typeof import('../youcam/imageInput.js')>(),
   fileUploadStrategy: { prepare: provider.prepare },
 }));
 vi.mock('../youcam/completeLook.js', () => ({ runCompleteLookSequence: provider.sequence }));
+vi.mock('../youcam/portraitMakeup.js', () => ({ runPortraitMakeupSequence: provider.portraitMakeup }));
 
 let server: Server | undefined;
 afterEach(async () => {
@@ -61,12 +66,14 @@ describe('live uploads while palette mode remains fixture', () => {
     expect(result.mode).toBe('live');
     expect(provider.prepare).toHaveBeenCalledTimes(4);
     expect(provider.sequence).toHaveBeenCalledTimes(2);
+    expect(provider.portraitMakeup).toHaveBeenCalledTimes(1);
     for (const [request] of provider.sequence.mock.calls) {
       expect(request.look.id).toBe('champagne-halo');
     }
     for (const id of body.garmentIds) {
       expect(result.completeLooks[id]).toMatchObject({ provenance: 'live', stage: 'completeLook', result: { status: 'ready' } });
     }
+    expect(result.portraitMadeUp).toMatchObject({ provenance: 'live', stage: 'portraitMakeup', result: { status: 'ready' } });
   });
   it('keeps the small request limit in fixture-only mode', async () => {
     const origin = await start(false);

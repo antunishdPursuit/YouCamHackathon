@@ -31,7 +31,8 @@ import {
 } from '../youcam/imageInput.js';
 import { logFailure, publicFailureReason } from '../youcam/publicError.js';
 import { tryOnFailure } from '../youcam/adapters/tryOn.js';
-import { fixtureCompleteLook, fixtureDelay, resolveFixtureImage } from '../fixtures/index.js';
+import { fixtureCompleteLook, fixtureDelay, fixturePortraitMakeup, resolveFixtureImage } from '../fixtures/index.js';
+import { runPortraitMakeupSequence } from '../youcam/portraitMakeup.js';
 import { rejectImageBytesInFixtureMode } from './fixtureGuard.js';
 
 export const tryOnRouter = Router();
@@ -139,6 +140,7 @@ tryOnRouter.post('/try-on', asyncRoute(async (req, res) => {
       garments,
       completeLooks,
       portrait: { result: portraitImage.result, provenance: portraitImage.provenance },
+      portraitMadeUp: fixturePortraitMakeup(look?.name ?? 'chosen'),
       mode: 'fixture',
     };
     res.json(response);
@@ -200,6 +202,10 @@ tryOnRouter.post('/try-on', asyncRoute(async (req, res) => {
     config, ...fullBody, garmentIds, garmentImages, look,
   }) : undefined;
 
+  // Runs alongside the garment sequences, not blocking or blocked by them — one more
+  // independent failure mode, isolated the same way a second garment's failure is.
+  const portraitMadeUpPromise = runPortraitMakeupSequence({ config, portrait, look });
+
   // Each garment runs the full sequence on its own. Nothing is shared between them, so
   // one garment's failure cannot reach the other's result.
   const settled = await Promise.allSettled(
@@ -256,6 +262,7 @@ tryOnRouter.post('/try-on', asyncRoute(async (req, res) => {
       result: { status: 'ready', imageUrl: imageDataUrl(portrait), alt: 'Your portrait, bare face' },
       provenance: 'live',
     },
+    portraitMadeUp: await portraitMadeUpPromise,
     mode: 'live',
     ...(fullBodyPromise ? { fullBody: await fullBodyPromise } : {}),
   };

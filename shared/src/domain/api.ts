@@ -84,8 +84,12 @@ export interface TryOnRequest {
  * point where the makeup task was handed the garment task's returned image — and the UI
  * is only allowed to use the words "complete look" where it is present. Anything else
  * would be describing a picture as something it is not.
+ *
+ * `portraitMakeup` is a third, separate case: the makeup task ran directly on the bare
+ * portrait, with no garment task involved at all. It is neither a garment-only preview nor
+ * a complete look, so it gets its own value rather than being folded into either.
  */
-export type LookStage = 'garmentOnly' | 'completeLook';
+export type LookStage = 'garmentOnly' | 'completeLook' | 'portraitMakeup';
 
 export interface TryOnPanel {
   readonly result: TryOnResult;
@@ -104,6 +108,12 @@ export interface TryOnView {
    */
   readonly completeLooks: Readonly<Record<string, TryOnPanel>>;
   readonly portrait: TryOnPanel;
+  /**
+   * The bare portrait with makeup applied directly, no garment change. Optional because
+   * `fullBody` extends `Omit<TryOnView, 'portrait'>` and the full-body flow has no bare
+   * portrait to run this comparison against.
+   */
+  readonly portraitMadeUp?: TryOnPanel;
   readonly mode: 'fixture' | 'live';
 }
 

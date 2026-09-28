@@ -127,6 +127,9 @@ function mapPanels(response: TryOnResponse, convert: (panel: TryOnPanel, label: 
   return { ...response, garments: map(response.garments, 'Close-up'), completeLooks: map(response.completeLooks, 'Close-up'),
     // The API echoes the source portrait. It is not a generated output and is never persisted.
     portrait: { provenance: response.portrait.provenance, result: { status: 'failed', reason: 'Source photos are not saved.' } },
+    // Unlike the bare portrait, this IS a generated output — the makeup task's own result —
+    // so it is saved/restored the same way garments and complete looks are.
+    ...(response.portraitMadeUp ? { portraitMadeUp: convert(response.portraitMadeUp, 'Portrait with makeup') } : {}),
     ...(response.fullBody ? { fullBody: { ...response.fullBody,
       garments: map(response.fullBody.garments, 'Full-body'), completeLooks: map(response.fullBody.completeLooks, 'Full-body') } } : {}) };
 }

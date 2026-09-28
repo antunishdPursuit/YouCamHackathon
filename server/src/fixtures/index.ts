@@ -130,6 +130,7 @@ export const CAPTURE_TARGETS = {
 /** Designed stand-ins that ship with the repo. Clearly marked as such, in the file. */
 const PLACEHOLDER_FILES: Readonly<Record<string, string>> = {
   portrait: 'placeholder-portrait.svg',
+  portraitMakeup: 'placeholder-portrait-makeup.svg',
   garmentA: 'placeholder-garment-a.svg',
   garmentB: 'placeholder-garment-b.svg',
   completeLookA: 'placeholder-complete-look-a.svg',
@@ -322,5 +323,24 @@ export function fixtureCompleteLook({
       provenance: completeLookImage.provenance,
       ...(completeLookImage.provenance === 'captured' ? { stage: 'completeLook' as const } : {}),
     },
+  };
+}
+
+/**
+ * The fixture-mode portrait-makeup comparison panel.
+ *
+ * No garment is involved, so there is no capture target for it in `CAPTURE_TARGETS` — this
+ * always falls back to the designed placeholder. If a real capture is added later, wire its
+ * filename through `resolveFixtureImage`'s first argument the same way the other panels do.
+ */
+export function fixturePortraitMakeup(lookName: string): TryOnPanel {
+  const image = resolveFixtureImage(undefined, 'portraitMakeup', {
+    captured: `The demo portrait with the ${lookName} makeup, no garment change`,
+    placeholder: `Designed stand-in for the portrait with ${lookName} makeup`,
+  });
+  return {
+    result: image.result,
+    provenance: image.provenance,
+    ...(image.provenance === 'captured' ? { stage: 'portraitMakeup' as const } : {}),
   };
 }

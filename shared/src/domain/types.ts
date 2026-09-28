@@ -227,6 +227,7 @@ export type TryOnResult =
  */
 export type DisplaySlotId =
   | 'portrait'
+  | 'portraitMadeUp'
   | 'garmentA'
   | 'garmentB'
   | 'completeLookA'
