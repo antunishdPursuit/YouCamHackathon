@@ -130,6 +130,11 @@ export const inputsComplete = (state: SessionState): boolean =>
   state.makeupLookId !== null &&
   (!state.fullBody.enabled || (state.fullBody.portrait !== null && state.fullBody.trousers !== null));
 
+// Valid only for actions that represent an actual input change (a new portrait, garment,
+// makeup pick, or full-body toggle) — those really do invalidate any previous result and
+// any kept choices derived from it. `analysisStarted` must NOT spread this: it fires on
+// every Generate click regardless of whether inputs changed, and wiping kept state there
+// discarded it even when a cached/saved result for the same inputs was about to be reused.
 const clearedResults = {
   analysis: null, tryOn: null, keptGarmentIds: [], keptMakeupWinners: [],
   fullBodyKeptGarmentIds: [], fullBodyKeptMakeupWinners: [],
@@ -215,7 +220,8 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
       };
 
     case 'analysisStarted':
-      return { ...state, ...clearedResults, busy: true, step: 'generate' };
+      return { ...state, analysis: null, tryOn: null, error: null, errorCode: null,
+        busy: true, step: 'generate' };
 
     case 'analysisReady':
       return { ...state, analysis: action.analysis };

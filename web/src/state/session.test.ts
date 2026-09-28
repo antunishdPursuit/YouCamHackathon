@@ -104,6 +104,29 @@ it('preserves completed work when choosing the selected makeup again, but invali
   expect(changed.fullBodyKeptGarmentIds).toEqual([]);
 });
 
+describe('kept choices survive a regenerate that reuses a cached result', () => {
+  const generated = { ...ready, analysis: {} as NonNullable<SessionState['analysis']>,
+    tryOn: {} as NonNullable<SessionState['tryOn']>, keptGarmentIds: ['a'], keptMakeupWinners: ['completeLook' as const] };
+  it('preserves kept ids across analysisStarted followed by a reused result', () => {
+    let state = sessionReducer(generated, { type: 'analysisStarted' });
+    expect(state.analysis).toBeNull();
+    expect(state.tryOn).toBeNull();
+    // A cache/saved-look hit only redelivers analysis/tryOn — it must not need to also
+    // restore kept ids, because analysisStarted must never have cleared them.
+    expect(state.keptGarmentIds).toEqual(['a']);
+    expect(state.keptMakeupWinners).toEqual(['completeLook']);
+    state = sessionReducer(state, { type: 'analysisReady', analysis: {} as NonNullable<SessionState['analysis']> });
+    state = sessionReducer(state, { type: 'tryOnReady', tryOn: {} as NonNullable<SessionState['tryOn']> });
+    expect(state.keptGarmentIds).toEqual(['a']);
+    expect(state.keptMakeupWinners).toEqual(['completeLook']);
+  });
+  it('still clears kept ids when an input actually changes', () => {
+    const state = sessionReducer(generated, { type: 'setGarmentInput', slot: 'b', image });
+    expect(state.keptGarmentIds).toEqual([]);
+    expect(state.keptMakeupWinners).toEqual([]);
+  });
+});
+
 it('opens saved comparisons without restoring uploads or starting generation', () => {
   const restored = sessionReducer({ ...ready, busy: true, consentGiven: false }, {
     type: 'restoreGeneration', analysis: {} as NonNullable<SessionState['analysis']>,
