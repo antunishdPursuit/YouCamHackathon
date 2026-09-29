@@ -14,6 +14,7 @@ import {
   requestAnalysis,
   requestSkinAnalysis,
   requestTryOn,
+  requestVideo,
   type RuntimeMode,
 } from './api/client.js';
 import { BackendStatus, type BackendReadiness } from './components/BackendStatus.js';
@@ -113,7 +114,9 @@ export function App() {
   const [generationPhase, setGenerationPhase] = useState<'checking' | 'analysis' | 'previews'>('checking');
   const generationRunning = useRef(false);
   const { looks, loading: historyLoading, error: historyError, saveStatus, setSaveStatus,
-    save: saveLook, remove: removeLook, refresh: refreshHistory } = useSavedLooks();
+    save: saveLook, remove: removeLook, refresh: refreshHistory, attachVideo } = useSavedLooks();
+  const [sessionVideoByImage, setSessionVideoByImage] = useState<Record<string, string>>({});
+  const [videoStatusByImage, setVideoStatusByImage] = useState<Record<string, 'pending' | 'failed'>>({});
   const [activeHistoryKey, setActiveHistoryKey] = useState<string | null>(null);
   const [openedLook, setOpenedLook] = useState<OpenedLook | null>(null);
   const [historyBusy, setHistoryBusy] = useState(false);
@@ -241,6 +244,8 @@ export function App() {
     setActiveHistoryKey(null);
     lastCompleted.current = null;
     generationRunning.current = false;
+    setSessionVideoByImage({});
+    setVideoStatusByImage({});
   }, []);
 
   /**
@@ -406,6 +411,31 @@ export function App() {
     finally { setHistoryBusy(false); }
   }, [refreshHistory, setSaveStatus, voidGeneration]);
 
+  const handleGenerateVideo = useCallback(async (imageUrl: string) => {
+    setVideoStatusByImage(current => ({ ...current, [imageUrl]: 'pending' }));
+    try {
+      const response = await requestVideo(imageUrl);
+      if (response.video.result.status !== 'ready') {
+        throw new Error(response.video.result.reason);
+      }
+      const videoUrl = response.video.result.videoUrl;
+      setSessionVideoByImage(current => ({ ...current, [imageUrl]: videoUrl }));
+      setVideoStatusByImage(({ [imageUrl]: _drop, ...rest }) => rest);
+
+      // Persisted alongside history only when this result is one we've reopened — its
+      // saved image ids are already known then. A brand-new, not-yet-reopened generation's
+      // video still plays for this session; linking it into that generation's own history
+      // entry (once saved) is a follow-up, not done here.
+      const savedImageId = openedLook?.downloads.find(entry => entry.url === imageUrl)?.id;
+      if (savedImageId && activeHistoryKey) {
+        const videoBlob = await fetch(videoUrl).then(response => response.blob());
+        await attachVideo(activeHistoryKey, savedImageId, videoBlob);
+      }
+    } catch {
+      setVideoStatusByImage(current => ({ ...current, [imageUrl]: 'failed' }));
+    }
+  }, [openedLook, activeHistoryKey, attachVideo]);
+
   const handleDeleteLook = useCallback(async (key: string) => {
     setHistoryBusy(true);
     setHistoryActionError(null);
@@ -566,7 +596,9 @@ export function App() {
             {...(state.fullBody.portrait ? { fullBodySize: {
               width: state.fullBody.portrait.width, height: state.fullBody.portrait.height,
             } } : {})}
-            videoByImage={openedLook?.videoByImage}
+            videoByImage={{ ...openedLook?.videoByImage, ...sessionVideoByImage }}
+            videoStatusByImage={videoStatusByImage}
+            onGenerateVideo={handleGenerateVideo}
             motionKindByImage={openedLook?.motionKindByImage}
             {...(openedLook?.look.portraitSize ? { portraitSize: openedLook.look.portraitSize } : {})}
             {...(openedLook?.look.fullBodySize ? { fullBodySize: openedLook.look.fullBodySize } : {})}

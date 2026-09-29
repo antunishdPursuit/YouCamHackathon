@@ -21,7 +21,10 @@ export interface SavedLook extends LookSettings {
   readonly analysis: AnalyzeResponse;
   readonly tryOn: TryOnResponse;
   readonly media: readonly SavedMedia[];
-  readonly motion?: { imageId: string; videoId: string };
+  /** Which saved image each saved video belongs to. At most one entry per `imageId`: a
+   * later `attachVideoToSavedLook` call for the same image replaces its entry (and its old
+   * video's media blob) rather than adding a second one. */
+  readonly motion: readonly { readonly imageId: string; readonly videoId: string }[];
 }
 export interface OpenedLook {
   readonly look: SavedLook;
@@ -158,7 +161,7 @@ async function mediaBytes(source: string, kind: SavedMedia['kind']): Promise<Blo
 export async function prepareSavedLook(cache: CachedGeneration, settings: LookSettings): Promise<SavedLook> {
   const tasks: Promise<SavedMedia>[] = [];
   const ids = new Map<string, string>();
-  let motion: SavedLook['motion'];
+  const motion: { imageId: string; videoId: string }[] = [];
   const tryOn = mapPanels(cache.tryOn, (panel, label) => {
     if (panel.result.status !== 'ready') return panel;
     const source = panel.result.imageUrl;
@@ -169,14 +172,14 @@ export async function prepareSavedLook(cache: CachedGeneration, settings: LookSe
       const imageId = id;
       tasks.push(mediaBytes(source, 'image').then(blob => ({ id: imageId, blob, label, kind: 'image', motionKind: motionSampleKind(panel, cache.tryOn.mode) })));
       if (motionSampleKind(panel, cache.tryOn.mode) === 'video') {
-        motion = { imageId, videoId: 'motion-sample' };
+        motion.push({ imageId, videoId: 'motion-sample' });
         tasks.push(mediaBytes(GARMENT_A_MOTION_URL, 'video').then(blob => ({ id: 'motion-sample', blob, label: 'Saved Garment A motion sample', kind: 'video' })));
       }
     }
     return { ...panel, result: { ...panel.result, imageUrl: `saved:${id}` } };
   });
   return { key: cache.key, savedAt: cache.savedAt, analysis: cache.analysis, ...settings, tryOn,
-    media: await Promise.all(tasks), ...(motion ? { motion } : {}) };
+    media: await Promise.all(tasks), motion };
 }
 
 /** Restored media is served from browser-owned bytes, independent of API and expiring URLs. */
@@ -192,11 +195,36 @@ export function openSavedLook(look: SavedLook): OpenedLook {
   const motionKindByImage: Record<string, 'video' | 'still'> = {};
   downloads.forEach(media => { if (media.motionKind) motionKindByImage[media.url] = media.motionKind; });
   const videoByImage: Record<string, string> = {};
-  if (look.motion) {
-    const imageUrl = urls.get(look.motion.imageId), videoUrl = urls.get(look.motion.videoId);
+  // `?? []` guards a look saved by an earlier version of this module, before `motion`
+  // became a required array — IndexedDB records are never migrated in place.
+  for (const entry of look.motion ?? []) {
+    const imageUrl = urls.get(entry.imageId), videoUrl = urls.get(entry.videoId);
     if (imageUrl && videoUrl) videoByImage[imageUrl] = videoUrl;
   }
   return { look, tryOn, downloads, videoByImage, motionKindByImage, dispose: () => downloads.forEach(media => URL.revokeObjectURL(media.url)) };
+}
+
+/**
+ * Attach a generated video to an already-saved image, replacing any earlier video for that
+ * same image (and dropping its now-orphaned blob) rather than accumulating one per attempt.
+ * Reuses `putSavedLook`'s existing optimistic-concurrency guard unchanged.
+ */
+export async function attachVideoToSavedLook(
+  key: string,
+  imageId: string,
+  videoBlob: Blob,
+  isCurrent: () => boolean,
+): Promise<void> {
+  const revision = await historyRevision();
+  const look = await readSavedLook(key);
+  if (!look) throw new Error('This saved look is no longer on this browser.');
+
+  const videoId = `video-${imageId}`;
+  const media: SavedMedia = { id: videoId, blob: videoBlob, label: 'Generated video', kind: 'video' };
+  const motion = [...(look.motion ?? []).filter(entry => entry.imageId !== imageId), { imageId, videoId }];
+  const updatedMedia = [...look.media.filter(item => item.id !== videoId), media];
+
+  await putSavedLook({ ...look, media: updatedMedia, motion }, isCurrent, revision);
 }
 
 export function mediaFileName(media: SavedMedia, savedAt: number): string {

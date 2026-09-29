@@ -18,9 +18,12 @@ import type {
   TryOnImageInput,
   TryOnRequest,
   TryOnResponse,
+  VideoRequest,
+  VideoResponse,
 } from '@yincol/shared';
 import { IMAGE_SPEC } from '@yincol/shared';
 import type { CapturedImage, CapturedPortrait, FullBodyInputs } from '../state/session.js';
+import { getOrCreateBrowserId } from '../state/browserId.js';
 
 /**
  * Static deployments set the API origin at build time. Keeping the default relative
@@ -49,7 +52,10 @@ export class ApiError extends Error {
 async function post<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    // The browser id is a fairness heuristic for the server's shared unit budget, not a
+    // credential — see browserId.ts. Attaching it on every call (not only the paid ones)
+    // keeps this one call site the single source of truth for the header's name.
+    headers: { 'Content-Type': 'application/json', 'X-Yincol-Browser-Id': getOrCreateBrowserId() },
     body: JSON.stringify(body),
   });
 
@@ -227,3 +233,10 @@ export async function requestTryOn({
 
   return post<TryOnResponse>('/try-on', body);
 }
+
+/**
+ * `imageUrl` is the exact `imageUrl` string already on the completed panel (a `data:` URL
+ * or a `/fixtures/...` path) — see shared's `VideoRequest` for why nothing is re-derived.
+ */
+export const requestVideo = (imageUrl: string): Promise<VideoResponse> =>
+  post<VideoResponse>('/video', { imageUrl } satisfies VideoRequest);

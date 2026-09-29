@@ -69,6 +69,47 @@ describe('full-body rendering contract', () => {
 });
 
 
+describe('per-image video action', () => {
+  it('offers a Generate video button for a ready, non-placeholder panel', () => {
+    const html = renderToStaticMarkup(<ResultsScreen {...props} />);
+    expect(html).toContain('Generate video (10 units)');
+  });
+
+  it('shows a pending label and disables the button while a request is in flight', () => {
+    const html = renderToStaticMarkup(
+      <ResultsScreen {...props} videoStatusByImage={{ '/close-a': 'pending' }} onGenerateVideo={noop} />,
+    );
+    expect(html).toContain('Generating video…');
+    expect(html).toMatch(/Generating video…<\/button>/);
+  });
+
+  it('offers a retry label after a failed request', () => {
+    const html = renderToStaticMarkup(
+      <ResultsScreen {...props} videoStatusByImage={{ '/close-a': 'failed' }} onGenerateVideo={noop} />,
+    );
+    expect(html).toContain('Video failed — retry');
+  });
+
+  it('plays an existing video instead of offering to generate a new one for the same image', () => {
+    const html = renderToStaticMarkup(
+      <ResultsScreen {...props} videoByImage={{ '/close-a': 'blob:generated-clip' }} />,
+    );
+    expect(html).toContain('src="blob:generated-clip"');
+    // The reuse short-circuit: no "Generate video" action for the image that already has one.
+    const closeACard = html.slice(html.indexOf('result-closeup-closeup-a'));
+    expect(closeACard.slice(0, closeACard.indexOf('</article>'))).not.toContain('Generate video');
+  });
+
+  it('never offers video generation for a placeholder panel', () => {
+    const placeholderTryOn: TryOnResponse = { ...tryOn, completeLooks: {
+      ...tryOn.completeLooks, a: { result: { status: 'ready', imageUrl: '/placeholder.svg', alt: 'Stand-in' }, provenance: 'placeholder' },
+    } };
+    const html = renderToStaticMarkup(<ResultsScreen {...props} tryOn={placeholderTryOn} />);
+    const closeACard = html.slice(html.indexOf('result-closeup-closeup-a'));
+    expect(closeACard.slice(0, closeACard.indexOf('</article>'))).not.toContain('Generate video');
+  });
+});
+
 it('offers previous looks independently of backend readiness and explains persistent storage', () => {
   const html = renderToStaticMarkup(<IntroScreen onBeginDemo={noop} onBeginLive={noop} resuming={false} imagesLeaveTab={null}
     previousLooks={<PreviousLooks looks={[]} loading={false} error={null} pending={false}

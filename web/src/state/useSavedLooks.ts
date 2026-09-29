@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { findMakeupLook } from '@yincol/shared';
 import { readLatestGenerationCache, type CachedGeneration } from './generationCache.js';
 import { hasUsablePreviews, listSavedLooks, prepareSavedLook, putSavedLook, readSavedLook,
-  deleteSavedLook, clearSavedLooks, historyRevision, claimLegacyMigration, type LookSettings, type SavedLook } from './savedLooks.js';
+  deleteSavedLook, clearSavedLooks, historyRevision, claimLegacyMigration, attachVideoToSavedLook,
+  type LookSettings, type SavedLook } from './savedLooks.js';
 
 export type SaveStatus = 'saving' | 'saved' | 'failed' | 'empty' | null;
 
@@ -53,6 +54,11 @@ export function useSavedLooks() {
     }
   }, [refresh]);
 
+  const attachVideo = useCallback(async (key: string, imageId: string, videoBlob: Blob) => {
+    await attachVideoToSavedLook(key, imageId, videoBlob, () => mounted.current);
+    await refresh();
+  }, [refresh]);
+
   const remove = useCallback(async (key?: string) => {
     epoch.current += 1;
     readVersion.current += 1;
@@ -88,5 +94,5 @@ export function useSavedLooks() {
     return () => { mounted.current = false; epoch.current += 1; window.removeEventListener('focus', sync); document.removeEventListener('visibilitychange', sync); };
   }, [refresh, save]);
 
-  return { looks, loading, error, saveStatus, setSaveStatus, save, remove, refresh };
+  return { looks, loading, error, saveStatus, setSaveStatus, save, remove, refresh, attachVideo };
 }

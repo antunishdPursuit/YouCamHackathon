@@ -141,6 +141,8 @@ export function ResultsScreen({
   onEditInputs,
   onStartOver,
   videoByImage = {},
+  videoStatusByImage = {},
+  onGenerateVideo,
   motionKindByImage = {},
 }: {
   analysis: AnalyzeResponse;
@@ -155,6 +157,8 @@ export function ResultsScreen({
   onEditInputs: () => void;
   onStartOver: () => void;
   videoByImage?: Readonly<Record<string, string>>;
+  videoStatusByImage?: Readonly<Record<string, 'pending' | 'failed'>>;
+  onGenerateVideo?: (imageUrl: string) => void;
   motionKindByImage?: Readonly<Record<string, 'video' | 'still'>>;
 }) {
   const look = makeupLookId ? findMakeupLook(makeupLookId) : undefined;
@@ -276,15 +280,27 @@ export function ResultsScreen({
               {hasTiltableCard ? <TiltPreviewNote /> : null}
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 {section.panels.map((entry) => {
-                  const savedVideo = entry.panel?.result.status === 'ready' ? videoByImage[entry.panel.result.imageUrl] : undefined;
-                  const motionKind = section.showsTilt ? (savedVideo ? 'video' : motionForPanel(entry.panel, generation.mode)) : undefined;
+                  const imageUrl = entry.panel?.result.status === 'ready' ? entry.panel.result.imageUrl : undefined;
+                  const savedVideo = imageUrl ? videoByImage[imageUrl] : undefined;
+                  // A saved or just-generated video always plays once it exists, in any
+                  // section; the legacy fixture-sample auto-match stays close-up-only, as
+                  // it always has been.
+                  const motionKind = savedVideo ? 'video' : (section.showsTilt ? motionForPanel(entry.panel, generation.mode) : undefined);
                   const canTiltThisCard = section.showsTilt && !motionKind && entry.panel?.provenance !== 'placeholder' && entry.panel?.result.status === 'ready';
                   const titleId = `result-${section.key}-${entry.key}`;
+                  const videoRequestable = Boolean(imageUrl) && entry.panel?.provenance !== 'placeholder' && motionKind !== 'video';
+                  const videoPending = imageUrl ? videoStatusByImage[imageUrl] === 'pending' : false;
+                  const videoFailed = imageUrl ? videoStatusByImage[imageUrl] === 'failed' : false;
                   const actions = (
                     <div className="mt-3 flex flex-col items-start gap-2">
-                      <Button variant="quiet" disabled className="!px-4 text-sm">
-                        Video — coming soon
-                      </Button>
+                      {videoRequestable ? (
+                        <Button variant="quiet" className="!px-4 text-sm"
+                          disabled={!onGenerateVideo || videoPending}
+                          onClick={() => imageUrl && onGenerateVideo?.(imageUrl)}>
+                          {/* 10 units — server/src/youcam/budget.ts's VIDEO_UNIT_COST */}
+                          {videoPending ? 'Generating video…' : videoFailed ? 'Video failed — retry' : 'Generate video (10 units)'}
+                        </Button>
+                      ) : null}
                       {canTiltThisCard ? (
                         <TiltControls degrees={tiltFor(entry.key)}
                           onChange={(degrees) => setTiltFor(entry.key, degrees)} cardLabel={entry.title} />

@@ -55,7 +55,7 @@ export function MotionPreview({ imageUrl, alt, slot, aspectRatio, children, vide
         style={{ aspectRatio }}>
         <video ref={video} src={videoUrl} poster={imageUrl}
           preload="none" muted playsInline
-          aria-label="Garment A natural-motion sample" aria-describedby={descriptionId}
+          aria-label={alt} aria-describedby={descriptionId}
           className="h-full w-full object-contain"
           onPlaying={() => { setPlaying(true); setLoading(false); }}
           onPause={() => { setPlaying(false); setLoading(false); }}
@@ -65,15 +65,15 @@ export function MotionPreview({ imageUrl, alt, slot, aspectRatio, children, vide
       </div>
       {children}
       <p id={descriptionId} className="mt-2 text-center text-sm text-ink-soft">
-        Generated motion sample · 5 seconds. Her head and shoulders turn, then she smiles.
-        Use the original still to compare colour and detail.
+        A five-second, 720p clip generated from this exact image — not a 3D model, and it
+        does not show the back or sides. Use the original still to compare colour and detail.
       </p>
       {failed ? (
         <p role="status" className="mt-2 text-center text-sm text-ink-soft">
-          Motion could not play. The original still is available.
+          The video could not play. The original still is available.
         </p>
       ) : (
-        <div ref={controls} role="group" aria-label="Garment A motion controls"
+        <div ref={controls} role="group" aria-label={`Video controls — ${alt}`}
           className="mt-3 flex flex-wrap justify-center gap-2">
           <Button variant="quiet" className="!px-4 text-sm" disabled={loading}
             onClick={() => playing ? video.current?.pause() : play()}>
