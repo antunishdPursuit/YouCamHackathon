@@ -552,8 +552,6 @@ export function App() {
         return state.analysis && state.tryOn ? (
           <ResultsScreen
             analysis={state.analysis}
-            resultView={state.resultView}
-            onResultView={(view) => dispatch({ type: 'setResultView', view })}
             {...(state.fullBody.portrait ? { fullBodySize: {
               width: state.fullBody.portrait.width, height: state.fullBody.portrait.height,
             } } : {})}
@@ -565,14 +563,10 @@ export function App() {
             garmentIds={state.garmentIds}
             makeupLookId={state.makeupLookId}
             axis={state.axis}
-            keptGarmentIds={state.resultView === 'fullBody' ? state.fullBodyKeptGarmentIds : state.keptGarmentIds}
-            keptMakeupWinners={state.resultView === 'fullBody' ? state.fullBodyKeptMakeupWinners : state.keptMakeupWinners}
             {...(state.portrait
               ? { portraitSize: { width: state.portrait.width, height: state.portrait.height } }
               : {})}
             onAxisChange={(axis) => dispatch({ type: 'setAxis', axis })}
-            onToggleGarment={(garmentId) => dispatch({ type: 'toggleGarmentKept', garmentId })}
-            onToggleMakeup={(winner) => dispatch({ type: 'toggleMakeupKept', winner })}
             onEditInputs={() => dispatch({ type: 'editInputs' })}
             onStartOver={handleStartOver}
           />

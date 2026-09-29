@@ -4,12 +4,18 @@
  * Guided outfit and makeup comparisons lead the Results screen. Colour details
  * follow the photos. The user does not have to remember which page contains the next
  * decision, and every image keeps its provider/fixture provenance below the frame.
+ *
+ * There is no user-toggled Close-up/Full-body view any more: full-body results, when
+ * present, render as an additional labelled section under Compare outfits rather than
+ * replacing the close-up panels. Compare makeup shows the original portrait against that
+ * same portrait with makeup applied, clothing unchanged — full-body has no equivalent of
+ * this, since there is no bare full-body portrait to anchor it to.
  */
 
 import { useState } from 'react';
 import type { AnalyzeResponse, TryOnPanel, TryOnResponse } from '@yincol/shared';
 import { findMakeupLook } from '@yincol/shared';
-import { Button, Chip, Segmented } from '../components/controls.js';
+import { Button, Segmented, Chip } from '../components/controls.js';
 import { TiltControls, TiltPreviewNote } from '../components/TiltControls.js';
 import { TILT_NONE } from '../components/tiltPreview.js';
 import { PartialResultsNotice } from '../components/StateNotice.js';
@@ -18,7 +24,7 @@ import { MotionPreview } from '../components/MotionPreview.js';
 import { motionSampleKind } from '../components/motionSample.js';
 import { DISPLAY_SLOTS, frameAspectRatio, type DisplaySlotConfig } from '../config/displaySlots.js';
 import { SectionHeading, YincolCard } from '../components/ornament.js';
-import type { CompareAxis, MakeupChoice, ResultView } from '../state/session.js';
+import type { CompareAxis } from '../state/session.js';
 
 interface ResultPanel {
   readonly key: string;
@@ -27,8 +33,16 @@ interface ResultPanel {
   readonly title: string;
   /** One line under the title saying which steps produced this image. */
   readonly subtitle: string;
-  readonly chosen: boolean;
-  readonly choose: () => void;
+}
+
+interface ResultSection {
+  readonly key: string;
+  /** Absent for the only section on an axis; present when full-body adds a second one. */
+  readonly heading?: string;
+  readonly panels: readonly ResultPanel[];
+  readonly frame: string;
+  readonly fullBody: boolean;
+  readonly showsTilt: boolean;
 }
 
 function garmentSlotLabel(index: number): string {
@@ -49,6 +63,7 @@ function panelSubtitle(panel: TryOnPanel | undefined, lookName: string): string 
   if (!panel || panel.result.status === 'failed') return 'Not generated';
   if (panel.stage === 'completeLook') return `Garment and ${lookName} makeup`;
   if (panel.stage === 'garmentOnly') return 'Garment only, no makeup';
+  if (panel.stage === 'portraitMakeup') return `${lookName} makeup, no garment change`;
   return 'Designed stand-in';
 }
 
@@ -117,16 +132,12 @@ function PaletteSummary({ analysis }: { analysis: AnalyzeResponse }) {
 export function ResultsScreen({
   analysis,
   tryOn: generation,
-  resultView, onResultView, fullBodySize,
+  fullBodySize,
   garmentIds,
   makeupLookId,
   axis,
-  keptGarmentIds,
-  keptMakeupWinners,
   portraitSize,
   onAxisChange,
-  onToggleGarment,
-  onToggleMakeup,
   onEditInputs,
   onStartOver,
   videoByImage = {},
@@ -134,32 +145,24 @@ export function ResultsScreen({
 }: {
   analysis: AnalyzeResponse;
   tryOn: TryOnResponse;
-  resultView: ResultView;
-  onResultView: (view: ResultView) => void;
   fullBodySize?: { readonly width: number; readonly height: number };
   garmentIds: readonly string[];
   makeupLookId: string | null;
   axis: CompareAxis;
-  keptGarmentIds: readonly string[];
-  keptMakeupWinners: readonly MakeupChoice[];
   /** Pixel size of the portrait the results came from, so full-body frames fit the body. */
   portraitSize?: { readonly width: number; readonly height: number };
   onAxisChange: (axis: CompareAxis) => void;
-  onToggleGarment: (garmentId: string) => void;
-  onToggleMakeup: (winner: MakeupChoice) => void;
   onEditInputs: () => void;
   onStartOver: () => void;
   videoByImage?: Readonly<Record<string, string>>;
   motionKindByImage?: Readonly<Record<string, 'video' | 'still'>>;
 }) {
-  const fullBody = resultView === 'fullBody' && Boolean(generation.fullBody);
-  const tryOn = fullBody ? generation.fullBody! : generation;
-  const size = fullBody ? fullBodySize : portraitSize;
   const look = makeupLookId ? findMakeupLook(makeupLookId) : undefined;
   const lookName = look?.name ?? 'the chosen';
-  const frame = frameAspectRatio(size?.width, size?.height);
-  const motionForPanel = (panel: TryOnPanel | undefined) => panel?.result.status === 'ready'
-    ? motionKindByImage[panel.result.imageUrl] ?? motionSampleKind(panel, tryOn.mode) : undefined;
+  const closeUpFrame = frameAspectRatio(portraitSize?.width, portraitSize?.height);
+  const fullBodyFrame = frameAspectRatio(fullBodySize?.width, fullBodySize?.height);
+  const motionForPanel = (panel: TryOnPanel | undefined, mode: TryOnResponse['mode']) =>
+    panel?.result.status === 'ready' ? motionKindByImage[panel.result.imageUrl] ?? motionSampleKind(panel, mode) : undefined;
 
   /**
    * One angle per card, keyed by the card, and nothing shared between them.
@@ -174,71 +177,73 @@ export function ResultsScreen({
   const setTiltFor = (key: string, degrees: number): void =>
     setTiltByCard((current) => ({ ...current, [key]: degrees }));
 
-  /**
-   * Axis 1 — the two complete looks, side by side.
-   *
-   * Both carry the same makeup, so the garment is the only thing that changes between
-   * them. That is the comparison the whole sequence exists to produce.
-   */
-  const garmentPanels: ResultPanel[] = garmentIds.map((garmentId, index) => ({
-    key: garmentId,
-    slot: index === 0 ? DISPLAY_SLOTS.completeLookA : DISPLAY_SLOTS.completeLookB,
-    panel: tryOn.completeLooks[garmentId],
-    title: tryOn.completeLooks[garmentId]?.stage === 'completeLook'
-      ? `${garmentSlotLabel(index)} complete look` : `${garmentSlotLabel(index)} preview`,
-    subtitle: panelSubtitle(tryOn.completeLooks[garmentId], lookName),
-    chosen: keptGarmentIds.includes(garmentId),
-    choose: () => onToggleGarment(garmentId),
-  }));
+  const outfitPanels = (view: { readonly completeLooks: Readonly<Record<string, TryOnPanel>> }, label: string): ResultPanel[] =>
+    garmentIds.map((garmentId, index) => ({
+      key: `${label}-${garmentId}`,
+      slot: index === 0 ? DISPLAY_SLOTS.completeLookA : DISPLAY_SLOTS.completeLookB,
+      panel: view.completeLooks[garmentId],
+      title: view.completeLooks[garmentId]?.stage === 'completeLook'
+        ? `${garmentSlotLabel(index)} complete look` : `${garmentSlotLabel(index)} preview`,
+      subtitle: panelSubtitle(view.completeLooks[garmentId], lookName),
+    }));
 
   /**
-   * Axis 2 — what the makeup step added, on one garment.
-   *
-   * The garment is held constant and the makeup is the only difference, so this reads as
-   * the effect of the second task rather than as two unrelated pictures. Garment A is the
-   * anchor; the chip says so.
+   * Axis 1 — the two outfits, side by side. Close-up always renders; full body adds a
+   * second, separately labelled section when the request generated one — it is additional
+   * data, not an alternate view of the same section.
    */
-  const anchorGarmentId = garmentIds[0];
-  const makeupPanels: ResultPanel[] = anchorGarmentId
+  const sections: ResultSection[] = axis === 'garments'
     ? [
         {
-          key: 'garmentOnly',
-          slot: DISPLAY_SLOTS.garmentA,
-          panel: tryOn.garments[anchorGarmentId],
-          title: 'Without makeup',
-          subtitle: panelSubtitle(tryOn.garments[anchorGarmentId], lookName),
-          chosen: keptMakeupWinners.includes('garmentOnly'),
-          choose: () => onToggleMakeup('garmentOnly'),
+          key: 'closeup',
+          ...(generation.fullBody ? { heading: 'Close-up' } : {}),
+          panels: outfitPanels(generation, 'closeup'),
+          frame: closeUpFrame,
+          fullBody: false,
+          showsTilt: true,
         },
-        {
-          key: 'completeLook',
-          slot: DISPLAY_SLOTS.completeLookA,
-          panel: tryOn.completeLooks[anchorGarmentId],
-          title: `With ${lookName}`,
-          subtitle: panelSubtitle(tryOn.completeLooks[anchorGarmentId], lookName),
-          chosen: keptMakeupWinners.includes('completeLook'),
-          choose: () => onToggleMakeup('completeLook'),
-        },
+        ...(generation.fullBody ? [{
+          key: 'fullBody',
+          heading: 'Full body — shared trousers and makeup',
+          panels: outfitPanels(generation.fullBody, 'fullBody'),
+          frame: fullBodyFrame,
+          fullBody: true,
+          showsTilt: false,
+        }] : []),
       ]
-    : [];
+    : [
+        {
+          key: 'makeup',
+          panels: [
+            {
+              key: 'portrait',
+              slot: DISPLAY_SLOTS.portrait,
+              panel: generation.portrait,
+              title: 'Original portrait',
+              subtitle: panelSubtitle(generation.portrait, lookName),
+            },
+            {
+              key: 'portraitMadeUp',
+              slot: DISPLAY_SLOTS.portraitMadeUp,
+              panel: generation.portraitMadeUp,
+              title: `With ${lookName} makeup`,
+              subtitle: panelSubtitle(generation.portraitMadeUp, lookName),
+            },
+          ],
+          frame: closeUpFrame,
+          fullBody: false,
+          showsTilt: false,
+        },
+      ];
 
-  const panels = axis === 'garments' ? garmentPanels : makeupPanels;
-  // The title is used exactly as the panel above shows it. Lower-casing it to fit the
-  // sentence turned "Garment B" into "garment b", which reads as a typo rather than as a
-  // reference to the thing the shopper is looking at.
-  const failedLabels = panels
+  const allPanels = sections.flatMap((section) => section.panels);
+  const failedLabels = allPanels
     .filter((entry) => entry.panel?.result.status === 'failed')
     .map((entry) => `the ${entry.title}`);
-  // Scoped to the Garments axis, where both cards are complete looks. The Makeup axis
-  // compares a garment-only preview against a complete look, and tilting one of those two
-  // would put a difference between them that is not the makeup step.
-  const showsTilt = axis === 'garments' && !fullBody;
-  const hasTiltableCard = showsTilt && panels.some(
-    (entry) => entry.panel?.result.status === 'ready' && entry.panel.provenance !== 'placeholder' && !motionForPanel(entry.panel),
-  );
+
   const comparisonNote = axis === 'garments'
-    ? `Compare the two outfits with the same ${look?.name ?? 'selected'} makeup. Keep any you like.`
-    : 'Compare Garment A with and without makeup. Keep either version, or both.';
+    ? `Compare the two outfits with the same ${look?.name ?? 'selected'} makeup.`
+    : `Compare your original portrait against the same portrait with ${look?.name ?? 'the chosen'} makeup, clothing unchanged.`;
 
   return (
     <div className="animate-soft-fade space-y-6">
@@ -253,77 +258,69 @@ export function ResultsScreen({
       </header>
 
       <section id="comparison-panel" role="tabpanel" aria-labelledby={`comparison-${axis}`}
-        tabIndex={0} className="min-w-0 space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <p className="max-w-reading text-base text-ink-soft">{comparisonNote}</p>
-          {generation.fullBody ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm text-ink-soft">View</span>
-              <Segmented label="Preview view" value={resultView} onChange={onResultView}
-                options={[
-                  { value: 'closeup', label: 'Close-up', hint: 'your close-up portrait previews' },
-                  { value: 'fullBody', label: 'Full body', hint: 'your uploaded full-body photo with both tops and trousers' },
-                ]} />
-            </div>
-          ) : null}
-        </div>
-        {tryOn.mode === 'fixture' ? (
+        tabIndex={0} className="min-w-0 space-y-8">
+        <p className="max-w-reading text-base text-ink-soft">{comparisonNote}</p>
+        {generation.mode === 'fixture' ? (
           <p className="text-sm text-ink-soft">Saved demo results · your photos were not used to generate these previews.</p>
         ) : null}
         <PartialResultsNotice failedLabels={failedLabels} />
-        {hasTiltableCard ? <TiltPreviewNote /> : null}
 
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-          {panels.map((entry) => {
-            const savedVideo = entry.panel?.result.status === 'ready' ? videoByImage[entry.panel.result.imageUrl] : undefined;
-            const motionKind = axis === 'garments' && !fullBody ? (savedVideo ? 'video' : motionForPanel(entry.panel)) : undefined;
-            const canTiltThisCard = showsTilt && !motionKind && entry.panel?.provenance !== 'placeholder' && entry.panel?.result.status === 'ready';
-            const titleId = `result-${resultView}-${entry.key}`;
-            const actions = (
-              <div className="mt-3 flex flex-col items-start gap-2">
-                <Button variant={entry.chosen ? 'primary' : 'quiet'}
-                  aria-pressed={entry.chosen} disabled={entry.panel?.result.status !== 'ready' || entry.panel.provenance === 'placeholder'} onClick={entry.choose} className="!px-4 text-sm">
-                  {entry.chosen ? 'Kept' : 'Keep this'}
-                  <span className="sr-only"> — {entry.title}</span>
-                </Button>
-                {canTiltThisCard ? (
-                  <TiltControls degrees={tiltFor(entry.key)}
-                    onChange={(degrees) => setTiltFor(entry.key, degrees)} cardLabel={entry.title} />
-                ) : null}
+        {sections.map((section) => {
+          const hasTiltableCard = section.showsTilt && section.panels.some(
+            (entry) => entry.panel?.result.status === 'ready' && entry.panel.provenance !== 'placeholder' &&
+              !motionForPanel(entry.panel, generation.mode),
+          );
+          return (
+            <div key={section.key} className="space-y-4">
+              {section.heading ? <h3 className="text-lg font-semibold text-ink">{section.heading}</h3> : null}
+              {hasTiltableCard ? <TiltPreviewNote /> : null}
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                {section.panels.map((entry) => {
+                  const savedVideo = entry.panel?.result.status === 'ready' ? videoByImage[entry.panel.result.imageUrl] : undefined;
+                  const motionKind = section.showsTilt ? (savedVideo ? 'video' : motionForPanel(entry.panel, generation.mode)) : undefined;
+                  const canTiltThisCard = section.showsTilt && !motionKind && entry.panel?.provenance !== 'placeholder' && entry.panel?.result.status === 'ready';
+                  const titleId = `result-${section.key}-${entry.key}`;
+                  const actions = (
+                    <div className="mt-3 flex flex-col items-start gap-2">
+                      <Button variant="quiet" disabled className="!px-4 text-sm">
+                        Video — coming soon
+                      </Button>
+                      {canTiltThisCard ? (
+                        <TiltControls degrees={tiltFor(entry.key)}
+                          onChange={(degrees) => setTiltFor(entry.key, degrees)} cardLabel={entry.title} />
+                      ) : null}
+                    </div>
+                  );
+
+                  return (
+                    <article key={entry.key} aria-labelledby={titleId} className="flex min-w-0 flex-col">
+                      <header className="mb-3 space-y-1">
+                        <h3 id={titleId} className="text-base font-semibold">{entry.title}</h3>
+                        <p className="text-sm text-ink-soft">{entry.subtitle}</p>
+                      </header>
+                      {motionKind === 'video' && entry.panel?.result.status === 'ready' ? (
+                        <MotionPreview key={entry.panel.result.imageUrl}
+                          videoUrl={savedVideo} imageUrl={entry.panel.result.imageUrl} alt={entry.panel.result.alt}
+                          slot={entry.slot} aspectRatio={section.frame}>{actions}</MotionPreview>
+                      ) : <>
+                        <PhotoSlot slot={entry.slot} aspectRatio={section.frame}
+                          className={section.fullBody ? "[&>div]:max-h-portrait [&>div]:w-full" : ""}
+                          showProvenance={generation.mode !== 'fixture' || entry.panel?.provenance === 'placeholder'}
+                          {...(canTiltThisCard ? { tiltDegrees: tiltFor(entry.key) } : {})}
+                          {...(entry.panel ? {
+                            result: entry.panel.result,
+                            provenance: entry.panel.provenance,
+                            ...(entry.panel.stage ? { stage: entry.panel.stage } : {}),
+                          } : {})} />
+                        {actions}
+                      </>}
+                    </article>
+                  );
+                })}
               </div>
-            );
-
-            return (
-              <article key={resultView + entry.key} aria-labelledby={titleId} className="flex min-w-0 flex-col">
-                <header className="mb-3 space-y-1">
-                  <h3 id={titleId} className="text-base font-semibold">{entry.title}</h3>
-                  <p className="text-sm text-ink-soft">{entry.subtitle}</p>
-                </header>
-                {motionKind === 'video' && entry.panel?.result.status === 'ready' ? (
-                  <MotionPreview key={entry.panel.result.imageUrl}
-                    videoUrl={savedVideo} imageUrl={entry.panel.result.imageUrl} alt={entry.panel.result.alt}
-                    slot={entry.slot} aspectRatio={frame}>{actions}</MotionPreview>
-                ) : <>
-                  <PhotoSlot slot={entry.slot} aspectRatio={frame}
-                    className={fullBody ? "[&>div]:max-h-portrait [&>div]:w-full" : ""}
-                    showProvenance={tryOn.mode !== 'fixture' || entry.panel?.provenance === 'placeholder'}
-                    {...(canTiltThisCard ? { tiltDegrees: tiltFor(entry.key) } : {})}
-                    {...(entry.panel ? {
-                      result: entry.panel.result,
-                      provenance: entry.panel.provenance,
-                      ...(entry.panel.stage ? { stage: entry.panel.stage } : {}),
-                    } : {})} />
-                  {actions}
-                </>}
-              </article>
-            );
-          })}
-        </div>
-        <p aria-live="polite" className="sr-only">
-          {axis === 'garments'
-            ? `${keptGarmentIds.length} garment option${keptGarmentIds.length === 1 ? '' : 's'} kept.`
-            : `${keptMakeupWinners.length} makeup option${keptMakeupWinners.length === 1 ? '' : 's'} kept.`}
-        </p>
+            </div>
+          );
+        })}
       </section>
 
       <details className="rounded-card border border-gold/40 bg-surface p-4">

@@ -5,7 +5,7 @@ import { ResultsScreen } from './ResultsScreen.js';
 import { AnalysisScreen } from './AnalysisScreen.js';
 import { IntroScreen } from './IntroScreen.js';
 import { PreviousLooks } from '../components/PreviousLooks.js';
-const panel = (url: string, stage: 'completeLook' | 'garmentOnly' = 'completeLook'): TryOnPanel => ({
+const panel = (url: string, stage: 'completeLook' | 'garmentOnly' | 'portraitMakeup' = 'completeLook'): TryOnPanel => ({
   result: { status: 'ready', imageUrl: url, alt: 'Test-only response' }, provenance: 'live', stage,
 });
 const analysis = { mode: 'fixture' as const, palette: buildPaletteFromReading({
@@ -13,7 +13,7 @@ const analysis = { mode: 'fixture' as const, palette: buildPaletteFromReading({
   eyebrow: hexToLab('#4a352a'), lip: hexToLab('#bc7a72'),
 }) };
 const tryOn: TryOnResponse = {
-  mode: 'live', portrait: panel('/close-source'),
+  mode: 'live', portrait: panel('/close-source'), portraitMadeUp: panel('/close-madeup', 'portraitMakeup'),
   garments: { a: panel('/close-a-bare', 'garmentOnly'), b: panel('/close-b-bare', 'garmentOnly') },
   completeLooks: { a: panel('/close-a'), b: panel('/close-b') },
   fullBody: {
@@ -24,36 +24,37 @@ const tryOn: TryOnResponse = {
 };
 const noop = () => {};
 const props = { analysis, tryOn, garmentIds: ['a', 'b'], makeupLookId: 'champagne-halo',
-  axis: 'garments' as const, keptGarmentIds: [], keptMakeupWinners: [],
+  axis: 'garments' as const,
   portraitSize: { width: 900, height: 1000 }, fullBodySize: { width: 1000, height: 1600 },
-  onResultView: noop, onAxisChange: noop, onToggleGarment: noop, onToggleMakeup: noop,
-  onEditInputs: noop, onStartOver: noop,
+  onAxisChange: noop, onEditInputs: noop, onStartOver: noop,
 };
 describe('full-body rendering contract', () => {
-  it('renders only the selected view and uses its portrait framing', () => {
-    const full = renderToStaticMarkup(<ResultsScreen {...props} resultView="fullBody" />);
-    expect(full).toContain('src="/full-a"'); expect(full).not.toContain('src="/close-a"');
-    expect(full).toContain('aspect-ratio:0.625 / 1');
-    expect(full).not.toContain('2.5D');
-    const close = renderToStaticMarkup(<ResultsScreen {...props} resultView="closeup" />);
-    expect(close).toContain('src="/close-a"'); expect(close).not.toContain('src="/full-a"');
+  it('renders close-up and full-body outfit sections together, each with its own framing', () => {
+    const html = renderToStaticMarkup(<ResultsScreen {...props} />);
+    expect(html).toContain('src="/close-a"'); expect(html).toContain('src="/full-a"');
+    expect(html).toContain('aspect-ratio:0.625 / 1');
+    expect(html).toContain('Full body — shared trousers and makeup');
+    // Tilt is a close-up-only affordance: one "Tilt left" control per close-up card (two
+    // garments), none inside the full-body section.
+    expect(html.match(/Tilt left/g)).toHaveLength(2);
   });
-  it('compares makeup on the full-body garment result', () => {
-    const html = renderToStaticMarkup(<ResultsScreen {...props} resultView="fullBody" axis="makeup" />);
-    expect(html).toContain('src="/full-a-bare"'); expect(html).toContain('src="/full-a"');
-    expect(html).not.toContain('src="/close-a-bare"');
+  it('compares the original portrait against the same portrait with makeup, not a full-body section', () => {
+    const html = renderToStaticMarkup(<ResultsScreen {...props} axis="makeup" />);
+    expect(html).toContain('src="/close-source"'); expect(html).toContain('src="/close-madeup"');
+    expect(html).not.toContain('src="/full-a"');
+    expect(html).not.toContain('Full body — shared trousers and makeup');
   });
-  it('has no full-body selector when this request did not generate that view', () => {
+  it('renders no full-body section when this request did not generate that view', () => {
     const { fullBody: _unused, ...closeOnly } = tryOn;
-    const html = renderToStaticMarkup(<ResultsScreen {...props} tryOn={closeOnly} resultView="closeup" />);
-    expect(html).not.toContain('Preview view');
-    expect(html).not.toContain('/api/full-body/');
+    const html = renderToStaticMarkup(<ResultsScreen {...props} tryOn={closeOnly} />);
+    expect(html).not.toContain('Full body — shared trousers and makeup');
+    expect(html).not.toContain('src="/full-a"');
   });
   it('shows a failure without discarding the other outfit', () => {
     const failed = { ...tryOn, fullBody: { ...tryOn.fullBody!, completeLooks: {
       a: panel('/full-a'), b: { provenance: 'live' as const, result: { status: 'failed' as const, reason: 'Test failure' } },
     } } };
-    const html = renderToStaticMarkup(<ResultsScreen {...props} tryOn={failed} resultView="fullBody" />);
+    const html = renderToStaticMarkup(<ResultsScreen {...props} tryOn={failed} />);
     expect(html).toContain('src="/full-a"'); expect(html).toContain('Test failure');
     expect(html).not.toContain('src="/full-b"');
     expect(html).not.toContain('preview preview');
