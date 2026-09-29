@@ -1,5 +1,11 @@
 # Verification record
 
+## September 29, 2026 — PR #15 review fixes
+
+See [follow-up verification](pr15-followup.md#verification--验证) for current evidence and remaining release gates. Earlier sections below record prior trees and are historical, including their former gaps and test totals.
+
+最新验证与发布门槛见上述中英说明；下方旧树记录不代表当前实现。
+
 ## Issue #12 — kept-choice fix, portrait makeup, simplified comparisons, demo/live split, unit budget, per-result video — locally verified
 
 Builds on the saved-history work below (PR #13, not yet merged at the time of this

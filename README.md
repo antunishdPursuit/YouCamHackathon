@@ -13,7 +13,7 @@ rule; its current input is an example reading, not a live analysis of the visito
 | Start | Product introduction, mode-aware privacy information, automatically saved Previous looks, and a choice between the saved demo and your own photos. |
 | Add inputs | Portrait, two garment references, a makeup preset, and optional full-body portrait plus trousers reference. |
 | Generate | Explicit generation with progress, input checks, and reuse of a matching result from this browser's saved history. |
-| Results | Compare outfits (close-up, plus full body as an additional section when generated) or compare the original portrait against that same portrait with makeup. A per-image action offers a five-second video, gated behind the server's unit budget. |
+| Results | Compare the two full-body outfits when requested, or legacy close-up results or compare the original portrait against that same portrait with makeup. Saved clips play beside their images; live video remains gated pending release verification. |
 
 Each garment passes through Clothes VTO, then Makeup VTO receives that garment
 result — that pairing is what Compare outfits shows. The makeup task also runs
@@ -30,42 +30,23 @@ playback; the original still remains available.
 
 ### Demo and live entry
 
-Start offers "Try the demo" (the saved comparisons above, no upload, no
+Start offers "Try the demo" (preselected illustrated inputs, then saved comparisons; no upload, no
 YouCam call, and no dependency on the API service being awake — it can sleep on
 the free tier) and "Try your photos" (the existing Add-inputs flow). Both label
 every result as a saved demo or as generated from your uploads.
 
-### Server unit budget — implemented for `/api/try-on`, not yet complete
+### Server budgets and video
 
-A shared Redis-protocol Key Value store (`server/src/youcam/budget.ts`) reserves
-the full estimated cost of a request before any provider call, enforcing 100
-units/site/day and up to 40/browser in a ~24-hour window, both subject to the
-shared pool. Wired into `/api/try-on`; **not yet wired into
-`/api/skin-analysis`**, whose live path still has no budget gate. Never
-connected to a real Render Key Value instance — `redisClient.ts`'s connection is
-unverified, and `YINCOL_KV_URL` unset (the default) fails every live route
-closed the same way a missing API key already does. Automatic refunds are not
-implemented yet: an ambiguous or failed request keeps its full charge, by
-design, until a clean-failure/timeout distinction is threaded through the
-existing sequences.
+Try-on, skin analysis and video reserve units before provider work. The persistent
+Key Value ledger enforces 100 units per UTC site day and 40 per browser over a true
+rolling 24 hours. Atomic compare-and-set commits both limits and duplicate protection.
+Missing state pauses live work for 24 hours, including first provisioning. There are
+no automatic refunds, paid retries or expiring duplicate locks. Real Render connection
+verification remains pending. See [follow-up evidence and release gates](docs/pr15-followup.md).
 
-### Live video generation — not implemented; the route cannot reach the provider
-
-`POST /api/video` exists, is budget-gated, and is built and tested exclusively
-against a mocked provider. It cannot make a real call regardless of
-`YINCOL_LIVE_VIDEO`: the Video Generator task path is an unverified guess, and
-the feature has no registered File API upload path at all, so an upload is
-refused before any request would leave the process. Treat this exactly like the
-long-unverified Facial Color Tone contract — a guess, not a fact — until someone
-with API Playground access confirms it.
-
-These are the current safeguards and gaps, stated plainly rather than as a
-roadmap. There are no accounts. Browser history and the budget reservation
-algorithm are implemented; a verified live video path and a deployed KV
-instance are not. The request-rate limiter (`rateLimit.ts`) is separate from the
-unit budget and still counts requests in one server process only. The temporary
-design preview is separate from the website demo and is not part of the
-deployed application.
+Video's documented V2 task and upload contract are implemented, but real output and
+release acceptance remain unverified. An explicit code gate keeps live video disabled
+before reservation/upload; the saved sample remains available. No visitor accounts.
 
 ## Run locally without using credits
 
@@ -147,10 +128,10 @@ generation" above.
 
 | Workflow | Expected units on success |
 | --- | ---: |
-| Current close-up: two Clothes tasks + two Makeup tasks + one portrait-only Makeup task | 9 |
-| Optional full-body: shared trousers + two tops + two makeup tasks | +8 |
+| Legacy close-up: two Clothes tasks + two Makeup tasks + one portrait-only Makeup task | 7 |
+| Full-body: shared trousers + two tops with makeup + portrait-only makeup (replaces close-up) | 9 |
 | Optional five-action Skin Analysis | +12 |
-| Current close-up + full-body + Skin Analysis | 29 |
+| Full-body flow + Skin Analysis | 21 |
 | Planned five-second, 720p video (unverified — no live path yet) | +10 each |
 
 The original uploaded portrait requires no generation. Estimates exclude retries
@@ -172,7 +153,7 @@ npm audit
 
 Ordinary tests stub provider requests and require no API key. Test totals and
 verification results belong in the dated [verification record](docs/verification.md),
-not in setup commands. The repository currently has no GitHub Actions workflow;
+not in setup commands. GitHub Actions is configured in `.github/workflows/checks.yml`;
 local checks are separate from deployment verification.
 
 ## Repository map

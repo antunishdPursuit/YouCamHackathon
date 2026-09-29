@@ -1,3 +1,6 @@
+> September 29 follow-up: see [current budget/release requirements](pr15-followup.md). Use noeviction for the dedicated Key Value service. Initial provisioning and ledger loss both trigger a 24-hour pause. Live video remains code-gated; do not enable it or merge without owner acceptance.
+> 最新要求：Key Value 使用 noeviction；首次配置和记录丢失均等待 24 小时。实时视频仍受代码门槛限制，需负责人验收。
+
 # Deployment
 
 **Scope reviewed: September 21, 2026.** This runbook describes the current
