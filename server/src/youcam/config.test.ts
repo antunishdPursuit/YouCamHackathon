@@ -136,6 +136,32 @@ describe('loadConfig — simulated states', () => {
   });
 });
 
+describe('loadConfig — budget', () => {
+  it('defaults the KV URL to empty and the caps to the README-documented values', () => {
+    const config = loadConfig(EMPTY);
+    expect(config.kvUrl).toBe('');
+    expect(config.siteDailyUnitCap).toBe(100);
+    expect(config.browserWindowUnitCap).toBe(40);
+  });
+
+  it('trims a configured KV URL', () => {
+    expect(loadConfig({ YINCOL_KV_URL: '  redis://example:6379  ' }).kvUrl).toBe('redis://example:6379');
+  });
+
+  it('honours configured caps', () => {
+    const config = loadConfig({ YINCOL_SITE_DAILY_UNIT_CAP: '50', YINCOL_BROWSER_WINDOW_UNIT_CAP: '15' });
+    expect(config.siteDailyUnitCap).toBe(50);
+    expect(config.browserWindowUnitCap).toBe(15);
+  });
+
+  it('falls back to the default for a malformed or non-positive cap, never to 0 or NaN', () => {
+    for (const value of ['not-a-number', '0', '-5', '']) {
+      expect(loadConfig({ YINCOL_SITE_DAILY_UNIT_CAP: value }).siteDailyUnitCap, value).toBe(100);
+      expect(loadConfig({ YINCOL_BROWSER_WINDOW_UNIT_CAP: value }).browserWindowUnitCap, value).toBe(40);
+    }
+  });
+});
+
 describe('liveWasRequestedWithoutKey', () => {
   it('is false when nothing live was asked for', () => {
     expect(liveWasRequestedWithoutKey(EMPTY)).toBe(false);

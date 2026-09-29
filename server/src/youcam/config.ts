@@ -153,6 +153,10 @@ const SIMULATED_STATES: readonly SimulatedState[] = [
   'skinUnavailable',
 ];
 
+/** Defaults matched to the README's own stated caps. */
+export const DEFAULT_SITE_DAILY_UNIT_CAP = 100;
+export const DEFAULT_BROWSER_WINDOW_UNIT_CAP = 40;
+
 export interface YouCamConfig {
   readonly baseUrl: string;
   readonly apiKey: string;
@@ -163,6 +167,15 @@ export interface YouCamConfig {
   /** Explicitly enables live Clothes and Makeup VTO while the palette stays on fixtures. */
   readonly liveTryOn: boolean;
   readonly simulate: SimulatedState;
+  /**
+   * Connection string for the shared Redis-protocol Key Value store that holds the unit
+   * budget. Empty means no live, budget-gated work can run at all — see
+   * `budget.ts`'s `createFailClosedBudgetStore`, the same fail-closed shape as a missing
+   * `apiKey`.
+   */
+  readonly kvUrl: string;
+  readonly siteDailyUnitCap: number;
+  readonly browserWindowUnitCap: number;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): YouCamConfig {
@@ -202,7 +215,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): YouCamConfig {
     liveSkinAnalysis,
     liveTryOn,
     simulate,
+    kvUrl: (env['YINCOL_KV_URL'] ?? '').trim(),
+    siteDailyUnitCap: positiveIntOr(env['YINCOL_SITE_DAILY_UNIT_CAP'], DEFAULT_SITE_DAILY_UNIT_CAP),
+    browserWindowUnitCap: positiveIntOr(env['YINCOL_BROWSER_WINDOW_UNIT_CAP'], DEFAULT_BROWSER_WINDOW_UNIT_CAP),
   };
+}
+
+/** An unset or malformed cap must fall back to the safe default, never to 0 or NaN. */
+function positiveIntOr(raw: string | undefined, fallback: number): number {
+  const parsed = Number.parseInt(raw ?? '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 /**
