@@ -1,6 +1,6 @@
 # Partner guide / 合作开发指南
 
-**Updated / 更新日期:** September 22, 2026 / 2026年9月22日
+**Updated / 更新日期:** September 28, 2026 / 2026年9月28日
 
 This guide distinguishes the current application from the accepted next increment.
 It does not authorize deployment or new paid API calls.
@@ -14,12 +14,13 @@ It does not authorize deployment or new paid API calls.
 | Flow / 流程 | Start → Add inputs → Generate → Results. / 开始 → 添加输入 → 生成 → 结果。 |
 | Default demo / 默认演示 | Saved results or labelled placeholders; no YouCam calls. / 显示已保存的结果或明确标注的占位图，不调用 YouCam。 |
 | Live images / 实时图片 | Server-side opt-in Clothes VTO, Makeup VTO and optional Skin Analysis. / 可在服务端启用服装试穿、妆容试用及可选的皮肤外观分析。 |
-| Full body / 全身预览 | An uploaded full-body portrait and trousers reference feed two top-plus-makeup sequences. / 根据上传的全身照与裤装参考图，分别生成两套上衣和妆容结果。 |
-| Makeup comparison / 妆容对比 | Currently Garment A before and after makeup, not makeup on the unchanged original portrait. / 当前对比服装 A 的上妆前后效果，尚未改为原始肖像的纯妆容对比。 |
+| Full body / 全身预览 | An uploaded full-body portrait and trousers reference feed two top-plus-makeup sequences, shown as an added section alongside close-up, not a switchable view. / 根据上传的全身照与裤装参考图，分别生成两套上衣和妆容结果，作为近景对比之外新增的区块显示，不再是可切换的视图。 |
+| Demo and live entry / 演示与实时入口 | Start offers "Try the demo" (saved comparisons, no upload, no API call) and "Try your photos" separately. / 开始页分开提供"体验演示"（已保存的对比结果，无需上传、不调用 API）和"使用你的照片"。 |
+| Makeup comparison / 妆容对比 | Original portrait against that same portrait with makeup, clothing unchanged — the makeup task now also runs directly on the bare portrait. / 原始肖像与同一肖像的上妆结果对比、服装不变——妆容接口现在也会直接作用于未处理的原始肖像。 |
 | Palette / 配色 | Local rules use an example colour reading; live Facial Color Tone remains unverified. / 本地规则使用示例色彩数据；实时肤色分析的完整接口尚未验证。 |
-| Video / 视频 | One saved five-second red-shirt / Rose Veil clip; no live video route. / 一段已保存的五秒红色上衣、Rose Veil 妆容视频；尚无实时视频生成接口。 |
-| Storage / 存储 | Completed outputs, settings and matching sample video save automatically in IndexedDB; source uploads stay in memory. / 完成的预览、设置与对应演示视频自动保存到 IndexedDB；原始上传文件仅保存在内存中。 |
-| Limits / 限额 | In-process request limits only. No daily unit budget. / 仅有单个服务进程内的请求频率限制，尚无每日 API 用量额度。 |
+| Video / 视频 | One saved five-second red-shirt / Rose Veil clip plays automatically for a matching image. A per-image "Generate video" action and `POST /api/video` exist, budget-gated, but have no verified live path — the task contract is an unverified guess and no File API path is registered for it, so a live call cannot currently be attempted. / 一段已保存的五秒红色上衣、Rose Veil 妆容视频，匹配时自动可播放。已实现按图生成视频的入口和 `POST /api/video`，并接入了额度检查，但没有可用的实时接口——任务契约仍是未验证的猜测，也没有为其注册文件上传路径，因此目前无法真正发起实时调用。 |
+| Storage / 存储 | Completed outputs, settings and matching sample video save automatically in IndexedDB; source uploads stay in memory. A generated per-result video can also be attached to a saved look once it is generated. / 完成的预览、设置与对应演示视频自动保存到 IndexedDB；原始上传文件仅保存在内存中。按图生成的视频在生成后也可以附加到已保存的造型上。 |
+| Limits / 限额 | Request-rate limiting (`rateLimit.ts`) is still in-process and request-count-only. A separate unit-budget reservation module (`budget.ts`) exists and is wired into `/api/try-on` — 100 units/site/day, ≤40/browser/24h — but is not yet wired into `/api/skin-analysis`, has no automatic-refund path, and has never been connected to a real Render Key Value instance. / 请求频率限制（`rateLimit.ts`）仍是单进程、只按请求数计数。已新增一个独立的额度预留模块（`budget.ts`）并接入了 `/api/try-on`——全站每日 100 单位、每浏览器 24 小时 40 单位——但尚未接入 `/api/skin-analysis`，没有自动退款机制，也从未连接过真实的 Render Key Value 实例。 |
 
 A complete look means Makeup VTO received the Clothes VTO result. A captured demo
 result must not be presented as generated from a visitor's uploads. The video is
@@ -77,14 +78,15 @@ runs; the repository currently has no GitHub Actions workflow.
 
 ## Saved results / 已保存的结果
 
-Completed previews save automatically; Keep is not required. Open **Previous looks**
-on Start to revisit a comparison without generation, even while the API is unavailable.
-The matching existing five-second sample video also reopens from stored bytes.
-Current comparison controls remain unchanged in this increment.
+Completed previews save automatically; there is no Keep control any more. Open
+**Previous looks** on Start to revisit a comparison without generation, even
+while the API is unavailable. The matching existing five-second sample video
+also reopens from stored bytes, and any per-result video generated for a
+reopened look is saved and restored alongside its image the same way.
 
-完成的预览会自动保存，无需点击 Keep。在开始页的 **Previous looks（历史造型）** 打开结果，
-即可直接查看，不会重新生成，也不依赖 API 是否已唤醒。对应的现有五秒演示视频也从本地数据播放。
-本阶段保留现有对比控件，简化对比及实时视频仍属于下一阶段。
+完成的预览会自动保存，已经没有 Keep 控件了。在开始页的 **Previous looks（历史造型）** 打开结果，
+即可直接查看，不会重新生成，也不依赖 API 是否已唤醒。对应的现有五秒演示视频也从本地数据播放，
+已重新打开的造型如果生成了按图视频，也会以同样方式随图片一起保存和恢复。
 
 History is specific to this browser profile and site address; localhost, Tailscale
 and Render do not share it. Source uploads and echoed source portraits are excluded.
@@ -111,40 +113,48 @@ or cleared. The first valid legacy session cache may migrate once without genera
 
 ## Next increment / 下一阶段
 
-The following is accepted direction, **not completed functionality**:
+Demo/live entry, simpler comparisons, and per-result video actions (items
+previously listed here) are now implemented client-side — see the status table
+above. What remains is **accepted direction, not completed functionality**:
 
-以下是已确认的方向，**并非已完成功能**：
+演示/实时入口拆分、简化对比、以及按图生成视频的入口（原来列在这里的几项）在客户端已经实现——
+详见上方状态表。以下仍是**已确认的方向，尚未完成**：
 
-1. **Demo and live entry.** The saved demo pre-fills sample inputs and displays saved
-   photos/video after Generate. Live entry starts warming the API while inputs are
-   added. The temporary design preview has been removed; saved website demo assets remain.
-   **演示与实时入口。** 演示模式预填示例输入，点击生成后显示已保存的照片与视频。实时入口在用户添加输入时唤醒 API。
-   临时设计预览已移除，网站演示素材予以保留。
-2. **Simpler comparisons.** Original portrait versus makeup on that same portrait;
-   Outfit A and Outfit B each use trousers and makeup. Remove the extra view switch.
-   **简化对比。** 原始肖像与同一肖像的上妆结果对比；服装 A、B 都包含裤装与妆容。移除额外的视图切换。
-3. **Connect future videos to existing history.** Browser history is implemented;
-   reuse its save/open/download/delete flow for the upcoming live video route.
-   **将后续视频接入现有历史记录。** 浏览器历史已实现；实时视频应复用现有保存、打开、下载和删除流程。
-4. **Video per result.** Generate from the chosen completed image, save it beside
-   that image, and offer playback/download. Remove the need to mark a result as kept.
-   **为结果生成视频。** 使用选定的最终图片生成视频，将其与对应图片一起保存，并提供播放和下载；无需先点击保留。
-5. **Server budget.** Free Render Key Value holds usage counters: 100 units per day
-   sitewide and at most 40 per browser per 24 hours, subject to the shared pool.
-   Reserve the complete request's estimated units before paid work. Browser identity
-   is approximate without accounts. Reject duplicate submissions and fail closed
-   if the counter store is unavailable or lost.
-   **服务端额度。** 免费 Render Key Value 保存计数：全站每天共 100 单位，每个浏览器每 24 小时最多 40 单位，
-   同时受全站余额限制。在付费任务开始前预留整个请求的预计用量。没有账户时，浏览器身份只能近似区分用户。
-   拒绝重复提交；计数服务不可用或数据丢失时，暂停实时生成。
+1. **Finish the server budget.** `budget.ts`'s reservation algorithm is wired into
+   `/api/try-on` and unit-tested against a fake store, but not into
+   `/api/skin-analysis`; there is no automatic-refund path yet (a partial or
+   ambiguous outcome keeps its full charge); and it has never been connected to
+   a real Render Key Value instance — that connection, and whether that
+   instance supports Lua/`EVAL` scripting for stronger atomicity, are unverified.
+   **完成服务端额度系统。** `budget.ts` 的预留算法已接入 `/api/try-on`，并针对模拟存储做了单元测试，
+   但尚未接入 `/api/skin-analysis`；目前没有自动退款机制（部分成功或结果不确定时仍全额扣费）；
+   也从未连接过真实的 Render Key Value 实例——该连接本身、以及该实例是否支持 Lua/`EVAL`
+   脚本以获得更强的原子性，都还没有验证。
+2. **Verify the live video contract.** `POST /api/video`'s task path and payload
+   shape are an unverified guess; live video cannot be attempted at all today
+   (no File API path is registered for it). Someone with Perfect Corp API
+   Playground access needs to confirm the real contract before `YINCOL_LIVE_VIDEO`
+   is ever set anywhere.
+   **验证实时视频的接口契约。** `POST /api/video` 的任务路径和请求体格式目前只是未经验证的猜测；
+   实时视频目前完全无法发起（没有为其注册文件上传路径）。需要有 Perfect Corp API Playground
+   权限的人确认真实接口契约后，才能在任何环境设置 `YINCOL_LIVE_VIDEO`。
+3. **Decide the portrait-makeup call cadence.** It currently runs on every
+   generation (eager), matching the 9-unit close-up estimate below. A lazy,
+   tab-open-triggered alternative would cost less on average but needs a second
+   server round trip and its own budget reservation — worth confirming before
+   this becomes the default behavior at scale.
+   **确认原始肖像妆容对比的调用时机。** 目前是在每次生成时都调用（"急切"策略），
+   对应下方 9 单位的近景预估。改为"按需"——只在用户点开该对比标签时才调用——平均成本更低，
+   但需要额外一次服务端往返和单独的额度预留，值得在大规模上线前先确认。
 
-Current close-up generation costs an estimated 6 units; optional full-body adds 8,
-optional Skin Analysis adds 12. The planned simpler three-image flow is about 9
-units without Skin Analysis; a five-second 720p video adds 10. These are estimates,
-not an account balance. Check the provider rates linked in the [README](../README.md).
+Current close-up generation (including the portrait-makeup panel) costs an
+estimated 9 units; optional full-body adds 8, optional Skin Analysis adds 12. A
+five-second 720p video would add 10, once a verified live path exists. These
+are estimates, not an account balance. Check the provider rates linked in the
+[README](../README.md).
 
-当前近景生成预计消耗 6 单位；可选全身预览增加 8 单位，可选皮肤分析增加 12 单位。
-计划中的三张新图片流程在不做皮肤分析时约需 9 单位；五秒 720p 视频另需 10 单位。
+当前近景生成（含原始肖像妆容对比面板）预计消耗 9 单位；可选全身预览增加 8 单位，
+可选皮肤分析增加 12 单位。一旦有可用的实时视频接口，五秒 720p 视频将另需 10 单位。
 这些是估算，不代表账户余额；使用前请核对 [README](../README.md) 中链接的官方价格。
 
 ## Render ownership / Render 分工

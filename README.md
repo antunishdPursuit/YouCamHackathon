@@ -10,39 +10,62 @@ rule; its current input is an example reading, not a live analysis of the visito
 
 | Stage | Behavior implemented in this repository |
 | --- | --- |
-| Start | Product introduction, mode-aware privacy information, and automatically saved Previous looks. |
+| Start | Product introduction, mode-aware privacy information, automatically saved Previous looks, and a choice between the saved demo and your own photos. |
 | Add inputs | Portrait, two garment references, a makeup preset, and optional full-body portrait plus trousers reference. |
 | Generate | Explicit generation with progress, input checks, and reuse of a matching result from this browser's saved history. |
-| Results | Compare outfits or makeup; switch between available close-up/full-body results; keep a choice for the session. |
+| Results | Compare outfits (close-up, plus full body as an additional section when generated) or compare the original portrait against that same portrait with makeup. A per-image action offers a five-second video, gated behind the server's unit budget. |
 
 Each garment passes through Clothes VTO, then Makeup VTO receives that garment
-result. The current makeup comparison is **Garment A before and after makeup**.
-Full-body generation first applies trousers once, then runs each top and its
-makeup independently. A failed branch does not discard the other usable result.
+result — that pairing is what Compare outfits shows. The makeup task also runs
+directly on the bare portrait, with no garment change, for Compare makeup: the
+original portrait against that same portrait with makeup. Full-body generation
+first applies trousers once, then runs each top and its makeup independently. A
+failed branch does not discard the other usable result.
 
 The saved five-second video plays only for its matching red-shirt / Rose Veil
-fixture. It is not a video of the visitor's new result and is not a rotatable 3D
-model. A click starts playback; the original still remains available.
+fixture. A per-image "Generate video" action exists on any other completed
+result, budget-permitting, but has no live provider path yet — see the video row
+below. Neither is a rotatable 3D model or a view of the back. A click starts
+playback; the original still remains available.
 
-### Accepted next increment — not implemented yet
+### Demo and live entry
 
-- Start offers a saved website demo and a separate live trial.
-- The demo opens Add inputs with sample photos filled in, then displays saved
-  comparisons and video without calling YouCam.
-- Compare makeup shows the original portrait against makeup on that same portrait,
-  with its clothing unchanged. Compare outfits shows both full-body outfits with
-  trousers and makeup. The extra view selector is removed.
-- Replace the remaining session-only Keep/kept controls with per-image video actions.
-  Completed image history and the matching existing sample video are already saved automatically.
-- Live video generation uses the selected completed image.
-- The API enforces 100 YouCam units per day shared across the site and up to 40
-  units per browser per 24 hours, subject to the shared pool, using free Render
-  Key Value. A lost counter store pauses live generation instead of resetting credit.
+Start offers "Try the demo" (the saved comparisons above, no upload, no
+YouCam call, and no dependency on the API service being awake — it can sleep on
+the free tier) and "Try your photos" (the existing Add-inputs flow). Both label
+every result as a saved demo or as generated from your uploads.
 
-These are planned changes, not current safeguards. There are no accounts. Browser
-history is implemented; the public trial and server unit budget are not. The current limiter counts requests in one server
-process; it does not enforce a daily YouCam budget. The temporary design preview
-is separate from the website demo and is not part of the deployed application.
+### Server unit budget — implemented for `/api/try-on`, not yet complete
+
+A shared Redis-protocol Key Value store (`server/src/youcam/budget.ts`) reserves
+the full estimated cost of a request before any provider call, enforcing 100
+units/site/day and up to 40/browser in a ~24-hour window, both subject to the
+shared pool. Wired into `/api/try-on`; **not yet wired into
+`/api/skin-analysis`**, whose live path still has no budget gate. Never
+connected to a real Render Key Value instance — `redisClient.ts`'s connection is
+unverified, and `YINCOL_KV_URL` unset (the default) fails every live route
+closed the same way a missing API key already does. Automatic refunds are not
+implemented yet: an ambiguous or failed request keeps its full charge, by
+design, until a clean-failure/timeout distinction is threaded through the
+existing sequences.
+
+### Live video generation — not implemented; the route cannot reach the provider
+
+`POST /api/video` exists, is budget-gated, and is built and tested exclusively
+against a mocked provider. It cannot make a real call regardless of
+`YINCOL_LIVE_VIDEO`: the Video Generator task path is an unverified guess, and
+the feature has no registered File API upload path at all, so an upload is
+refused before any request would leave the process. Treat this exactly like the
+long-unverified Facial Color Tone contract — a guess, not a fact — until someone
+with API Playground access confirms it.
+
+These are the current safeguards and gaps, stated plainly rather than as a
+roadmap. There are no accounts. Browser history and the budget reservation
+algorithm are implemented; a verified live video path and a deployed KV
+instance are not. The request-rate limiter (`rateLimit.ts`) is separate from the
+unit budget and still counts requests in one server process only. The temporary
+design preview is separate from the website demo and is not part of the
+deployed application.
 
 ## Run locally without using credits
 
@@ -84,8 +107,9 @@ overrides above, reload the browser, and inspect `/api/health` before generation
 
 Do not enable the live palette by setting `YINCOL_FIXTURE_MODE=false`: Facial
 Color Tone's full contract remains unverified. Never put the key in `web/`, a
-`VITE_` variable, logs, fixtures, or Git. Public live access needs the planned
-budget controls before activation; deployment alone does not enable live calls.
+`VITE_` variable, logs, fixtures, or Git. Public live access needs a deployed,
+verified Key Value connection and full budget coverage (see "Server unit
+budget" above) before activation; deployment alone does not enable live calls.
 
 The browser sends bounded image data through the server's File API adapter.
 Successful output bytes are downloaded immediately; signed provider URLs do not
@@ -116,18 +140,18 @@ data clearing can prevent saving or remove history. A failed save leaves current
 results and downloads available, with a save-only retry that does not call YouCam.
 The first valid older session cache may be imported once without regeneration.
 Source uploads are not restored; reselect them to change or generate a look.
-There is no live video generation route yet.
+`POST /api/video` exists but has no verified live path — see "Live video
+generation" above.
 
 ### Recorded unit estimates
 
 | Workflow | Expected units on success |
 | --- | ---: |
-| Current close-up: two Clothes tasks + two Makeup tasks | 6 |
+| Current close-up: two Clothes tasks + two Makeup tasks + one portrait-only Makeup task | 9 |
 | Optional full-body: shared trousers + two tops + two makeup tasks | +8 |
 | Optional five-action Skin Analysis | +12 |
-| Current close-up + full-body + Skin Analysis | 26 |
-| Planned makeup-only portrait + two full outfits, without Skin Analysis | 9 |
-| Planned five-second, 720p video | +10 each |
+| Current close-up + full-body + Skin Analysis | 29 |
+| Planned five-second, 720p video (unverified — no live path yet) | +10 each |
 
 The original uploaded portrait requires no generation. Estimates exclude retries
 and are not a balance check. Verify current rates before approved paid work:
