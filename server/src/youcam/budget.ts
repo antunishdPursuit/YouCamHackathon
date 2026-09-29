@@ -213,3 +213,20 @@ export function createFailClosedBudgetStore(): BudgetStore {
     },
   };
 }
+
+/**
+ * Test-only convenience: every reservation succeeds, nothing is ever tracked. For route
+ * tests that need to get past the budget gate to exercise what happens after it, without
+ * asserting anything about the budget algorithm itself — that's `budget.test.ts`'s job,
+ * against a real in-memory fake `RedisLike`.
+ */
+export function createAlwaysAvailableBudgetStore(): BudgetStore {
+  return {
+    async reserve() {
+      return { ok: true, reservationId: randomUUID() };
+    },
+    async markOutcome() {
+      /* Not tracked. */
+    },
+  };
+}

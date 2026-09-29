@@ -5,6 +5,8 @@ import type { AddressInfo } from 'node:net';
 import { findMakeupLook, type TryOnResponse } from '@yincol/shared';
 import { loadConfig } from '../youcam/config.js';
 import { generateFullBodyLooks } from './fullBody.js';
+import { createAlwaysAvailableBudgetStore } from '../youcam/budget.js';
+import { setBudgetStoreForTests, resetBudgetStoreForTests } from '../youcam/budgetStore.js';
 import { tryOnRouter } from './tryOn.js';
 
 const provider = vi.hoisted(() => ({
@@ -45,11 +47,14 @@ beforeEach(() => {
     return { status: 'ready', image: { bytes, contentType: 'image/png' },
       result: { status: 'ready', imageUrl: 'data:image/png;base64,' + bytes.toString('base64'), alt: 'Mock test output' } };
   });
+  // These tests are about the provider call sequence, not the budget gate — force it open.
+  setBudgetStoreForTests(createAlwaysAvailableBudgetStore());
 });
 afterEach(async () => {
   if (server) await new Promise<void>(resolve => server!.close(() => resolve()));
   server = undefined;
   vi.restoreAllMocks(); vi.resetAllMocks(); vi.unstubAllEnvs();
+  resetBudgetStoreForTests();
 });
 async function post(body: unknown) {
   const app = express(); app.use(express.json()); app.use('/api', tryOnRouter);

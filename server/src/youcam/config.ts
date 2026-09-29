@@ -111,6 +111,14 @@ export const RATE_LIMIT_BACKOFF_MS = 5_000;
 export const RATE_LIMIT_MAX_RETRIES = 3;
 
 /**
+ * A bound on any single provider request, well above normal latency and well below the
+ * ~4-minute poll ceiling above (`POLL_MAX_ATTEMPTS * POLL_INTERVAL_MS`). Added so one
+ * request can never hang a paid, budget-reserved generation indefinitely; a request that
+ * times out is treated as an ambiguous outcome, never a definitive failure — see budget.ts.
+ */
+export const TASK_FETCH_TIMEOUT_MS = 20_000;
+
+/**
  * VERIFIED, and it shapes the fixture design: the download URL returned on success is
  * valid for two hours, while `task_id` persists 30 days. Fixtures therefore store
  * downloaded bytes, never URLs, and the capture script downloads immediately.

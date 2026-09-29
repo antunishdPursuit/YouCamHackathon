@@ -33,6 +33,8 @@ import { logFailure, publicFailureReason } from '../youcam/publicError.js';
 import { tryOnFailure } from '../youcam/adapters/tryOn.js';
 import { fixtureCompleteLook, fixtureDelay, fixturePortraitMakeup, resolveFixtureImage } from '../fixtures/index.js';
 import { runPortraitMakeupSequence } from '../youcam/portraitMakeup.js';
+import { estimateUnits } from '../youcam/budget.js';
+import { browserIdFrom, idempotencyKeyFor, reserveBudget, settleBudget } from './budgetGate.js';
 import { rejectImageBytesInFixtureMode } from './fixtureGuard.js';
 
 export const tryOnRouter = Router();
@@ -83,6 +85,18 @@ const failedOutcome = (reason: unknown): CompleteLookOutcome => ({
   garmentOnly: failedPanel(reason),
   completeLook: failedPanel(reason),
 });
+
+/** Whether at least one generated panel is usable — the budget outcome is 'success' if so,
+ * 'ambiguous' (charged, not refunded) otherwise. See budgetGate.ts for why never
+ * 'definitiveFailure' here. */
+const anyPanelReady = (response: TryOnResponse): boolean => {
+  const panels: (TryOnPanel | undefined)[] = [
+    ...Object.values(response.garments), ...Object.values(response.completeLooks),
+    response.portraitMadeUp,
+    ...(response.fullBody ? [...Object.values(response.fullBody.garments), ...Object.values(response.fullBody.completeLooks)] : []),
+  ];
+  return panels.some(panel => panel?.result.status === 'ready');
+};
 
 tryOnRouter.post('/try-on', asyncRoute(async (req, res) => {
   const config = loadConfig();
@@ -198,6 +212,17 @@ tryOnRouter.post('/try-on', asyncRoute(async (req, res) => {
     }
   }
 
+  // Reserve the full estimated cost before any provider call — no reservation, no
+  // provider call, in every branch below.
+  const browserId = browserIdFrom(req);
+  const estimatedUnits = estimateUnits({ hasFullBody: Boolean(fullBody), hasSkinAnalysis: false });
+  const idempotencyKey = idempotencyKeyFor([
+    browserId, portrait.bytes, ...garmentIds.map(id => garmentImages[id]?.bytes ?? Buffer.alloc(0)),
+    makeupLookId, ...(fullBody ? [fullBody.portrait.bytes, fullBody.trousers.bytes] : []),
+  ]);
+  const reservationId = await reserveBudget(res, browserId, estimatedUnits, idempotencyKey);
+  if (!reservationId) return; // reserveBudget already wrote the response.
+
   const fullBodyPromise = fullBody ? generateFullBodyLooks({
     config, ...fullBody, garmentIds, garmentImages, look,
   }) : undefined;
@@ -266,5 +291,7 @@ tryOnRouter.post('/try-on', asyncRoute(async (req, res) => {
     mode: 'live',
     ...(fullBodyPromise ? { fullBody: await fullBodyPromise } : {}),
   };
+
+  await settleBudget(reservationId, anyPanelReady(response) ? 'success' : 'ambiguous');
   res.set('Cache-Control', 'private, no-store').json(response);
 }));

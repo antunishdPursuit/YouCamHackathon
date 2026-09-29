@@ -15,7 +15,8 @@ import { GARMENTS, MAKEUP_LOOKS } from '@yincol/shared';
 import { loadRootEnv } from './loadEnv.js';
 import { loadConfig, liveWasRequestedWithoutKey, TASK_PATH_VERIFIED } from './youcam/config.js';
 import { createRateLimiter } from './rateLimit.js';
-import { createRequestBodyParser } from './requestBody.js';
+import { createRequestBodyParser, requestBodyLimitBytes } from './requestBody.js';
+import { rejectOversizedContentLength } from './requestGuards.js';
 import { createCorsMiddleware } from './cors.js';
 import { analyzeRouter } from './routes/analyze.js';
 import { skinAnalysisRouter } from './routes/skinAnalysis.js';
@@ -52,6 +53,7 @@ if ((process.env['YINCOL_TRUST_PROXY'] ?? '').toLowerCase() === 'true') {
  * images become just under 67 MB as base64 JSON, and each is still rejected at or above
  * the provider's 10 MB limit before upload.
  */
+app.use(rejectOversizedContentLength(requestBodyLimitBytes(startupConfig)));
 app.use(createRequestBodyParser(startupConfig));
 
 /**

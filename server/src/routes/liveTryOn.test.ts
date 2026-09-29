@@ -1,10 +1,12 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
 import type { TryOnResponse } from '@yincol/shared';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { loadConfig } from '../youcam/config.js';
 import { createRequestBodyParser } from '../requestBody.js';
+import { createAlwaysAvailableBudgetStore } from '../youcam/budget.js';
+import { setBudgetStoreForTests, resetBudgetStoreForTests } from '../youcam/budgetStore.js';
 import { tryOnRouter } from './tryOn.js';
 
 const provider = vi.hoisted(() => ({
@@ -26,11 +28,17 @@ vi.mock('../youcam/completeLook.js', () => ({ runCompleteLookSequence: provider.
 vi.mock('../youcam/portraitMakeup.js', () => ({ runPortraitMakeupSequence: provider.portraitMakeup }));
 
 let server: Server | undefined;
+beforeEach(() => {
+  // These tests are about upload/sequence wiring, not the budget gate — force it open so
+  // a live request always gets past it. budget.test.ts covers the gate itself.
+  setBudgetStoreForTests(createAlwaysAvailableBudgetStore());
+});
 afterEach(async () => {
   if (server) await new Promise<void>((resolve, reject) => server!.close(e => e ? reject(e) : resolve()));
   server = undefined;
   vi.unstubAllEnvs();
   vi.clearAllMocks();
+  resetBudgetStoreForTests();
 });
 async function start(liveTryOn: boolean, liveSkinAnalysis = false, key = 'test-key') {
   vi.stubEnv('YINCOL_FIXTURE_MODE', 'true');
@@ -91,3 +99,64 @@ describe('live uploads while palette mode remains fixture', () => {
     expect(provider.prepare).not.toHaveBeenCalled();
   });
 });
+
+describe('the budget gate', () => {
+  it('refuses live work when no budget store is configured, without calling the provider', async () => {
+    resetBudgetStoreForTests(); // undo this file's default always-available override
+    const origin = await start(true);
+    const response = await post(origin + '/api/try-on');
+    expect(response.status).toBe(503);
+    expect(provider.prepare).not.toHaveBeenCalled();
+  });
+
+  it('rejects once the site cap is exhausted, without calling the provider', async () => {
+    const { createBudgetStore } = await import('../youcam/budget.js');
+    setBudgetStoreForTests(createBudgetStore(fakeRedis(), { siteDailyUnitCap: 1, browserWindowUnitCap: 100 }));
+    const origin = await start(true);
+    const response = await post(origin + '/api/try-on');
+    expect(response.status).toBe(429);
+    expect(provider.prepare).not.toHaveBeenCalled();
+  });
+
+  it('rejects an identical resubmission as a duplicate, calling the provider at most once', async () => {
+    const { createBudgetStore } = await import('../youcam/budget.js');
+    setBudgetStoreForTests(createBudgetStore(fakeRedis(), { siteDailyUnitCap: 1000, browserWindowUnitCap: 1000 }));
+    const origin = await start(true);
+    const [first, second] = await Promise.all([post(origin + '/api/try-on'), post(origin + '/api/try-on')]);
+    const statuses = [first.status, second.status].sort();
+    expect(statuses).toEqual([200, 409]);
+    expect(provider.sequence).toHaveBeenCalledTimes(2); // one request's two garments, not four
+  });
+});
+
+/** A minimal, honest in-memory stand-in for the Redis commands `budget.ts` issues — the
+ * same shape `budget.test.ts` exercises in depth; this file only needs it to get a real
+ * `createBudgetStore` past its gate for these route-level tests. */
+function fakeRedis() {
+  const values = new Map<string, string>();
+  const numbers = new Map<string, number>();
+  return {
+    async set(key: string, value: string, _mode: 'PX', _ttl: number, flag: 'NX') {
+      if (flag === 'NX' && values.has(key)) return null;
+      values.set(key, value);
+      return 'OK' as const;
+    },
+    async incrby(key: string, amount: number) {
+      const next = (numbers.get(key) ?? 0) + amount;
+      numbers.set(key, next);
+      return next;
+    },
+    async decrby(key: string, amount: number) {
+      const next = (numbers.get(key) ?? 0) - amount;
+      numbers.set(key, next);
+      return next;
+    },
+    async expire() { return 1; },
+    async get(key: string) { return values.get(key) ?? null; },
+    async del(key: string) {
+      const had = values.delete(key);
+      numbers.delete(key);
+      return had ? 1 : 0;
+    },
+  };
+}
