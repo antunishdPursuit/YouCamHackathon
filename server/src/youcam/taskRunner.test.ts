@@ -16,6 +16,12 @@ const feature = { id: 'clothesVto' as const, label: 'Clothes try-on', taskPath: 
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('fetchWithBackoff — request timeout', () => {
+  it('does not automatically retry a paid submission after a 429', async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response('{}', { status: 429 }));
+    vi.stubGlobal('fetch', fetcher);
+    await expect(startTask(config, feature, {})).rejects.toMatchObject({ detail: { status: 429 } });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
   it.each(['AbortError', 'TimeoutError'])('translates a %s rejection into a timedOut YouCamError', async (name) => {
     const abort = new DOMException('The operation was aborted.', name);
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(abort));

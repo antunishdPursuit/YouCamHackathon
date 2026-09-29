@@ -21,6 +21,8 @@ import { adaptSkinAnalysis } from '../youcam/adapters/skinAnalysis.js';
 import { logFailure } from '../youcam/publicError.js';
 import { runTask, YouCamError } from '../youcam/taskRunner.js';
 import { rejectImageBytesInFixtureMode } from './fixtureGuard.js';
+import { browserIdFrom, idempotencyKeyFor, reserveBudget, settleBudget } from './budgetGate.js';
+import { SKIN_ANALYSIS_UNITS } from '../youcam/budget.js';
 
 export const skinAnalysisRouter = Router();
 
@@ -98,6 +100,10 @@ skinAnalysisRouter.post('/skin-analysis', asyncRoute(async (req, res) => {
     return;
   }
 
+  const browserId = browserIdFrom(req);
+  const reservation = await reserveBudget(res, browserId, SKIN_ANALYSIS_UNITS,
+    idempotencyKeyFor(['skin-analysis', browserId, image.bytes]));
+  if (!reservation) return;
   try {
     const reference = await fileUploadStrategy.prepare(
       image,
@@ -114,8 +120,10 @@ skinAnalysisRouter.post('/skin-analysis', asyncRoute(async (req, res) => {
       skin: adaptSkinAnalysis(raw),
       mode: 'live',
     };
+    await settleBudget(reservation, 'success');
     res.json(response);
   } catch (error) {
+    await settleBudget(reservation, 'ambiguous');
     logFailure('skin analysis', error);
 
     const noFace = isNoFaceFailure(error);

@@ -176,6 +176,7 @@ export async function uploadFile(
   }
 
   const response = await fetch(`${config.baseUrl}${filePathFor(feature)}`, {
+    signal: AbortSignal.timeout(20_000),
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeader(config.apiKey) },
     body: JSON.stringify({
@@ -193,6 +194,7 @@ export async function uploadFile(
 
   const uploadInfo = readUploadInfo(await readJson(response, feature), feature);
   const uploadResponse = await fetch(uploadInfo.request.url, {
+    signal: AbortSignal.timeout(20_000),
     method: uploadInfo.request.method,
     headers: uploadInfo.request.headers,
     body: bytes,

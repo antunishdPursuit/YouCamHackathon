@@ -85,7 +85,7 @@ async function fetchWithBackoff(
       }
       throw error;
     }
-    if (response.status !== 429) return response;
+    if (response.status !== 429 || stage === 'start') return response;
 
     if (attempt === RATE_LIMIT_MAX_RETRIES) {
       throw new YouCamError(`Rate limited by the API after ${attempt + 1} attempts.`, {
@@ -96,7 +96,7 @@ async function fetchWithBackoff(
     }
     // Honour Retry-After when the API sends one; otherwise use our own interval.
     const retryAfter = Number(response.headers.get('retry-after'));
-    await sleep(Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : RATE_LIMIT_BACKOFF_MS);
+    await sleep(Math.min(30_000, Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : RATE_LIMIT_BACKOFF_MS));
   }
   // Unreachable: the loop either returns or throws.
   throw new YouCamError('Rate limit retry loop exited unexpectedly.', { feature, stage });

@@ -87,16 +87,11 @@ export const buildMakeupVtoPayload = (
  * Convert the app's chosen look into the documented Makeup VTO effects shape. The
  * browser still receives only the app-level look and chips; vendor fields stay here.
  */
-/**
- * TODO(phase0): entirely unverified. Field names and shape are a guess from the general
- * pattern the other task builders follow, not from any documented or tested contract —
- * see `VIDEO_GENERATOR_TASK_PATH` in config.ts for why this can never actually reach the
- * provider yet regardless.
- */
+/** Official V2 image-to-video contract: five seconds, 720p. See docs/pr15-followup.md. */
 export const buildVideoPayload = (source: ImageReference): unknown => ({
   ...imageField(source),
-  duration_seconds: 5,
-  resolution: '720p',
+  dst_duration: 5,
+  resolution: '720',
 });
 
 export const makeupEffectsForLook = (

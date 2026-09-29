@@ -1,16 +1,4 @@
-/**
- * The one place a route asks the shared unit budget for permission before starting paid
- * work, and reports what happened once it's done.
- *
- * Outcome classification is deliberately conservative in this first wiring: a route only
- * ever reports 'success' (something usable came back) or 'ambiguous' (nothing did, for any
- * reason). It never reports 'definitiveFailure', which is the only outcome `budget.ts`
- * refunds — that would need each sequence (completeLook.ts, portraitMakeup.ts, fullBody.ts)
- * to distinguish a clean vendor "error" status from a timeout in its return shape, which
- * none of them currently do. The safe default until that plumbing exists is to keep every
- * uncertain charge rather than risk refunding one that actually succeeded or is still
- * running on the provider's side — exactly the conservatism the budget system asks for.
- */
+/** Shared route budget gate. Outcomes never automatically refund a reservation. */
 
 import type { Request, Response } from 'express';
 import { createHash } from 'node:crypto';
@@ -32,7 +20,11 @@ export function browserIdFrom(req: Request): string {
  * (a double click, a retried network request) is deflected without needing a client nonce. */
 export function idempotencyKeyFor(parts: readonly (string | Buffer)[]): string {
   const hash = createHash('sha256');
-  for (const part of parts) hash.update(part);
+  for (const part of parts) {
+    const bytes = typeof part === 'string' ? Buffer.from(part) : part;
+    hash.update(`${bytes.length}:`);
+    hash.update(bytes);
+  }
   return hash.digest('hex');
 }
 

@@ -55,8 +55,8 @@ describe('current non-Skin YouCam payloads', () => {
   it('builds an unverified video payload with the source image field only', () => {
     expect(buildVideoPayload(portrait)).toEqual({
       src_file_url: 'https://example.com/portrait.jpg',
-      duration_seconds: 5,
-      resolution: '720p',
+      dst_duration: 5,
+      resolution: '720',
     });
   });
 });

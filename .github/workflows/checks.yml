@@ -1,0 +1,37 @@
+name: Checks
+on:
+  pull_request:
+  push:
+    branches: [main, feature/12-live-budget-and-video]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      valkey:
+        image: valkey/valkey:8
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      YINCOL_FIXTURE_MODE: 'true'
+      YINCOL_LIVE_TRY_ON: 'false'
+      YINCOL_LIVE_SKIN_ANALYSIS: 'false'
+      YINCOL_LIVE_VIDEO: 'false'
+      YINCOL_API_KEY: ''
+      YINCOL_TEST_KV_URL: redis://127.0.0.1:6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm run contrast-audit --workspace @yincol/web

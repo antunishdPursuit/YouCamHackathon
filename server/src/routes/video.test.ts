@@ -1,3 +1,8 @@
+// Exercise the implemented route with a stubbed, explicitly verified provider only.
+vi.mock('../youcam/config.js', async (original) => {
+  const actual = await original<typeof import('../youcam/config.js')>();
+  return { ...actual, TASK_PATH_VERIFIED: { ...actual.TASK_PATH_VERIFIED, video: true } };
+});
 /**
  * POST /api/video, both branches. The live branch is exercised entirely against mocked
  * `fileUploadStrategy`/`taskRunner`/`adapters/video` — the real provider call is never
@@ -113,17 +118,6 @@ describe('live mode (mocked provider only)', () => {
   });
 
   it('does not call the provider when the budget is exhausted', async () => {
-    const fakeRedis = () => {
-      const numbers = new Map<string, number>();
-      return {
-        async set() { return 'OK' as const; },
-        async incrby(key: string, amount: number) { const n = (numbers.get(key) ?? 0) + amount; numbers.set(key, n); return n; },
-        async decrby(key: string, amount: number) { const n = (numbers.get(key) ?? 0) - amount; numbers.set(key, n); return n; },
-        async expire() { return 1; },
-        async get() { return null; },
-        async del() { return 1; },
-      };
-    };
     setBudgetStoreForTests(createBudgetStore(fakeRedis(), { siteDailyUnitCap: 1, browserWindowUnitCap: 100 }));
     const origin = await startLive();
     const response = await post(origin, { imageUrl: 'data:image/png;base64,AAAA' });
@@ -131,3 +125,14 @@ describe('live mode (mocked provider only)', () => {
     expect(provider.prepare).not.toHaveBeenCalled();
   });
 });
+
+function fakeRedis() {
+  let raw: string | null = JSON.stringify({ version: 2, readyAt: 0, charges: [], seen: {} });
+  return {
+    async get() { return raw; },
+    async eval(_script: string, _count: number, ...args: string[]) {
+      if ((raw ?? '') !== args[1]) return 0;
+      raw = args[2]!; return 1;
+    },
+  };
+}

@@ -234,7 +234,7 @@ tryOnRouter.post('/try-on', asyncRoute(async (req, res) => {
   // Each garment runs the full sequence on its own. Nothing is shared between them, so
   // one garment's failure cannot reach the other's result.
   const settled = await Promise.allSettled(
-    garmentIds.map(async (garmentId): Promise<CompleteLookOutcome> => {
+    (fullBody ? [] : garmentIds).map(async (garmentId): Promise<CompleteLookOutcome> => {
       const garment = findGarment(garmentId);
       if (!garment) return failedOutcome(new Error(`Unknown garment "${garmentId}".`));
 
@@ -268,7 +268,7 @@ tryOnRouter.post('/try-on', asyncRoute(async (req, res) => {
   const garments: Record<string, TryOnPanel> = {};
   const completeLooks: Record<string, TryOnPanel> = {};
 
-  garmentIds.forEach((garmentId, index) => {
+  (fullBody ? [] : garmentIds).forEach((garmentId, index) => {
     const outcome = settled[index];
     // The only path here that is not already a handled panel: an upload or an unexpected
     // throw. The detail stays on the console; the browser gets the sentence.

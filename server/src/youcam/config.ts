@@ -45,14 +45,9 @@ export const SKIN_ANALYSIS_TASK_PATH = '/s2s/v2.0/task/skin-analysis';
  */
 export const FACIAL_COLOR_TONE_TASK_PATH = '/s2s/v2.0/task/skin-tone-analysis';
 
-/**
- * TODO(phase0): entirely unverified. Guessed from this API's own path-naming convention
- * (`/s2s/v2.0/task/<slug>`) and the README's link to the provider's Video Generator docs —
- * never checked in the API Playground, never exercised against the real endpoint. No live
- * video call may be attempted until this is confirmed and `TASK_PATH_VERIFIED.video` is
- * flipped to `true` there alongside it.
- */
-export const VIDEO_GENERATOR_TASK_PATH = '/s2s/v2.0/task/video-generator';
+/** Documented V2 image-to-video endpoint, checked September 29, 2026.
+ * Live release verification remains false until owner-run acceptance. */
+export const VIDEO_GENERATOR_TASK_PATH = '/s2s/v2.0/task/image-to-video/youcam';
 
 export const TASK_PATHS: Readonly<Record<FeatureId, string>> = {
   facialColorTone: FACIAL_COLOR_TONE_TASK_PATH,
@@ -87,17 +82,10 @@ export const CLOTHES_VTO_FILE_PATH = '/s2s/v2.0/file/cloth-v3';
 /** LIVE VERIFIED on August 16, 2026 against the current AI Makeup VTO contract. */
 export const MAKEUP_VTO_FILE_PATH = '/s2s/v2.0/file/makeup-vto';
 
-/**
- * File API paths are kept separate from task paths because the vendor's feature slugs are
- * not the same as our internal feature ids. Skin Analysis, Clothes VTO, and Makeup VTO
- * are locally verified; Facial Color Tone and video remain unverified.
- *
- * `video` has NO entry here on purpose: it is the enforcement mechanism for "no live video
- * call until verified", not just documentation of it. `filePathFor('video')` throws below,
- * so any attempt at a live video upload fails before any request reaches the provider,
- * whatever `YINCOL_LIVE_VIDEO` says.
- */
+/** Video uses the documented generic File API. Live video is explicitly gated in
+ * the route before reservation/upload; adding this path does not enable it. */
 const DOCUMENTED_FILE_PATHS: Partial<Record<FeatureId, string>> = {
+  video: '/s2s/v2.0/file',
   skinAnalysis: SKIN_ANALYSIS_FILE_PATH,
   clothesVto: CLOTHES_VTO_FILE_PATH,
   makeupVto: MAKEUP_VTO_FILE_PATH,
@@ -190,14 +178,7 @@ export interface YouCamConfig {
   readonly liveSkinAnalysis: boolean;
   /** Explicitly enables live Clothes and Makeup VTO while the palette stays on fixtures. */
   readonly liveTryOn: boolean;
-  /**
-   * Explicitly enables an attempt at live video generation. Setting this true does NOT by
-   * itself make a live call possible: `video` has no entry in `DOCUMENTED_FILE_PATHS`
-   * below, so `fileUploadStrategy.prepare(..., 'video', ...)` throws before any provider
-   * request is made. That throw is the real safety net — this flag is intentionally not
-   * gated on `TASK_PATH_VERIFIED.video` here, the same as every other live flag in this
-   * file, which never re-check verification status at the config layer.
-   */
+  /** Requests live video; the route also requires explicit code-level release verification. */
   readonly liveVideo: boolean;
   readonly simulate: SimulatedState;
   /**

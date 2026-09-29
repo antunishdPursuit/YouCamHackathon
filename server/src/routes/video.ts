@@ -1,22 +1,10 @@
-/**
- * POST /api/video — a five-second clip generated from one already-completed image.
- *
- * Fixture branch: honest by construction. It only ever returns the one shipped sample clip,
- * and only for the exact image it was captured against — anything else gets a plain
- * "no demo video for this image" failure, never a fabricated result.
- *
- * Live branch: entirely unverified (see `VIDEO_GENERATOR_TASK_PATH` in config.ts) and
- * budget-gated the same way `/api/try-on` is — no reservation, no provider call. It is
- * built and tested exclusively against a mocked provider; `fileUploadStrategy.prepare(...,
- * 'video', ...)` itself throws before any request reaches the provider, since `video` has
- * no entry in config.ts's `DOCUMENTED_FILE_PATHS`. That throw — not this route — is what
- * actually stops a live call from ever being attempted for real.
- */
+/** Five-second video from a completed image. Official contract is documented;
+ * TASK_PATH_VERIFIED.video gates paid work pending owner release acceptance. */
 
 import { Router, type Response } from 'express';
 import type { ApiErrorBody, VideoRequest, VideoResponse } from '@yincol/shared';
 import { asyncRoute } from './asyncRoute.js';
-import { loadConfig } from '../youcam/config.js';
+import { loadConfig, TASK_PATH_VERIFIED } from '../youcam/config.js';
 import { FEATURES, buildVideoPayload } from '../youcam/features.js';
 import { fileUploadStrategy, MAX_FILE_BYTES } from '../youcam/imageInput.js';
 import { runTask } from '../youcam/taskRunner.js';
@@ -72,6 +60,10 @@ videoRouter.post('/video', asyncRoute(async (req, res) => {
   }
 
   // ── Live — see the file header: this cannot actually reach the provider yet ────
+  if (!TASK_PATH_VERIFIED.video) {
+    res.status(503).json({ error: 'Live video is awaiting release verification. Saved clips remain available.' });
+    return;
+  }
   const match = LIVE_IMAGE_DATA_URL.exec(imageUrl);
   if (!match) {
     badRequest(res, 'Choose a completed image before generating a video.');

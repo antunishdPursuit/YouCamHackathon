@@ -133,30 +133,12 @@ describe('the budget gate', () => {
  * same shape `budget.test.ts` exercises in depth; this file only needs it to get a real
  * `createBudgetStore` past its gate for these route-level tests. */
 function fakeRedis() {
-  const values = new Map<string, string>();
-  const numbers = new Map<string, number>();
+  let raw: string | null = JSON.stringify({ version: 2, readyAt: 0, charges: [], seen: {} });
   return {
-    async set(key: string, value: string, _mode: 'PX', _ttl: number, flag: 'NX') {
-      if (flag === 'NX' && values.has(key)) return null;
-      values.set(key, value);
-      return 'OK' as const;
-    },
-    async incrby(key: string, amount: number) {
-      const next = (numbers.get(key) ?? 0) + amount;
-      numbers.set(key, next);
-      return next;
-    },
-    async decrby(key: string, amount: number) {
-      const next = (numbers.get(key) ?? 0) - amount;
-      numbers.set(key, next);
-      return next;
-    },
-    async expire() { return 1; },
-    async get(key: string) { return values.get(key) ?? null; },
-    async del(key: string) {
-      const had = values.delete(key);
-      numbers.delete(key);
-      return had ? 1 : 0;
+    async get() { return raw; },
+    async eval(_script: string, _count: number, ...args: string[]) {
+      if ((raw ?? '') !== args[1]) return 0;
+      raw = args[2]!; return 1;
     },
   };
 }
