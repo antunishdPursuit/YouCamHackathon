@@ -24,6 +24,7 @@ import { Button } from './components/controls.js';
 import { PreviousLooks, SavedMediaDownloads, CurrentMediaDownloads } from './components/PreviousLooks.js';
 import { useSavedLooks } from './state/useSavedLooks.js';
 import { readSavedLook, openSavedLook, type LookSettings, type OpenedLook } from './state/savedLooks.js';
+import { loadDemoLook } from './state/demoLook.js';
 import type { CachedGeneration } from './state/generationCache.js';
 import { IntroScreen } from './screens/IntroScreen.js';
 import { InputsScreen } from './screens/InputsScreen.js';
@@ -483,10 +484,20 @@ export function App() {
               onRetry={() => { void refreshHistory(); }} className="xl:col-start-1 xl:row-start-1" />}
             imagesLeaveTab={imagesLeaveTab}
             resuming={Boolean(state.fullBody.enabled || state.portrait || state.garmentInputs.a || state.garmentInputs.b || state.makeupLookId)}
-            onBegin={() => {
+            onBeginLive={() => {
               generationId.current += 1;
               dispatch({ type: 'giveConsent' });
               dispatch({ type: 'editInputs' });
+            }}
+            onBeginDemo={() => {
+              // Zero calls to the API server: no health check, no /api route. The demo
+              // must work even while that service is asleep.
+              generationId.current += 1;
+              voidGeneration();
+              dispatch({ type: 'giveConsent' });
+              const demo = loadDemoLook();
+              dispatch({ type: 'restoreGeneration', analysis: demo.analysis, tryOn: demo.tryOn,
+                garmentIds: demo.garmentIds, makeupLookId: demo.makeupLookId });
             }}
           />
         );

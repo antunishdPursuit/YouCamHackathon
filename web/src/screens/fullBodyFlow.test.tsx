@@ -70,7 +70,7 @@ describe('full-body rendering contract', () => {
 
 
 it('offers previous looks independently of backend readiness and explains persistent storage', () => {
-  const html = renderToStaticMarkup(<IntroScreen onBegin={noop} resuming={false} imagesLeaveTab={null}
+  const html = renderToStaticMarkup(<IntroScreen onBeginDemo={noop} onBeginLive={noop} resuming={false} imagesLeaveTab={null}
     previousLooks={<PreviousLooks looks={[]} loading={false} error={null} pending={false}
       onOpen={noop} onDelete={noop} onRetry={noop} />} />);
   expect(html).toContain('Previous looks');

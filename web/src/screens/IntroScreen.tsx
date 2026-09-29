@@ -70,12 +70,14 @@ function ComparisonGuide() {
 }
 
 export function IntroScreen({
-  onBegin,
+  onBeginDemo,
+  onBeginLive,
   resuming,
   previousLooks,
   imagesLeaveTab,
 }: {
-  onBegin: () => void;
+  onBeginDemo: () => void;
+  onBeginLive: () => void;
   resuming: boolean;
   previousLooks: ReactNode;
   imagesLeaveTab: boolean | null;
@@ -99,9 +101,8 @@ export function IntroScreen({
             Before we begin
           </SectionHeading>
           <p className="mt-3 text-lg text-ink-soft">
-            {imagesLeaveTab === false
-              ? 'Try the comparison with saved demo results.'
-              : 'Add one portrait and two garment references. Each result will identify whether it is a saved demo or generated from your uploads.'}
+            Try the demo for saved example results with no upload, or add your own photos.
+            Each result identifies whether it is a saved demo or generated from your uploads.
           </p>
           <dl className="mt-5 space-y-4 text-base">
             <div>
@@ -132,9 +133,14 @@ export function IntroScreen({
             assessment and makes no claims about your skin.
           </p>
 
-          <Button className="mt-6 w-full" onClick={onBegin}>
-            {resuming ? 'Continue with your inputs' : 'Start with a photo'}
-          </Button>
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <Button variant="quiet" className="w-full sm:w-auto" onClick={onBeginDemo}>
+              Try the demo
+            </Button>
+            <Button className="w-full sm:w-auto" onClick={onBeginLive}>
+              {resuming ? 'Continue with your inputs' : 'Try your photos'}
+            </Button>
+          </div>
     </YincolCard>
 
         <aside
