@@ -54,8 +54,9 @@ export function useSavedLooks() {
     }
   }, [refresh]);
 
-  const attachVideo = useCallback(async (key: string, imageId: string, videoBlob: Blob) => {
-    await attachVideoToSavedLook(key, imageId, videoBlob, () => mounted.current);
+  const attachVideo = useCallback(async (key: string, imageId: string, videoBlob: Blob, current: () => boolean) => {
+    const saveEpoch = epoch.current;
+    await attachVideoToSavedLook(key, imageId, videoBlob, () => mounted.current && epoch.current === saveEpoch && current());
     await refresh();
   }, [refresh]);
 

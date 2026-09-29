@@ -198,14 +198,14 @@ export function ResultsScreen({
    */
   const sections: ResultSection[] = axis === 'garments'
     ? [
-        {
+        ...(!generation.fullBody ? [{
           key: 'closeup',
           ...(generation.fullBody ? { heading: 'Close-up' } : {}),
           panels: outfitPanels(generation, 'closeup'),
           frame: closeUpFrame,
           fullBody: false,
           showsTilt: true,
-        },
+        }] : []),
         ...(generation.fullBody ? [{
           key: 'fullBody',
           heading: 'Full body — shared trousers and makeup',
@@ -288,7 +288,7 @@ export function ResultsScreen({
                   const motionKind = savedVideo ? 'video' : (section.showsTilt ? motionForPanel(entry.panel, generation.mode) : undefined);
                   const canTiltThisCard = section.showsTilt && !motionKind && entry.panel?.provenance !== 'placeholder' && entry.panel?.result.status === 'ready';
                   const titleId = `result-${section.key}-${entry.key}`;
-                  const videoRequestable = Boolean(imageUrl) && entry.panel?.provenance !== 'placeholder' && motionKind !== 'video';
+                  const videoRequestable = entry.key !== 'portrait' && Boolean(imageUrl) && entry.panel?.provenance !== 'placeholder' && motionKind !== 'video';
                   const videoPending = imageUrl ? videoStatusByImage[imageUrl] === 'pending' : false;
                   const videoFailed = imageUrl ? videoStatusByImage[imageUrl] === 'failed' : false;
                   const actions = (

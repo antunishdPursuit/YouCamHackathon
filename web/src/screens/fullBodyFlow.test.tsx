@@ -29,14 +29,14 @@ const props = { analysis, tryOn, garmentIds: ['a', 'b'], makeupLookId: 'champagn
   onAxisChange: noop, onEditInputs: noop, onStartOver: noop,
 };
 describe('full-body rendering contract', () => {
-  it('renders close-up and full-body outfit sections together, each with its own framing', () => {
+  it('shows the two full-body outfits without an additional close-up comparison', () => {
     const html = renderToStaticMarkup(<ResultsScreen {...props} />);
-    expect(html).toContain('src="/close-a"'); expect(html).toContain('src="/full-a"');
+    expect(html).not.toContain('src="/close-a"'); expect(html).toContain('src="/full-a"');
     expect(html).toContain('aspect-ratio:0.625 / 1');
     expect(html).toContain('Full body — shared trousers and makeup');
     // Tilt is a close-up-only affordance: one "Tilt left" control per close-up card (two
     // garments), none inside the full-body section.
-    expect(html.match(/Tilt left/g)).toHaveLength(2);
+    expect(html).not.toContain('Tilt left');
   });
   it('compares the original portrait against the same portrait with makeup, not a full-body section', () => {
     const html = renderToStaticMarkup(<ResultsScreen {...props} axis="makeup" />);
@@ -77,7 +77,7 @@ describe('per-image video action', () => {
 
   it('shows a pending label and disables the button while a request is in flight', () => {
     const html = renderToStaticMarkup(
-      <ResultsScreen {...props} videoStatusByImage={{ '/close-a': 'pending' }} onGenerateVideo={noop} />,
+      <ResultsScreen {...props} videoStatusByImage={{ '/full-a': 'pending' }} onGenerateVideo={noop} />,
     );
     expect(html).toContain('Generating video…');
     expect(html).toMatch(/Generating video…<\/button>/);
@@ -85,27 +85,27 @@ describe('per-image video action', () => {
 
   it('offers a retry label after a failed request', () => {
     const html = renderToStaticMarkup(
-      <ResultsScreen {...props} videoStatusByImage={{ '/close-a': 'failed' }} onGenerateVideo={noop} />,
+      <ResultsScreen {...props} videoStatusByImage={{ '/full-a': 'failed' }} onGenerateVideo={noop} />,
     );
     expect(html).toContain('Video failed — retry');
   });
 
   it('plays an existing video instead of offering to generate a new one for the same image', () => {
     const html = renderToStaticMarkup(
-      <ResultsScreen {...props} videoByImage={{ '/close-a': 'blob:generated-clip' }} />,
+      <ResultsScreen {...props} videoByImage={{ '/full-a': 'blob:generated-clip' }} />,
     );
     expect(html).toContain('src="blob:generated-clip"');
     // The reuse short-circuit: no "Generate video" action for the image that already has one.
-    const closeACard = html.slice(html.indexOf('result-closeup-closeup-a'));
+    const closeACard = html.slice(html.indexOf('result-fullBody-fullBody-a'));
     expect(closeACard.slice(0, closeACard.indexOf('</article>'))).not.toContain('Generate video');
   });
 
   it('never offers video generation for a placeholder panel', () => {
-    const placeholderTryOn: TryOnResponse = { ...tryOn, completeLooks: {
-      ...tryOn.completeLooks, a: { result: { status: 'ready', imageUrl: '/placeholder.svg', alt: 'Stand-in' }, provenance: 'placeholder' },
-    } };
+    const placeholderTryOn: TryOnResponse = { ...tryOn, fullBody: { ...tryOn.fullBody!, completeLooks: {
+      ...tryOn.fullBody!.completeLooks, a: { result: { status: 'ready', imageUrl: '/placeholder.svg', alt: 'Stand-in' }, provenance: 'placeholder' },
+    } } };
     const html = renderToStaticMarkup(<ResultsScreen {...props} tryOn={placeholderTryOn} />);
-    const closeACard = html.slice(html.indexOf('result-closeup-closeup-a'));
+    const closeACard = html.slice(html.indexOf('result-fullBody-fullBody-a'));
     expect(closeACard.slice(0, closeACard.indexOf('</article>'))).not.toContain('Generate video');
   });
 });

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TryOnPanel, TryOnResponse } from '@yincol/shared';
 import type { CachedGeneration } from './generationCache.js';
-import { prepareSavedLook, openSavedLook, hasUsablePreviews, readSavedLook } from './savedLooks.js';
+import { prepareSavedLook, openSavedLook, hasUsablePreviews, readSavedLook, normalizeMotion, savedImageIdFor } from './savedLooks.js';
 
 const panel = (imageUrl: string): TryOnPanel => ({ provenance: 'live', stage: 'completeLook', result: { status: 'ready', imageUrl, alt: 'Outfit preview' } });
 const result: TryOnResponse = { mode: 'live', portrait: panel('data:image/png;base64,cHJpdmF0ZQ=='),
@@ -40,11 +40,27 @@ describe('saved media boundaries', () => {
     const captured = { ...panel('/fixtures/complete-look-a-result.jpg'), provenance: 'captured' as const };
     const saved = await prepareSavedLook({ ...cache, tryOn: { mode: 'fixture', portrait: captured, garments: {}, completeLooks: { a: captured } } }, settings);
     expect(saved.media.map(media => media.kind)).toEqual(['image', 'video']);
+    // Actual PR #13 schema: one object, rather than the new array.
+    (saved as unknown as { motion: unknown }).motion = saved.motion[0];
     const opened = openSavedLook(saved);
     const image = opened.tryOn.completeLooks.a?.result;
     if (image?.status !== 'ready') throw new Error('Missing restored image');
     expect(opened.videoByImage[image.imageUrl]).toMatch(/^blob:/);
     opened.dispose();
+  });
+  it('normalizes absent, legacy and current relationships without dropping valid media', () => {
+    const pair = { imageId: 'image-1', videoId: 'motion-sample' };
+    expect(normalizeMotion(undefined)).toEqual([]);
+    expect(normalizeMotion(pair)).toEqual([pair]);
+    expect(normalizeMotion([pair])).toEqual([pair]);
+    expect(normalizeMotion([null, {}, pair])).toEqual([pair]);
+  });
+  it('resolves fresh result image IDs using the same ordering and deduplication as saving', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(new Blob(['bytes'], { type: 'image/png' })))));
+    const saved = await prepareSavedLook(cache, settings);
+    const id = savedImageIdFor(cache.tryOn, 'data:image/png;base64,aW1hZ2U=');
+    expect(saved.tryOn.completeLooks.a?.result).toMatchObject({ imageUrl: `saved:${id}` });
+    expect(savedImageIdFor(cache.tryOn, 'data:image/png;base64,cHJpdmF0ZQ==')).toBeUndefined();
   });
   it('does not fetch signed provider URLs or claim a failed media save succeeded', async () => {
     const fetcher = vi.fn(); vi.stubGlobal('fetch', fetcher);

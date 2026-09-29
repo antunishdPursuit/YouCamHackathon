@@ -15,6 +15,7 @@ import {
   requestSkinAnalysis,
   requestTryOn,
   requestVideo,
+  requestBudgetAvailability,
   type RuntimeMode,
 } from './api/client.js';
 import { BackendStatus, type BackendReadiness } from './components/BackendStatus.js';
@@ -24,11 +25,12 @@ import { Wordmark } from './components/ornament.js';
 import { Button } from './components/controls.js';
 import { PreviousLooks, SavedMediaDownloads, CurrentMediaDownloads } from './components/PreviousLooks.js';
 import { useSavedLooks } from './state/useSavedLooks.js';
-import { readSavedLook, openSavedLook, type LookSettings, type OpenedLook } from './state/savedLooks.js';
+import { readSavedLook, openSavedLook, savedImageIdFor, type LookSettings, type OpenedLook } from './state/savedLooks.js';
 import { loadDemoLook } from './state/demoLook.js';
 import type { CachedGeneration } from './state/generationCache.js';
 import { IntroScreen } from './screens/IntroScreen.js';
 import { InputsScreen } from './screens/InputsScreen.js';
+import { DemoInputsScreen } from './screens/DemoInputsScreen.js';
 import { AnalysisScreen } from './screens/AnalysisScreen.js';
 import { ResultsScreen } from './screens/ResultsScreen.js';
 import {
@@ -109,6 +111,8 @@ function StageProgress({ step, consentGiven, busy, onNavigate }: {
 
 export function App() {
   const [state, dispatch] = useReducer(sessionReducer, initialState);
+  const [entryMode, setEntryMode] = useState<'demo' | 'live' | null>(null);
+  const [budgetMessage, setBudgetMessage] = useState('Checking live availability…');
   const [runtimeMode, setRuntimeMode] = useState<RuntimeMode | null>(null);
   const [inputSessionId, setInputSessionId] = useState(0);
   const [generationPhase, setGenerationPhase] = useState<'checking' | 'analysis' | 'previews'>('checking');
@@ -122,11 +126,13 @@ export function App() {
   const [historyBusy, setHistoryBusy] = useState(false);
   const [historyActionError, setHistoryActionError] = useState<{ message: string; retryRemoval?: boolean } | null>(null);
   const lastCompleted = useRef<{ cache: CachedGeneration; settings: LookSettings } | null>(null);
+  const pendingSave = useRef<Promise<void>>(Promise.resolve());
+  const pendingVideos = useRef(new Set<string>());
   useEffect(() => () => openedLook?.dispose(), [openedLook]);
   const saveCompleted = useCallback((cache: CachedGeneration, settings: LookSettings) => {
     lastCompleted.current = { cache, settings };
     setActiveHistoryKey(cache.key);
-    void saveLook(cache, settings, () => true);
+    pendingSave.current = saveLook(cache, settings, () => lastCompleted.current?.cache === cache);
   }, [saveLook]);
   const activeSavedLook = looks.find(look => look.key === activeHistoryKey);
 
@@ -157,8 +163,19 @@ export function App() {
   const [imagesLeaveTab, setImagesLeaveTab] = useState<boolean | null>(null);
   const [backendReadiness, setBackendReadiness] = useState<BackendReadiness>('checking');
   const [backendRetry, setBackendRetry] = useState(0);
+  useEffect(() => {
+    if (entryMode !== 'live' || backendReadiness !== 'ready') return;
+    const controller = new AbortController();
+    void requestBudgetAvailability(controller.signal).then(budget => {
+      setBudgetMessage(budget.available
+        ? `Live allowance: ${budget.browserRemaining} units for this browser; ${budget.siteRemaining} shared units remain today. Availability can change before you generate.`
+        : 'Live generation is currently unavailable. Saved demos and previous looks remain available.');
+    }).catch(() => { if (!controller.signal.aborted) setBudgetMessage('Live availability could not be checked.'); });
+    return () => controller.abort();
+  }, [entryMode, backendReadiness, state.step, sessionVideoByImage]);
 
   useEffect(() => {
+    if (entryMode !== 'live') return;
     let cancelled = false;
     let retryTimer: number | undefined;
     let statusTimer: number | undefined;
@@ -213,7 +230,7 @@ export function App() {
       if (retryTimer !== undefined) window.clearTimeout(retryTimer);
       if (statusTimer !== undefined) window.clearTimeout(statusTimer);
     };
-  }, [backendRetry]);
+  }, [backendRetry, entryMode]);
 
   const retryBackend = useCallback(() => {
     setBackendRetry((current) => current + 1);
@@ -412,9 +429,17 @@ export function App() {
   }, [refreshHistory, setSaveStatus, voidGeneration]);
 
   const handleGenerateVideo = useCallback(async (imageUrl: string) => {
+    if (pendingVideos.current.has(imageUrl) || sessionVideoByImage[imageUrl] || openedLook?.videoByImage[imageUrl]) return;
+    pendingVideos.current.add(imageUrl);
+    const runId = generationId.current;
+    const current = () => generationId.current === runId;
+    const savedImageId = openedLook?.downloads.find(entry => entry.url === imageUrl)?.id ??
+      (lastCompleted.current ? savedImageIdFor(lastCompleted.current.cache.tryOn, imageUrl) : undefined);
+    const saveFinished = pendingSave.current;
     setVideoStatusByImage(current => ({ ...current, [imageUrl]: 'pending' }));
     try {
       const response = await requestVideo(imageUrl);
+      if (!current()) return;
       if (response.video.result.status !== 'ready') {
         throw new Error(response.video.result.reason);
       }
@@ -422,19 +447,22 @@ export function App() {
       setSessionVideoByImage(current => ({ ...current, [imageUrl]: videoUrl }));
       setVideoStatusByImage(({ [imageUrl]: _drop, ...rest }) => rest);
 
-      // Persisted alongside history only when this result is one we've reopened — its
-      // saved image ids are already known then. A brand-new, not-yet-reopened generation's
-      // video still plays for this session; linking it into that generation's own history
-      // entry (once saved) is a follow-up, not done here.
-      const savedImageId = openedLook?.downloads.find(entry => entry.url === imageUrl)?.id;
       if (savedImageId && activeHistoryKey) {
+        await saveFinished;
+        if (!current()) return;
         const videoBlob = await fetch(videoUrl).then(response => response.blob());
-        await attachVideo(activeHistoryKey, savedImageId, videoBlob);
+        if (!current()) return;
+        await attachVideo(activeHistoryKey, savedImageId, videoBlob, current);
       }
     } catch {
-      setVideoStatusByImage(current => ({ ...current, [imageUrl]: 'failed' }));
+      if (current()) {
+        setVideoStatusByImage(current => ({ ...current, [imageUrl]: 'failed' }));
+        setHistoryActionError({ message: 'Video generation or saving did not complete. Any available clip remains playable in this session; download it before leaving.' });
+      }
+    } finally {
+      pendingVideos.current.delete(imageUrl);
     }
-  }, [openedLook, activeHistoryKey, attachVideo]);
+  }, [openedLook, activeHistoryKey, attachVideo, sessionVideoByImage]);
 
   const handleDeleteLook = useCallback(async (key: string) => {
     setHistoryBusy(true);
@@ -515,24 +543,33 @@ export function App() {
             imagesLeaveTab={imagesLeaveTab}
             resuming={Boolean(state.fullBody.enabled || state.portrait || state.garmentInputs.a || state.garmentInputs.b || state.makeupLookId)}
             onBeginLive={() => {
+              setEntryMode('live');
               generationId.current += 1;
               dispatch({ type: 'giveConsent' });
               dispatch({ type: 'editInputs' });
             }}
             onBeginDemo={() => {
+              setEntryMode('demo');
               // Zero calls to the API server: no health check, no /api route. The demo
               // must work even while that service is asleep.
               generationId.current += 1;
               voidGeneration();
               dispatch({ type: 'giveConsent' });
-              const demo = loadDemoLook();
-              dispatch({ type: 'restoreGeneration', analysis: demo.analysis, tryOn: demo.tryOn,
-                garmentIds: demo.garmentIds, makeupLookId: demo.makeupLookId });
+              dispatch({ type: 'editInputs' });
             }}
           />
         );
 
       case 'inputs':
+        if (entryMode === 'demo') return <DemoInputsScreen
+          onBack={() => dispatch({ type: 'goTo', step: 'intro' })}
+          onGenerate={() => {
+            const demo = loadDemoLook();
+            dispatch({ type: 'restoreGeneration', analysis: demo.analysis, tryOn: demo.tryOn,
+              garmentIds: demo.garmentIds, makeupLookId: demo.makeupLookId });
+            saveCompleted({ key: 'saved-demo-v2', savedAt: Date.now(), analysis: demo.analysis, tryOn: demo.tryOn },
+              { garmentIds: demo.garmentIds, makeupLookId: demo.makeupLookId });
+          }} />;
         return (
           <InputsScreen
             key={inputSessionId}
@@ -570,8 +607,8 @@ export function App() {
               voidGeneration();
               dispatch({ type: 'setFullBodyInput', slot, image });
             }}
-            estimatedUnits={runtimeMode ? (runtimeMode.liveTryOn ? 6 : 0) +
-              (runtimeMode.liveSkinAnalysis ? 12 : 0) + (state.fullBody.enabled ? 8 : 0) : null}
+            estimatedUnits={runtimeMode ? (runtimeMode.liveTryOn ? (state.fullBody.enabled ? 9 : 7) : 0) +
+              (runtimeMode.liveSkinAnalysis ? 12 : 0) : null}
           />
         );
 
@@ -598,7 +635,7 @@ export function App() {
             } } : {})}
             videoByImage={{ ...openedLook?.videoByImage, ...sessionVideoByImage }}
             videoStatusByImage={videoStatusByImage}
-            onGenerateVideo={handleGenerateVideo}
+            {...(runtimeMode?.liveVideo && entryMode === 'live' ? { onGenerateVideo: handleGenerateVideo } : {})}
             motionKindByImage={openedLook?.motionKindByImage}
             {...(openedLook?.look.portraitSize ? { portraitSize: openedLook.look.portraitSize } : {})}
             {...(openedLook?.look.fullBodySize ? { fullBodySize: openedLook.look.fullBodySize } : {})}
@@ -661,7 +698,8 @@ export function App() {
 
         <main id="main" ref={mainRef} tabIndex={-1}
           aria-label={STAGE_LABELS[state.step]} className="flex-1">
-          {state.step !== 'results' ? <BackendStatus readiness={backendReadiness} onRetry={retryBackend} /> : null}
+          {entryMode === 'live' && state.step !== 'results' ? <BackendStatus readiness={backendReadiness} onRetry={retryBackend} /> : null}
+          {entryMode === 'live' ? <p role="status" className="mb-4 text-sm text-ink-soft">{budgetMessage}</p> : null}
           {historyActionError ? <div role="alert" className="mb-6 rounded-card border border-gold/40 bg-surface p-4">
             <p>{historyActionError.message}</p>
             {historyActionError.retryRemoval ? <Button variant="quiet" className="mt-3" disabled={historyBusy} onClick={() => { void handleClearPortrait(); }}>Retry removing all saved data</Button> : null}
@@ -678,6 +716,12 @@ export function App() {
             {activeSavedLook ? <SavedMediaDownloads look={activeSavedLook} /> : state.tryOn ? <CurrentMediaDownloads generation={state.tryOn} /> : null}
           </section> : null}
           {screen}
+          {state.step === 'results' && Object.keys(sessionVideoByImage).length > 0 ? <div className="mt-4 space-y-2">
+            {Object.values(sessionVideoByImage).map((url, index) => <a key={`${index}:${url}`} href={url}
+              download={`yincol-video-${index + 1}.mp4`} className="block min-h-[44px] text-sm underline">
+              Download generated video {index + 1}
+            </a>)}
+          </div> : null}
         </main>
       </div>
     </div>

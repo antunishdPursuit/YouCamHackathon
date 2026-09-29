@@ -37,6 +37,25 @@ export interface OpenedLook {
 const DB_NAME = 'yincol-saved-looks';
 const STORE = 'looks';
 
+/** Version 1 records from PR #13 stored a single relationship as an object. */
+export function normalizeMotion(value: unknown): SavedLook['motion'] {
+  const entries = Array.isArray(value) ? value : value ? [value] : [];
+  return entries.filter((entry): entry is SavedLook['motion'][number] =>
+    entry !== null && typeof entry === 'object' &&
+    typeof entry.imageId === 'string' && typeof entry.videoId === 'string');
+}
+
+export function savedImageIdFor(response: TryOnResponse, imageUrl: string): string | undefined {
+  const ids = new Map<string, string>();
+  mapPanels(response, panel => {
+    if (panel.result.status === 'ready' && !ids.has(panel.result.imageUrl)) {
+      ids.set(panel.result.imageUrl, `image-${ids.size + 1}`);
+    }
+    return panel;
+  });
+  return ids.get(imageUrl);
+}
+
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     if (typeof indexedDB === 'undefined') { reject(new Error('Browser storage is unavailable.')); return; }
@@ -197,7 +216,7 @@ export function openSavedLook(look: SavedLook): OpenedLook {
   const videoByImage: Record<string, string> = {};
   // `?? []` guards a look saved by an earlier version of this module, before `motion`
   // became a required array — IndexedDB records are never migrated in place.
-  for (const entry of look.motion ?? []) {
+  for (const entry of normalizeMotion(look.motion)) {
     const imageUrl = urls.get(entry.imageId), videoUrl = urls.get(entry.videoId);
     if (imageUrl && videoUrl) videoByImage[imageUrl] = videoUrl;
   }
@@ -216,15 +235,25 @@ export async function attachVideoToSavedLook(
   isCurrent: () => boolean,
 ): Promise<void> {
   const revision = await historyRevision();
-  const look = await readSavedLook(key);
-  if (!look) throw new Error('This saved look is no longer on this browser.');
-
-  const videoId = `video-${imageId}`;
-  const media: SavedMedia = { id: videoId, blob: videoBlob, label: 'Generated video', kind: 'video' };
-  const motion = [...(look.motion ?? []).filter(entry => entry.imageId !== imageId), { imageId, videoId }];
-  const updatedMedia = [...look.media.filter(item => item.id !== videoId), media];
-
-  await putSavedLook({ ...look, media: updatedMedia, motion }, isCurrent, revision);
+  await transaction('readwrite', (store, meta) => {
+    const request = meta.get('revision');
+    request.addEventListener('success', () => {
+      if (!isCurrent() || (request.result ?? 0) !== revision) { store.transaction.abort(); return; }
+      const read = store.get(key);
+      read.addEventListener('success', () => {
+        const look = read.result as SavedLook | undefined;
+        if (!look || !isCurrent() || !look.media.some(item => item.id === imageId && item.kind === 'image')) {
+          store.transaction.abort(); return;
+        }
+        const videoId = 'video-' + imageId;
+        const motion = [...normalizeMotion(look.motion).filter(entry => entry.imageId !== imageId), { imageId, videoId }];
+        const media = [...look.media.filter(item => item.id !== videoId),
+          { id: videoId, blob: videoBlob, label: 'Generated video', kind: 'video' as const }];
+        try { store.put({ ...look, motion, media }); } catch { store.transaction.abort(); }
+      });
+    });
+    return request;
+  });
 }
 
 export function mediaFileName(media: SavedMedia, savedAt: number): string {
