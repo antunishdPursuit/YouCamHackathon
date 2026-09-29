@@ -136,6 +136,23 @@ describe('loadConfig — simulated states', () => {
   });
 });
 
+describe('loadConfig — liveVideo fails closed the same way as the other live flags', () => {
+  it('defaults to false with no key', () => {
+    expect(loadConfig(EMPTY).liveVideo).toBe(false);
+    expect(loadConfig({ YINCOL_LIVE_VIDEO: 'true' }).liveVideo).toBe(false);
+  });
+
+  it('still defaults to false with a key present, and needs an explicit opt-in', () => {
+    const KEY = { YINCOL_API_KEY: 'test-key' };
+    expect(loadConfig(KEY).liveVideo).toBe(false);
+    expect(loadConfig({ ...KEY, YINCOL_LIVE_VIDEO: 'true' }).liveVideo).toBe(true);
+  });
+
+  it('turns on when fixture mode is explicitly off, like the other live flags', () => {
+    expect(loadConfig({ YINCOL_API_KEY: 'test-key', YINCOL_FIXTURE_MODE: 'false' }).liveVideo).toBe(true);
+  });
+});
+
 describe('loadConfig — budget', () => {
   it('defaults the KV URL to empty and the caps to the README-documented values', () => {
     const config = loadConfig(EMPTY);

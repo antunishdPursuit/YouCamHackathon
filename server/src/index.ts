@@ -21,6 +21,7 @@ import { createCorsMiddleware } from './cors.js';
 import { analyzeRouter } from './routes/analyze.js';
 import { skinAnalysisRouter } from './routes/skinAnalysis.js';
 import { tryOnRouter } from './routes/tryOn.js';
+import { videoRouter } from './routes/video.js';
 import { logFailure } from './youcam/publicError.js';
 
 loadRootEnv();
@@ -98,11 +99,12 @@ app.get('/api/catalog', (_req, res) => {
  * past on its way to the one that answers, so a `/try-on` call would spend three of its
  * own budget and an unmatched `/api` path would spend three of someone else's.
  */
-app.use(['/api/analyze', '/api/skin-analysis', '/api/try-on'], generationLimit);
+app.use(['/api/analyze', '/api/skin-analysis', '/api/try-on', '/api/video'], generationLimit);
 
 app.use('/api', analyzeRouter);
 app.use('/api', skinAnalysisRouter);
 app.use('/api', tryOnRouter);
+app.use('/api', videoRouter);
 
 /**
  * The built front end can still be served by this process for local or single-process

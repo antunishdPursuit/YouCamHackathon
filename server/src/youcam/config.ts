@@ -9,7 +9,7 @@
  */
 
 /** Feature identifiers used across the runner, the adapters and the fixture layer. */
-export type FeatureId = 'facialColorTone' | 'skinAnalysis' | 'clothesVto' | 'makeupVto';
+export type FeatureId = 'facialColorTone' | 'skinAnalysis' | 'clothesVto' | 'makeupVto' | 'video';
 
 /**
  * API host.
@@ -45,11 +45,21 @@ export const SKIN_ANALYSIS_TASK_PATH = '/s2s/v2.0/task/skin-analysis';
  */
 export const FACIAL_COLOR_TONE_TASK_PATH = '/s2s/v2.0/task/skin-tone-analysis';
 
+/**
+ * TODO(phase0): entirely unverified. Guessed from this API's own path-naming convention
+ * (`/s2s/v2.0/task/<slug>`) and the README's link to the provider's Video Generator docs —
+ * never checked in the API Playground, never exercised against the real endpoint. No live
+ * video call may be attempted until this is confirmed and `TASK_PATH_VERIFIED.video` is
+ * flipped to `true` there alongside it.
+ */
+export const VIDEO_GENERATOR_TASK_PATH = '/s2s/v2.0/task/video-generator';
+
 export const TASK_PATHS: Readonly<Record<FeatureId, string>> = {
   facialColorTone: FACIAL_COLOR_TONE_TASK_PATH,
   skinAnalysis: SKIN_ANALYSIS_TASK_PATH,
   clothesVto: CLOTHES_VTO_TASK_PATH,
   makeupVto: MAKEUP_VTO_TASK_PATH,
+  video: VIDEO_GENERATOR_TASK_PATH,
 };
 
 /** Which of the above have live local evidence. Surfaced in the UI's provenance note. */
@@ -58,6 +68,7 @@ export const TASK_PATH_VERIFIED: Readonly<Record<FeatureId, boolean>> = {
   skinAnalysis: true,
   clothesVto: true,
   makeupVto: true,
+  video: false,
 };
 
 /**
@@ -79,7 +90,12 @@ export const MAKEUP_VTO_FILE_PATH = '/s2s/v2.0/file/makeup-vto';
 /**
  * File API paths are kept separate from task paths because the vendor's feature slugs are
  * not the same as our internal feature ids. Skin Analysis, Clothes VTO, and Makeup VTO
- * are locally verified; Facial Color Tone remains unverified.
+ * are locally verified; Facial Color Tone and video remain unverified.
+ *
+ * `video` has NO entry here on purpose: it is the enforcement mechanism for "no live video
+ * call until verified", not just documentation of it. `filePathFor('video')` throws below,
+ * so any attempt at a live video upload fails before any request reaches the provider,
+ * whatever `YINCOL_LIVE_VIDEO` says.
  */
 const DOCUMENTED_FILE_PATHS: Partial<Record<FeatureId, string>> = {
   skinAnalysis: SKIN_ANALYSIS_FILE_PATH,
@@ -174,6 +190,15 @@ export interface YouCamConfig {
   readonly liveSkinAnalysis: boolean;
   /** Explicitly enables live Clothes and Makeup VTO while the palette stays on fixtures. */
   readonly liveTryOn: boolean;
+  /**
+   * Explicitly enables an attempt at live video generation. Setting this true does NOT by
+   * itself make a live call possible: `video` has no entry in `DOCUMENTED_FILE_PATHS`
+   * below, so `fileUploadStrategy.prepare(..., 'video', ...)` throws before any provider
+   * request is made. That throw is the real safety net — this flag is intentionally not
+   * gated on `TASK_PATH_VERIFIED.video` here, the same as every other live flag in this
+   * file, which never re-check verification status at the config layer.
+   */
+  readonly liveVideo: boolean;
   readonly simulate: SimulatedState;
   /**
    * Connection string for the shared Redis-protocol Key Value store that holds the unit
@@ -215,6 +240,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): YouCamConfig {
   const liveTryOn =
     apiKey.length > 0 &&
     (!fixtureMode || (env['YINCOL_LIVE_TRY_ON'] ?? '').toLowerCase() === 'true');
+  const liveVideo =
+    apiKey.length > 0 &&
+    (!fixtureMode || (env['YINCOL_LIVE_VIDEO'] ?? '').toLowerCase() === 'true');
 
   return {
     baseUrl: (env['YINCOL_API_BASE_URL'] ?? DEFAULT_API_BASE_URL).replace(/\/+$/, ''),
@@ -222,6 +250,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): YouCamConfig {
     fixtureMode,
     liveSkinAnalysis,
     liveTryOn,
+    liveVideo,
     simulate,
     kvUrl: (env['YINCOL_KV_URL'] ?? '').trim(),
     siteDailyUnitCap: positiveIntOr(env['YINCOL_SITE_DAILY_UNIT_CAP'], DEFAULT_SITE_DAILY_UNIT_CAP),

@@ -105,6 +105,15 @@ describe('YouCam File API upload', () => {
     expect([...SUPPORTED_IMAGE_TYPES]).toEqual(['image/jpeg', 'image/png']);
   });
 
+  it('refuses to upload for the unverified video feature, calling no File API at all', async () => {
+    expect(() => filePathFor('video')).toThrow('not verified for video');
+
+    const fetchMock = vi.fn<typeof fetch>();
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(fileUploadStrategy.prepare(source, 'video', config)).rejects.toThrow('not verified for video');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('reports a metadata failure without exposing response contents', async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       new Response('provider secret-shaped body', { status: 401 }),
