@@ -667,11 +667,23 @@ paid-provider acceptance.
 - Reconciled the deployment guide and environment template with the merged
   history, budgets, and disabled live video. Historical video response evidence
   is distinct from verification of the current upload and budgeted route.
-- Render sign-in was unavailable to this pass. Auto-deploy settings, actual KV
-  connection/policy/recovery, deployed-origin interaction checks and release
-  approval remain pending. No merge or deployment was performed in this pass.
+- PR #17 CI also passed all 323 tests, including the real-Valkey integration,
+  typechecks, build and contrast checks on Node 22.22.2:
+  https://github.com/antunishdPursuit/YouCamHackathon/actions/runs/36789362420.
+- **Target-environment configuration verified:** in the owner's Render workspace,
+  both services track `main`, auto-deploy is Off and Node 24.16.0 is configured.
+  #16 was then merged as `e606ec4`; both services still run `df5bf36`.
+- Provisioned the separate free Key Value service in Ohio: Available, Valkey
+  8.1.10, `noeviction`, persistence Off, external connections blocked. Saved its
+  private API connection, 100/40 caps and live-video false using Save only.
+  Fixture mode is true, all live flags false, and no provider key is configured.
+  Static/API origins match the intended CORS settings. No deployment occurred.
+- The free API has no shell access. Actual API-to-KV connection/EVAL, restart
+  survival, initial recovery pause and deployed interactions remain unverified.
+  No paid calls, new captures or public asset changes were made.
 
 中文：本次完成依赖安全修正及两处对比文字颜色修正，本地 322 项测试、类型检查、
 构建和对比度检查通过，npm audit 为零漏洞。未配置独立测试 KV，故本地跳过一项
-集成测试。没有付费调用、素材捕获、合并或部署；Render、当前付费路由及部署验收
-仍待完成。已同步部署文档，区分历史证据和本次验证。
+集成测试；CI 的真实 Valkey 集成通过，共 323 项。已核对 Render 自动部署关闭及
+Node 配置并合并 #16。免费 KV 已就绪，连接与额度仅保存，未部署、未付费调用或
+捕获素材。实际 KV 连接、恢复行为、当前付费路由及部署验收仍待完成。

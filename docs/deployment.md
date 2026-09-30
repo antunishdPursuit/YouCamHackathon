@@ -31,6 +31,19 @@ budgeted live-provider release checks below remain open under #12.
 
 ## Ownership and order
 
+September 30 configuration check: both existing services track `main`, have
+auto-deploy **Off**, and configure Node **24.16.0**. Both still run `df5bf36`;
+merging #16 as `e606ec4` did not deploy. The free Ohio Key Value service is
+available with `noeviction` and external access blocked. Its private connection,
+100/40 caps and `YINCOL_LIVE_VIDEO=false` were saved on the API using **Save
+only**. Fixture mode remains true, all live flags false, and no provider key is
+configured. The API connection, EVAL and recovery behavior remain unverified
+on Render until a release is deployed. Free API instances have no shell access.
+
+中文：两个服务仍运行旧提交，自动部署已关闭；#16 合并未触发部署。免费 KV 已就绪，
+采用 noeviction、禁止公网访问。连接与额度已仅保存，演示模式保留，实时功能关闭，
+未配置供应商密钥。实际连接、脚本和恢复行为仍待部署验证。
+
 Dennis controls the existing Render/YouCam accounts, secrets, approved captures
 and release. Sean can prepare code without account access. Keep the existing
 free hosting scope; do not add accounts or paid services.

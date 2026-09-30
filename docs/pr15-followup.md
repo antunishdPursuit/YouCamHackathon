@@ -4,8 +4,8 @@
 
 PR #15 was approved at `87f6f99` and merged as `42b59fb`. PR #13 was closed
 as included. Historical "do not merge" notes below describe the earlier review;
-the remaining release acceptance still applies. #16 is the approved Node
-metadata follow-up. Use the [deployment checklist](deployment.md) for the
+the remaining release acceptance still applies. #16, the Node metadata
+follow-up, is merged as `e606ec4`. Use the [deployment checklist](deployment.md) for the
 current order and keep #12 open.
 
 The existing September 20 video capture records a successful `data.results.url`
