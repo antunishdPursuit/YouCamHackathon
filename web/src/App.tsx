@@ -112,6 +112,11 @@ function StageProgress({ step, consentGiven, busy, onNavigate }: {
 export function App() {
   const [state, dispatch] = useReducer(sessionReducer, initialState);
   const [entryMode, setEntryMode] = useState<'demo' | 'live' | null>(null);
+  // History opens without waking the API. Editing those results enters the regular
+  // upload flow, including navigation through the progress bar or privacy action.
+  useEffect(() => {
+    if (state.step === 'inputs' && entryMode === null) setEntryMode('live');
+  }, [state.step, entryMode]);
   const [budgetMessage, setBudgetMessage] = useState('Checking live availability…');
   const [runtimeMode, setRuntimeMode] = useState<RuntimeMode | null>(null);
   const [inputSessionId, setInputSessionId] = useState(0);
@@ -418,6 +423,8 @@ export function App() {
       if (!look) { await refreshHistory(); throw new Error('This saved look is no longer on this browser.'); }
       voidGeneration();
       const restored = openSavedLook(look);
+      // A saved look is not the current demo/live editing session.
+      setEntryMode(null);
       setOpenedLook(restored);
       setActiveHistoryKey(key);
       setGenerationSource('cache');

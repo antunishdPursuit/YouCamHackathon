@@ -1,5 +1,29 @@
 # PR #15 follow-up — September 29, 2026
 
+## History editing follow-up — September 30, 2026
+
+The latest review found that a cold-start history visit left the input mode unset:
+Back to inputs showed upload controls but never checked backend readiness. Entering
+inputs from history now initializes the live-input mode; simply opening saved results
+still makes no API request. Opening history clears any previous demo/live entry mode,
+while returning from the current demo keeps its offline sample-input flow.
+
+Validation: 322 local tests passed (one optional real-Valkey integration test skipped),
+workspace typechecks and production build passed. Three new React DOM regressions
+exercise cold-start history editing through generation, offline demo editing, and
+progress navigation after opening history from a demo session. jsdom is a test-only
+dependency. A dedicated Edge browser also passed demo save → reload → open history →
+Back to inputs → select three synthetic JPEGs → generate, using stubbed API responses.
+Demo/history reopening made zero API requests; generation submitted one try-on request
+to the stub. No provider calls, paid units, merge, or deployment occurred. Release
+acceptance below still applies; this fixes the latest code review finding only.
+
+中文：已修复刷新后从历史结果返回输入页一直等待后端的问题。打开历史不请求 API，
+进入照片输入页才初始化实时输入模式；当前演示返回输入仍完全离线。新增三项真实
+React 页面回归测试，本地共 322 项通过，类型检查与构建通过；独立 Edge 浏览器
+完成保存、刷新、历史重开、返回输入、选择三张测试图片并生成的完整验证。接口均为
+模拟响应，没有付费调用、合并或部署；下方负责人发布验收事项仍未完成。
+
 ## Implemented / 已实现
 
 - Split-origin CORS permits Content-Type and X-Yincol-Browser-Id. Request limits run before JSON parsing.
