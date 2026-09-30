@@ -1,5 +1,22 @@
 # PR #15 follow-up — September 29, 2026
 
+## Current status — September 30, 2026
+
+PR #15 was approved at `87f6f99` and merged as `42b59fb`. PR #13 was closed
+as included. Historical "do not merge" notes below describe the earlier review;
+the remaining release acceptance still applies. #16 is the approved Node
+metadata follow-up. Use the [deployment checklist](deployment.md) for the
+current order and keep #12 open.
+
+The existing September 20 video capture records a successful `data.results.url`
+response using `src_file_url`. That is historical provider evidence, separate
+from acceptance of the current generic-file-upload, `src_file_id`, budgeted
+route. The live video code gate remains false.
+
+中文：#15 已审核合并，#13 已因包含而关闭；下方早期“勿合并”说明是历史状态，
+剩余发布验收仍适用。旧视频捕获已有成功响应证据，但不代表当前文件上传和额度
+保护路由已验收；实时视频继续关闭，#12 保持开启。
+
 ## History editing follow-up — September 30, 2026
 
 The latest review found that a cold-start history visit left the input mode unset:

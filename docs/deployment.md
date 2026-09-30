@@ -1,299 +1,183 @@
-> September 29 follow-up: see [current budget/release requirements](pr15-followup.md). Use noeviction for the dedicated Key Value service. Initial provisioning and ledger loss both trigger a 24-hour pause. Live video remains code-gated; do not enable it or merge without owner acceptance.
-> 最新要求：Key Value 使用 noeviction；首次配置和记录丢失均等待 24 小时。实时视频仍受代码门槛限制，需负责人验收。
+# Deployment and release acceptance
 
-# Deployment
+Updated September 30, 2026. PR #15 is merged and includes #13's saved-history
+work. Code acceptance is complete for that increment; the actual Render and
+budgeted live-provider release checks below remain open under #12.
 
-**Scope reviewed: September 21, 2026.** This runbook describes the current
-fixture-only release. The accepted live-trial plan is not implemented here.
-See the [bilingual partner guide / 中英双语合作开发指南](partner-guide.md) for
-current-versus-planned behavior and ownership.
+中文：#15 已合并，包含 #13 的历史功能。代码验收不等于发布验收；真实 Render、
+受额度保护的付费流程及部署交互检查仍属于 #12，未完成前保持开启。
 
-The current release shape is **two free Render services, fixture-only,
-and no API key.**
+## Current behavior and evidence
 
-- a Render Static Site for the React build;
-- a Render Free Web Service for the Node/Express API.
+- Start -> Try the demo -> sample inputs -> Generate opens saved comparisons
+  without an API wake-up or provider request. Missing captures remain labelled.
+- Previous looks reopens completed media from this browser without the API.
+  Source uploads stay in memory; completed media is saved in IndexedDB on the
+  same browser profile and origin. Entering live inputs starts readiness checks.
+- Live try-on, skin analysis and video use server-side reservations. The site
+  cap is 100 units per UTC calendar day; the browser cap is 40 over the trailing
+  24 hours. Browser identity is an approximate allowance, not authentication.
+- A separate Key Value ledger commits both caps and duplicate markers atomically.
+  Unknown provider outcomes remain charged; submissions are not automatically
+  retried. Missing state starts a 24-hour pause, including initial provisioning.
+- Live video remains code-gated by `TASK_PATH_VERIFIED.video=false`. Setting an
+  environment flag cannot bypass it. The existing captured sample still plays.
+- CI verifies real Valkey concurrency/recovery behavior. This does not establish
+  the actual Render connection, memory policy, deployment, or paid route behavior.
 
-Deployment itself is a separate approved action. This document describes how, not when —
-nothing here is authorisation to deploy.
+中文：演示和历史重开不依赖 API；只有进入照片输入才检查后端。额度按 UTC 日和
+真实滚动 24 小时计算，计数缺失后暂停 24 小时，不自动重试或退款。实时视频仍由
+代码关闭。CI 的 Valkey 验证不能替代真实 Render 与付费接口验收。
 
----
+## Ownership and order
 
-## The shape
+Dennis controls the existing Render/YouCam accounts, secrets, approved captures
+and release. Sean can prepare code without account access. Keep the existing
+free hosting scope; do not add accounts or paid services.
 
-The browser loads the front end from the Static Site and calls the API Web Service from
-the exact origin configured in `YINCOL_ALLOWED_ORIGIN`:
+1. Inspect both services' connected branch, deployed commit, runtime and
+   auto-deploy settings before merging. Record whether a merge would deploy.
+2. Merge the approved Node metadata update (#16) after that check. Use a
+   supported runtime on both services: Node 22.22.2+ within 22.x, 24.15.0+
+   within 24.x, or 26.0.0+. CI exercises 22.22.2.
+3. Verify the fixture release at the chosen commit with live flags off and no key.
+4. Configure and verify the dedicated free Key Value service before any live
+   trial. Allow the initial 24-hour pause to expire naturally.
+5. Complete the exact approved provider captures and acceptance. Keep video
+   disabled until the current upload/task/download route is verified and its
+   release is approved. Historical sample evidence alone does not verify it.
+6. Record the deployed-origin results and owner release decision, then close #12
+   only when the remaining acceptance items are satisfied.
 
-```
-  browser
-     │
-     ├── loads the static site ──────► Render Static Site (web/dist)
-     │
-     └── calls /api/* ───────────────► Render Web Service (Node + Express)
-                                        │
-                                        └── fixture routes only
-```
+中文：先核对分支、提交、运行时及自动部署，再合并。先验收无密钥的演示版；
+配置独立免费 Key Value 并等待首次 24 小时暂停结束后，才进行明确批准的付费验证。
+不得将旧素材记录当作当前完整路由的验证；全部验收后才能关闭 #12。
 
-The planned separate free Key Value service, 100-unit site budget, 40-unit browser
-allowance and live video route are not present in this release. IndexedDB history
-is implemented in the web app and requires no server media storage or new service.
-Do not configure public live calls using this fixture-only runbook.
+## Fixture-only Render configuration
 
-The browser receives the API origin at static-site build time through `VITE_API_URL`.
-The API service accepts browser requests only from the exact `YINCOL_ALLOWED_ORIGIN`.
-There are no accounts, sessions, database writes, or user uploads in the public release.
+Use one Static Site and one Free Web Service in the existing workspace. The
+server can also serve the built frontend for local previews.
 
-The server can still serve `web/dist` for local or single-process previews. The public
-deployment does not depend on that fallback.
+| Setting | Static Site | API Web Service |
+| --- | --- | --- |
+| Root directory | Repository root | Repository root |
+| Build command | `npm ci && npm run build` | `npm ci --omit=dev` |
+| Publish directory | `web/dist` | Not applicable |
+| Start command | Not applicable | `npm start` |
+| Health check | Not applicable | `/api/health` |
 
----
+Set `VITE_API_URL` at static-site build time to the API origin, without `/api`
+or a trailing slash. Set `YINCOL_ALLOWED_ORIGIN` on the API to the exact static
+site origin. Do not use a wildcard. Render supplies `PORT`.
 
-## Ownership
-
-Sean can prepare code and configuration templates through a GitHub pull request
-without Dennis's Render credentials. Dennis creates and configures services in
-the personal workspace, enters secrets, and performs release checks. Render's
-Hobby workspace cannot invite a second member. Do not share the account login
-or provider key as a substitute for a code handoff.
-
-A connected branch can auto-deploy on push or merge, depending on service settings.
-Check those settings before merging release changes; a clean Git branch does not
-by itself prove that the deployed site is current or verified.
-
-Sources: [workspace membership](https://render.com/docs/team-members),
-[automatic deploys](https://render.com/docs/deploys).
-
-## Creation order
-
-The two public URLs are configuration inputs for each other. Create them in this order:
-
-1. Create and deploy the API Web Service first. Leave `YINCOL_ALLOWED_ORIGIN` empty only
-   until the Static Site URL is known. Record the API service URL.
-2. Create and deploy the Static Site with `VITE_API_URL` set to that API URL. Record the
-   Static Site URL.
-3. Set `YINCOL_ALLOWED_ORIGIN` on the API Web Service to the exact Static Site origin and
-   restart or redeploy the API service.
-4. Run the health, CORS, and browser checks below before sharing either URL.
-
-Do not use a wildcard while connecting the services. The API is safe without an allowed
-origin during the short setup window because the public release has no API key and the
-static site cannot call it successfully until its exact origin is configured.
-
----
-
-## Render Static Site
-
-Create a Static Site from the approved default branch of the repository.
-
-| Setting | Value |
-| --- | --- |
-| Root Directory | repository root; leave blank if Render uses the root by default |
-| Build Command | `npm ci && npm run build` |
-| Publish Directory | `web/dist` |
-| Environment variable | `VITE_API_URL=https://<api-service>.onrender.com` |
-
-Replace the placeholder with the API service's actual public URL. Use the origin only:
-do not append `/api` and do not add a trailing slash.
-
-The static site has no secrets. Do not put `YINCOL_API_KEY` on it.
-
-## Render Web Service
-
-Create a Web Service from the same approved commit.
-
-| Setting | Value |
-| --- | --- |
-| Root Directory | repository root; leave blank if Render uses the root by default |
-| Build Command | `npm ci --omit=dev` |
-| Start Command | `npm start` |
-| Health Check Path | `/api/health` |
-| Instance type | Free |
-
-Set these environment variables on the Web Service:
+API environment for a fixture release:
 
 ```text
 YINCOL_FIXTURE_MODE=true
 YINCOL_LIVE_SKIN_ANALYSIS=false
 YINCOL_LIVE_TRY_ON=false
-YINCOL_ALLOWED_ORIGIN=https://<static-site>.onrender.com
+YINCOL_LIVE_VIDEO=false
 YINCOL_TRUST_PROXY=true
+YINCOL_ALLOWED_ORIGIN=https://<static-site>.onrender.com
 ```
 
-Replace the placeholder with the Static Site's exact public origin. Do not use `*`.
-Render supplies `PORT`; do not hard-code a public port.
+Replace `<static-site>` with the actual service name. Leave `YINCOL_API_KEY`
+unset. Keep credentials off the Static Site and out of all `VITE_` variables.
+Keep `.env`, source images and private results out of Git.
 
-Leave `YINCOL_API_KEY` unset. The API service must report `hasApiKey: false` and
-`mode: "fixture"` before the site is considered safe to share.
+## Key Value acceptance before live work
 
----
-
-## Why the app waits for the API
-
-When the static site opens, the browser calls `/api/health` immediately. If the free API
-service is asleep, the UI shows that the studio is warming up and retries with bounded
-timeouts. The Generate button stays disabled until a health response succeeds.
-
-The health check is also the mode check. Until it succeeds, the browser does not make a
-privacy claim about the active mode. In fixture mode, the generation client sends fixture
-metadata and does not read the portrait or garment files for upload.
-
-This improves the first visit after sleep, but it cannot remove the free-tier cold start.
-Render may stop an inactive free Web Service, and the first request after sleep can take
-up to about a minute. The static site itself remains available while the API wakes.
-
-## Verify before sharing
-
-Run these checks against the API service URL:
-
-```bash
-curl -i https://<api-service>.onrender.com/api/health
-```
-
-```json
-{
-  "ok": true,
-  "mode": "fixture",
-  "liveSkinAnalysis": false,
-  "liveTryOn": false,
-  "hasApiKey": false
-}
-```
-
-Check the allowed browser origin:
-
-```bash
-curl -i \
-  -H "Origin: https://<static-site>.onrender.com" \
-  https://<api-service>.onrender.com/api/health
-```
-
-The response must include:
+Use the separate free Render Key Value service in the existing workspace, in
+an appropriate region for the API. Store its connection privately as
+`YINCOL_KV_URL` on the API. Configure:
 
 ```text
-Access-Control-Allow-Origin: https://<static-site>.onrender.com
+YINCOL_SITE_DAILY_UNIT_CAP=100
+YINCOL_BROWSER_WINDOW_UNIT_CAP=40
 ```
 
-Check that another origin is rejected:
+Free Key Value does not provide disk-backed persistence. Its separate process
+can preserve counters through an API restart, but a Key Value restart can lose
+them. The 24-hour recovery pause is required for that free-tier limitation;
+`noeviction` prevents memory-pressure eviction, not restart data loss.
 
-```bash
-curl -i \
-  -H "Origin: https://example.com" \
-  https://<api-service>.onrender.com/api/health
-```
+Verify and record:
 
-It must return `403` with the generic message `This origin is not allowed.`.
+- The API can connect and execute `GET` and atomic `EVAL`/`SET` operations.
+- The service's eviction policy is `noeviction`; memory exhaustion must fail
+  closed instead of dropping spending records.
+- API restarts retain reservations. Store loss/unavailability blocks new work;
+  an empty store starts a 24-hour pause. Never clear the production ledger or
+  edit its recovery time to make acceptance pass.
+- `/api/budget` shows the expected site/browser availability and recovery state.
+- Concurrent requests, duplicate clicks and ambiguous failures cannot bypass
+  reservations. Duplicate hashes do not expire; at 20,000 hashes the ledger
+  pauses for owner maintenance.
 
-Then open the Static Site and verify the user flow:
+The CI integration test uses unique `yincol:test:<random>:` keys. For a local
+store test, supply a dedicated `YINCOL_TEST_KV_URL` and run the server tests.
+Never use the production ledger as disposable test data. Free-store durability
+and the observed Render policy must be recorded separately from CI evidence.
 
-1. The page loads without a same-origin `/api` assumption.
-2. The API status changes from connecting or warming up to ready.
-3. Generate remains disabled until both the inputs and API readiness are complete.
-4. Fixture generation returns the shipped results.
-5. The browser Network panel shows no portrait or garment bytes in fixture requests.
-6. The result provenance labels remain visible.
-7. Rose Veil Garment A plays, pauses, replays, and returns to its still. Garment B stays static.
-8. Repeat the input, comparison, and deletion flow at a phone viewport.
+中文：核对连接、EVAL 权限和 noeviction；API 重启不能清空额度。计数丢失或不可用时
+必须停止付费工作。不能删除生产记录或跳过恢复等待来通过测试；测试使用独立命名空间。
 
-## Local checks
+## Captures and provider boundary
 
-From the repository root:
+The existing allowance is at most 11 units for the specifically approved
+original-portrait makeup sample and one Outfit A five-second 720p video. It
+is not an allowance for general testing, retries or additional full-body work.
+Confirm the exact input, existing capture evidence, current rate and remaining
+allowance before submission. Download successful bytes immediately.
 
-```bash
-npm ci
-npm run typecheck
-npm test
-npm run build
-```
+The September 20 saved video has a recorded `data.results.url` response in
+`docs/captured-shapes/garment-a-motion-sample.json`. It used `src_file_url`.
+The current live route uses the generic File API and `src_file_id`; that full
+budgeted path still needs acceptance. Do not discard historical evidence or
+claim it verifies an untested route.
 
-For local development, leave `YINCOL_ALLOWED_ORIGIN` empty and leave
-`VITE_API_URL` unset. Vite serves the front end and proxies `/api` to `localhost:8787`.
+Original source images and private full-body results remain private unless
+Dennis explicitly approves their intended use. Do not copy them into public
+fixtures to remove an unavailable label. Keep placeholders labelled until the
+required genuine, approved bytes exist.
 
----
+## Deployed-origin checks
 
-## What protects the process
+Record the URLs, deployed frontend/API commits, flags and observation date.
+Do not record secrets. Check:
 
-The public demo spends no credits, so the limits protect availability rather than a budget.
+1. Health reports fixture mode, all live features false and `hasApiKey: false`
+   for the fixture release. Exact-origin CORS and the `X-Yincol-Browser-Id`
+   preflight work; an unrelated origin is rejected.
+2. Demo works while the API is asleep or unavailable and spends no credits.
+   Live inputs show a clear waking state and usable failure recovery.
+3. Save -> reload -> Previous looks -> reopen -> edit inputs -> generate works.
+   Downloads, individual deletion and clear-all affect only the intended data.
+4. Storage unavailable/full, pending-save deletion and partial result failures
+   keep useful results visible and offer truthful recovery/download actions.
+5. Phone layout, keyboard focus/tab controls and reduced-motion behavior work.
+   Check actual controls; the token contrast audit is not a full WCAG audit.
+6. Only after owner acceptance: exercise the specified paid path with the exact
+   approved assets and unit ceiling, then verify saved-video reuse without a
+   second submission. Record observed billing separately from estimated cost.
 
-| Guard | Fixture release |
-| --- | --- |
-| Request body | 32 kB |
-| `/api/*` per IP | 120/min |
-| `/analyze`, `/skin-analysis`, `/try-on` per IP | 30/min |
-| Browser origin | exact `YINCOL_ALLOWED_ORIGIN` |
-| Provider access | disabled; no API key |
+## Disable and rollback
 
-One generation is three requests, so the generation budget is roughly ten generations a
-minute per address.
+To stop paid work, remove the API key and set fixture mode true and all three
+live flags false; restart the API and verify health. Merely clearing one live
+flag is insufficient if `YINCOL_FIXTURE_MODE=false` and a key is still present.
+Keep saved demo/history usable where possible.
 
-In fixture mode the routes also **refuse image payloads outright** rather than ignoring
-them, so a stale tab or a hand-rolled request cannot upload a photograph to a process that
-has promised not to receive one. The browser does not send bytes in fixture mode either —
-it reads `/api/health` before it reads a file — but the server does not rely on that.
+Rollback frontend and API to a compatible, previously approved pair. Do not
+roll back to code that assumes the old motion-record shape without checking
+saved-history compatibility. Preserve the budget ledger and private connection
+settings; never reset allowances as part of a rollback. Download important
+browser results before changing origin or clearing site data.
 
-The rate limiter is in memory and the free service runs as one instance. If the service
-ever scales to multiple instances or live provider calls are enabled, add a shared rate
-limit store and stronger anonymous abuse controls before that release.
+中文：停用付费时移除密钥、开启演示模式并关闭全部实时标志，再核对健康状态。
+回滚必须考虑历史数据格式，保留额度记录，不能通过清空计数恢复额度。
 
----
-
-## Turning it off
-
-**Disable live paths** (already the public state): remove `YINCOL_API_KEY`, set the three
-fixture/live flags explicitly as shown above, and restart the Web Service. Nothing else is
-required, and nothing else is sufficient — the flags alone do not enable live mode without
-a key, and they do not disable it if a key is present and fixture mode is explicitly off.
-
-**Take the demo down:** suspend both Render services. No cleanup follows. Nothing was
-stored, so there is nothing to delete: no user data, no uploads, no database.
-
-**Roll back:** redeploy both Render services to the same previous approved commit, then
-repeat the health, CORS, and browser checks. There is no state, schema, or migration, so a
-rollback is only a pair of redeploys. Fixtures are committed bytes, so a rolled-back
-deployment shows exactly what that commit showed.
-
----
-
-## Known limitations
-
-- **The free API service can sleep after inactivity.** A first visit after sleep can wait
-  for startup. The front end retries the health check and keeps Generate disabled while it
-  waits, but a free instance cannot guarantee an instant response.
-- **The rate limiter is per process.** State is in memory, so two instances behind a load
-  balancer each enforce their own window. The approved shape is one free instance. Scaling
-  out needs a shared store or the platform's own edge limiter first.
-- **The server runs TypeScript through `tsx` in production.** It transpiles on startup
-  rather than serving precompiled JavaScript. This follows from consuming the shared
-  workspace as TypeScript source, which is a deliberate project decision; changing it means
-  compiling both workspaces and is a larger change than this closeout makes.
-- **Facial Color Tone is not live.** The palette is computed locally from the fixture
-  reading. The provider's task path is recorded but its request shape and response mapping
-  are unverified — see `docs/api-findings.md`. Nothing in the public deployment calls it.
-- **Fixture provenance, and how much of the demo is real.** The August 29, 2026 capture
-  produced four genuine API results: a garment preview and a complete look for each of the
-  two catalogue garments `rosewater-cardigan` and `sage-linen-shirt`, with the **Rose Veil**
-  look. Everything else — the other six garments, and every look other than Rose Veil — is
-  a designed stand-in. Every panel says on its face which it is. Do not describe a stand-in
-  as a YouCam output, and note that a shopper who picks a different look is, correctly,
-  shown stand-ins rather than the Rose Veil image relabelled.
-- **The demo shows one face.** Fixture mode renders the captured results whatever the
-  visitor uploads; their own photograph never leaves the tab and is never processed. The
-  previews are of the approved demo portrait, not of them.
-- **Motion is a saved sample.** Garment A's captured Rose Veil complete look offers an
-  explicitly played five-second YouCam video. It costs no units to replay. Garment B
-  stays a still. Other presets do not reuse the video. A playback failure returns to the
-  original still. This release does not include true 3D rotation.
-- **Where available, 2.5D tilt is a CSS image effect only.** The current app hides it on placeholders and full-body results. It adds no side
-  or rear views and makes no 3D claim.
-
----
-
-## Outside this deployment runbook
-
-- Deploying from an unmerged feature branch.
-- Any deployment configured with an API key.
-- Public live API access. The next increment plans an anonymous, server-mediated
-  live trial, but its shared unit budget and live video workflow are
-  not implemented. Browser result history is implemented. Complete and verify those controls before activating it.
-- True 3D — a body or garment model, or independently generated side or rear views. The
-  2.5D tilt preview is a CSS effect on one photograph and claims nothing more; see the
-  known limitations above.
+References: [Render free services](https://render.com/docs/free),
+[Key Value](https://render.com/docs/key-value),
+[auto-deploys](https://render.com/docs/deploys),
+[recorded implementation and checks](pr15-followup.md).

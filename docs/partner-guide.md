@@ -1,6 +1,8 @@
 # Partner guide / 合作开发指南
 
-Updated September 29, 2026. The authoritative current change list, checks, provider sources and outstanding acceptance are in [PR #15 follow-up](pr15-followup.md), in English and Chinese.
+Updated September 30, 2026. PR #15 is merged; #13 was closed because its commits are included. #16 is the approved Node-runtime follow-up, pending the pre-merge Render check. #12 remains open for release acceptance. See the [current deployment checklist](deployment.md) and [PR #15 evidence](pr15-followup.md).
+
+中文：#15 已合并，包含 #13 的提交；#13 已关闭。#16 的 Node 运行时修正已获审核，合并前仍需核对 Render。#12 保留发布验收事项。
 
 ## Current handoff / 当前交接
 

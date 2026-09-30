@@ -643,3 +643,35 @@ in the fourth run.
 | Check | Why |
 | --- | --- |
 | Live-mode verification of any provider path | Out of scope for a fixture-only closeout, and would spend units |
+
+## Release preparation — September 30, 2026
+
+Evidence level: **locally verified**. This pass does not establish Render or
+paid-provider acceptance.
+
+- Updated only the transitive development dependency `brace-expansion` from
+  1.1.18 to 1.1.21, within the existing dependency range. `npm audit` reports
+  zero vulnerabilities. Production dependencies and provider routes did not change.
+- Corrected the two visible comparison-guide `vs` labels from gold to the
+  existing `ink-soft` token. Browser computed color was `rgb(107, 74, 84)`;
+  the audited ratio against the page ground is 7.56:1. Desktop 1440px and phone
+  390px checks showed no document horizontal overflow. Gold ornament remains.
+- The four known audit rows remain visible as palette constraints. They are not
+  four proven UI defects or evidence of full WCAG conformance; the disposition
+  and remaining meaningful-control checks are in `api-findings.md`.
+- Node 24.16.0: 322 local tests passed; one optional real-Valkey integration test
+  skipped because no dedicated test store was supplied. Workspace typechecks,
+  production build, contrast audit and `git diff --check` passed.
+- Tests and local preview used fixture mode, all live flags false, and no API key
+  or KV connection. No paid calls or captures were made.
+- Reconciled the deployment guide and environment template with the merged
+  history, budgets, and disabled live video. Historical video response evidence
+  is distinct from verification of the current upload and budgeted route.
+- Render sign-in was unavailable to this pass. Auto-deploy settings, actual KV
+  connection/policy/recovery, deployed-origin interaction checks and release
+  approval remain pending. No merge or deployment was performed in this pass.
+
+中文：本次完成依赖安全修正及两处对比文字颜色修正，本地 322 项测试、类型检查、
+构建和对比度检查通过，npm audit 为零漏洞。未配置独立测试 KV，故本地跳过一项
+集成测试。没有付费调用、素材捕获、合并或部署；Render、当前付费路由及部署验收
+仍待完成。已同步部署文档，区分历史证据和本次验证。
