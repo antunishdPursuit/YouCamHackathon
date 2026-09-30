@@ -55,12 +55,12 @@ function ComparisonGuide() {
         </div>
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
           <span className="rounded-card border border-gold/40 px-3 py-3 text-center text-ink">Garment A</span>
-          <span aria-hidden="true" className="text-gold">vs</span>
+          <span aria-hidden="true" className="text-ink-soft">vs</span>
           <span className="rounded-card border border-gold/40 px-3 py-3 text-center text-ink">Garment B</span>
         </div>
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
           <span className="rounded-card border border-gold/40 px-3 py-3 text-center text-ink">Original portrait</span>
-          <span aria-hidden="true" className="text-gold">vs</span>
+          <span aria-hidden="true" className="text-ink-soft">vs</span>
           <span className="rounded-card border border-gold/40 px-3 py-3 text-center text-ink">With makeup</span>
         </div>
       </div>
