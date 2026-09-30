@@ -50,7 +50,14 @@ before reservation/upload; the saved sample remains available. No visitor accoun
 
 ## Run locally without using credits
 
-Use Node.js 20 or newer. From the repository root:
+Use Node.js 22.22.2+ within 22.x, 24.15.0+ within 24.x, or 26.0.0+.
+These versions match the jsdom 30 test dependency; Node 20 is no longer supported
+for this workspace. CI checks the minimum supported version, 22.22.2.
+
+中文：开发和测试请使用 Node.js 22.x（至少 22.22.2）、24.x（至少 24.15.0）
+或 26.0.0 及以上版本，以满足 jsdom 30 的要求；不再支持 Node 20。
+
+From the repository root:
 
 ```bash
 npm ci
