@@ -1,6 +1,8 @@
 # Partner guide / 合作开发指南
 
-Updated September 29, 2026. The authoritative current change list, checks, provider sources and outstanding acceptance are in [PR #15 follow-up](pr15-followup.md), in English and Chinese.
+Updated September 30, 2026. PR #15 is merged; #13 was closed because its commits are included. #16 is merged after confirming both Render services have auto-deploy off and Node 24.16.0 configured. Free Key Value is provisioned; its API connection is saved for the next deployment but not yet exercised. #12 remains open for release acceptance. See the [current deployment checklist](deployment.md) and [PR #15 evidence](pr15-followup.md).
+
+中文：#15 已合并，包含 #13 的提交；#13 已关闭。已核对两个 Render 服务的自动部署关闭、Node 配置为 24.16.0，并合并 #16。免费 KV 已创建，连接配置已保存，实际连接仍待部署验证。#12 保留发布验收事项。
 
 ## Current handoff / 当前交接
 

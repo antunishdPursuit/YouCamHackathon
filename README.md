@@ -24,7 +24,7 @@ failed branch does not discard the other usable result.
 
 The saved five-second video plays only for its matching red-shirt / Rose Veil
 fixture. A per-image "Generate video" action exists on any other completed
-result, budget-permitting, but has no live provider path yet — see the video row
+result, budget-permitting, but remains disabled pending live-route acceptance — see the video row
 below. Neither is a rotatable 3D model or a view of the back. A click starts
 playback; the original still remains available.
 

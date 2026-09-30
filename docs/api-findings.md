@@ -377,15 +377,21 @@ a baseline, not an excuse.
 | 11.21 | 3.0 | pass | focus ring (ink) on ground |
 | 10.37 | 3.0 | pass | focus ring (ink) on surface |
 
-Four known gaps. No new failures.
+Four recorded palette constraints. These rows alone do not establish four UI
+accessibility defects or full WCAG conformance; assess the actual use below.
+
+September 30, 2026: the Start comparison guide used gold for its two visible
+"vs" labels. Both now use the existing `ink-soft` token (7.56:1 on the page
+ground). Gold tokens and decorative borders remain unchanged. The four audit
+rows stay visible as constraints, not as a claim that the gold combinations pass.
 
 ### AA-0 — antique gold fails as text, at 2.39:1 against every ground
 
-Not a gap in the build; a gap in the palette itself, recorded so nobody later "improves"
-the design by using gold for a heading. Antique gold `#C6A15B` cannot carry text on any of
+Antique gold `#C6A15B` cannot carry text on any of
 our light grounds — it needs 4.5:1 and reaches 2.39:1 on milk cream.
 
-**Resolution: gold is never used as text.** Body and heading text is deep rose-brown
+**Resolution: use ink for text.** The two comparison-guide labels found in the
+September 30 review were corrected. Body and heading text is deep rose-brown
 `#4E323B` (11.21:1) or the softer `#6B4A54` (7.56:1). The check stays in the audit as a
 tripwire — if someone introduces gold text, this row is already there arguing against it.
 
@@ -396,16 +402,16 @@ land between 1.81:1 and 2.39:1 against the grounds they are drawn on. WCAG 2.2 S
 asks 3:1 of non-text content **that conveys information or is required to identify a
 control**.
 
-**Assessed as not applicable, and left as is.** Every gold instance in the build is purely
-decorative: the frame around a card, the flourish in its corner, the rule above and below
-the wordmark, the dot between sections. Nothing gold carries meaning on its own and
-nothing gold identifies a control —
+**Disposition: retain ornament-only gold; verify meaningful controls separately.**
+Decorative card frames, corner flourishes, wordmark rules and section dots do not
+need to carry information. A control must remain identifiable without its gold
+border; this token calculation does not verify that condition by itself.
 
-- Card and panel boundaries are also conveyed by a background change (`#FFFDF9` ground
-  against `#FBF3EA` surface) and by radius, so the hairline is reinforcement, not the
-  boundary itself.
-- Every control's boundary, state, and focus ring is drawn in ink, not gold — the focus
-  ring checks in at 11.21:1, well past the 3:1 required.
+- Cards also use headings, grouping and spacing. The cream background difference
+  alone is not evidence of a 3:1 control boundary.
+- Buttons have readable ink labels; some still use gold borders. The keyboard
+  focus outline uses ink (11.21:1 on the page ground). Selected comparison tabs
+  and other state indicators still need the deployed keyboard/visual check.
 - The selected-option ribbon carries a text label alongside it, per the "never colour
   alone" rule, so the ribbon's gold is never the only signal.
 

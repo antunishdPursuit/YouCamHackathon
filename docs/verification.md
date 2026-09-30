@@ -643,3 +643,47 @@ in the fourth run.
 | Check | Why |
 | --- | --- |
 | Live-mode verification of any provider path | Out of scope for a fixture-only closeout, and would spend units |
+
+## Release preparation — September 30, 2026
+
+Evidence level: **locally verified**. This pass does not establish Render or
+paid-provider acceptance.
+
+- Updated only the transitive development dependency `brace-expansion` from
+  1.1.18 to 1.1.21, within the existing dependency range. `npm audit` reports
+  zero vulnerabilities. Production dependencies and provider routes did not change.
+- Corrected the two visible comparison-guide `vs` labels from gold to the
+  existing `ink-soft` token. Browser computed color was `rgb(107, 74, 84)`;
+  the audited ratio against the page ground is 7.56:1. Desktop 1440px and phone
+  390px checks showed no document horizontal overflow. Gold ornament remains.
+- The four known audit rows remain visible as palette constraints. They are not
+  four proven UI defects or evidence of full WCAG conformance; the disposition
+  and remaining meaningful-control checks are in `api-findings.md`.
+- Node 24.16.0: 322 local tests passed; one optional real-Valkey integration test
+  skipped because no dedicated test store was supplied. Workspace typechecks,
+  production build, contrast audit and `git diff --check` passed.
+- Tests and local preview used fixture mode, all live flags false, and no API key
+  or KV connection. No paid calls or captures were made.
+- Reconciled the deployment guide and environment template with the merged
+  history, budgets, and disabled live video. Historical video response evidence
+  is distinct from verification of the current upload and budgeted route.
+- PR #17 CI also passed all 323 tests, including the real-Valkey integration,
+  typechecks, build and contrast checks on Node 22.22.2:
+  https://github.com/antunishdPursuit/YouCamHackathon/actions/runs/36789362420.
+- **Target-environment configuration verified:** in the owner's Render workspace,
+  both services track `main`, auto-deploy is Off and Node 24.16.0 is configured.
+  #16 was then merged as `e606ec4`; both services still run `df5bf36`.
+- Provisioned the separate free Key Value service in Ohio: Available, Valkey
+  8.1.10, `noeviction`, persistence Off, external connections blocked. Saved its
+  private API connection, 100/40 caps and live-video false using Save only.
+  Fixture mode is true, all live flags false, and no provider key is configured.
+  Static/API origins match the intended CORS settings. No deployment occurred.
+- The free API has no shell access. Actual API-to-KV connection/EVAL, restart
+  survival, initial recovery pause and deployed interactions remain unverified.
+  No paid calls, new captures or public asset changes were made.
+
+中文：本次完成依赖安全修正及两处对比文字颜色修正，本地 322 项测试、类型检查、
+构建和对比度检查通过，npm audit 为零漏洞。未配置独立测试 KV，故本地跳过一项
+集成测试；CI 的真实 Valkey 集成通过，共 323 项。已核对 Render 自动部署关闭及
+Node 配置并合并 #16。免费 KV 已就绪，连接与额度仅保存，未部署、未付费调用或
+捕获素材。实际 KV 连接、恢复行为、当前付费路由及部署验收仍待完成。
