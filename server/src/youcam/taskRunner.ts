@@ -19,6 +19,7 @@ import {
   POLL_MAX_ATTEMPTS,
   RATE_LIMIT_BACKOFF_MS,
   RATE_LIMIT_MAX_RETRIES,
+  TASK_FETCH_TIMEOUT_MS,
   authHeader,
   type FeatureId,
   type YouCamConfig,
@@ -45,6 +46,10 @@ export class YouCamError extends Error {
       readonly stage: 'start' | 'poll' | 'download';
       readonly status?: number;
       readonly taskId?: string;
+      /** Set when this came from a request-level timeout, never from a vendor response.
+       * The budget layer treats a timeout as ambiguous, never a definitive failure — the
+       * request may or may not have gone through on the provider's side. */
+      readonly timedOut?: boolean;
     },
   ) {
     super(message);
@@ -68,8 +73,19 @@ async function fetchWithBackoff(
   stage: 'start' | 'poll' | 'download',
 ): Promise<Response> {
   for (let attempt = 0; attempt <= RATE_LIMIT_MAX_RETRIES; attempt += 1) {
-    const response = await fetch(url, init);
-    if (response.status !== 429) return response;
+    let response: Response;
+    try {
+      response = await fetch(url, { ...init, signal: AbortSignal.timeout(TASK_FETCH_TIMEOUT_MS) });
+    } catch (error) {
+      const name = error instanceof Error ? error.name : '';
+      if (name === 'AbortError' || name === 'TimeoutError') {
+        throw new YouCamError(`Request timed out after ${TASK_FETCH_TIMEOUT_MS}ms.`, {
+          feature, stage, timedOut: true,
+        });
+      }
+      throw error;
+    }
+    if (response.status !== 429 || stage === 'start') return response;
 
     if (attempt === RATE_LIMIT_MAX_RETRIES) {
       throw new YouCamError(`Rate limited by the API after ${attempt + 1} attempts.`, {
@@ -80,7 +96,7 @@ async function fetchWithBackoff(
     }
     // Honour Retry-After when the API sends one; otherwise use our own interval.
     const retryAfter = Number(response.headers.get('retry-after'));
-    await sleep(Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : RATE_LIMIT_BACKOFF_MS);
+    await sleep(Math.min(30_000, Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : RATE_LIMIT_BACKOFF_MS));
   }
   // Unreachable: the loop either returns or throws.
   throw new YouCamError('Rate limit retry loop exited unexpectedly.', { feature, stage });

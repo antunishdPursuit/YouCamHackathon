@@ -218,6 +218,15 @@ export type TryOnResult =
   | { readonly status: 'failed'; readonly reason: string };
 
 /**
+ * A generated video clip, or the reason there isn't one. Distinct from `TryOnResult`
+ * (`videoUrl` vs `imageUrl`) so nothing can accidentally hand a still-image consumer a clip
+ * or vice versa.
+ */
+export type VideoResult =
+  | { readonly status: 'ready'; readonly videoUrl: string; readonly alt: string }
+  | { readonly status: 'failed'; readonly reason: string };
+
+/**
  * The photographs the UI can render.
  *
  * `garmentA` / `garmentB` are garment-only previews — the Clothes VTO output on its own.
@@ -227,6 +236,7 @@ export type TryOnResult =
  */
 export type DisplaySlotId =
   | 'portrait'
+  | 'portraitMadeUp'
   | 'garmentA'
   | 'garmentB'
   | 'completeLookA'

@@ -14,6 +14,8 @@ import {
   requestAnalysis,
   requestSkinAnalysis,
   requestTryOn,
+  requestVideo,
+  requestBudgetAvailability,
   type RuntimeMode,
 } from './api/client.js';
 import { BackendStatus, type BackendReadiness } from './components/BackendStatus.js';
@@ -21,8 +23,14 @@ import { StateNotice } from './components/StateNotice.js';
 import { PrivacyBar } from './components/PrivacyBar.js';
 import { Wordmark } from './components/ornament.js';
 import { Button } from './components/controls.js';
+import { PreviousLooks, SavedMediaDownloads, CurrentMediaDownloads } from './components/PreviousLooks.js';
+import { useSavedLooks } from './state/useSavedLooks.js';
+import { readSavedLook, openSavedLook, savedImageIdFor, type LookSettings, type OpenedLook } from './state/savedLooks.js';
+import { loadDemoLook } from './state/demoLook.js';
+import type { CachedGeneration } from './state/generationCache.js';
 import { IntroScreen } from './screens/IntroScreen.js';
 import { InputsScreen } from './screens/InputsScreen.js';
+import { DemoInputsScreen } from './screens/DemoInputsScreen.js';
 import { AnalysisScreen } from './screens/AnalysisScreen.js';
 import { ResultsScreen } from './screens/ResultsScreen.js';
 import {
@@ -103,10 +111,36 @@ function StageProgress({ step, consentGiven, busy, onNavigate }: {
 
 export function App() {
   const [state, dispatch] = useReducer(sessionReducer, initialState);
+  const [entryMode, setEntryMode] = useState<'demo' | 'live' | null>(null);
+  // History opens without waking the API. Editing those results enters the regular
+  // upload flow, including navigation through the progress bar or privacy action.
+  useEffect(() => {
+    if (state.step === 'inputs' && entryMode === null) setEntryMode('live');
+  }, [state.step, entryMode]);
+  const [budgetMessage, setBudgetMessage] = useState('Checking live availability…');
   const [runtimeMode, setRuntimeMode] = useState<RuntimeMode | null>(null);
   const [inputSessionId, setInputSessionId] = useState(0);
   const [generationPhase, setGenerationPhase] = useState<'checking' | 'analysis' | 'previews'>('checking');
   const generationRunning = useRef(false);
+  const { looks, loading: historyLoading, error: historyError, saveStatus, setSaveStatus,
+    save: saveLook, remove: removeLook, refresh: refreshHistory, attachVideo } = useSavedLooks();
+  const [sessionVideoByImage, setSessionVideoByImage] = useState<Record<string, string>>({});
+  const [videoStatusByImage, setVideoStatusByImage] = useState<Record<string, 'pending' | 'failed'>>({});
+  const [activeHistoryKey, setActiveHistoryKey] = useState<string | null>(null);
+  const [openedLook, setOpenedLook] = useState<OpenedLook | null>(null);
+  const [historyBusy, setHistoryBusy] = useState(false);
+  const [historyActionError, setHistoryActionError] = useState<{ message: string; retryRemoval?: boolean } | null>(null);
+  const lastCompleted = useRef<{ cache: CachedGeneration; settings: LookSettings } | null>(null);
+  const pendingSave = useRef<Promise<void>>(Promise.resolve());
+  const pendingVideos = useRef(new Set<string>());
+  useEffect(() => () => openedLook?.dispose(), [openedLook]);
+  const saveCompleted = useCallback((cache: CachedGeneration, settings: LookSettings) => {
+    lastCompleted.current = { cache, settings };
+    setActiveHistoryKey(cache.key);
+    pendingSave.current = saveLook(cache, settings, () => lastCompleted.current?.cache === cache);
+  }, [saveLook]);
+  const activeSavedLook = looks.find(look => look.key === activeHistoryKey);
+
   const mainRef = useRef<HTMLElement>(null);
   const currentView = state.step;
   const previousStep = useRef(currentView);
@@ -134,8 +168,19 @@ export function App() {
   const [imagesLeaveTab, setImagesLeaveTab] = useState<boolean | null>(null);
   const [backendReadiness, setBackendReadiness] = useState<BackendReadiness>('checking');
   const [backendRetry, setBackendRetry] = useState(0);
+  useEffect(() => {
+    if (entryMode !== 'live' || backendReadiness !== 'ready') return;
+    const controller = new AbortController();
+    void requestBudgetAvailability(controller.signal).then(budget => {
+      setBudgetMessage(budget.available
+        ? `Live allowance: ${budget.browserRemaining} units for this browser; ${budget.siteRemaining} shared units remain today. Availability can change before you generate.`
+        : 'Live generation is currently unavailable. Saved demos and previous looks remain available.');
+    }).catch(() => { if (!controller.signal.aborted) setBudgetMessage('Live availability could not be checked.'); });
+    return () => controller.abort();
+  }, [entryMode, backendReadiness, state.step, sessionVideoByImage]);
 
   useEffect(() => {
+    if (entryMode !== 'live') return;
     let cancelled = false;
     let retryTimer: number | undefined;
     let statusTimer: number | undefined;
@@ -190,7 +235,7 @@ export function App() {
       if (retryTimer !== undefined) window.clearTimeout(retryTimer);
       if (statusTimer !== undefined) window.clearTimeout(statusTimer);
     };
-  }, [backendRetry]);
+  }, [backendRetry, entryMode]);
 
   const retryBackend = useCallback(() => {
     setBackendRetry((current) => current + 1);
@@ -217,7 +262,12 @@ export function App() {
     generationId.current += 1;
     clearGenerationCache();
     setGenerationSource(null);
+    setOpenedLook(null);
+    setActiveHistoryKey(null);
+    lastCompleted.current = null;
     generationRunning.current = false;
+    setSessionVideoByImage({});
+    setVideoStatusByImage({});
   }, []);
 
   /**
@@ -243,6 +293,12 @@ export function App() {
     const portraitRef = 'fixture:portrait';
     const portrait = state.portrait;
     const garmentInputs = [state.garmentInputs.a, state.garmentInputs.b] as const;
+    const settings: LookSettings = { garmentIds: state.garmentIds, makeupLookId: state.makeupLookId,
+      ...(portrait ? { portraitSize: { width: portrait.width, height: portrait.height } } : {}),
+      ...(state.fullBody.portrait ? { fullBodySize: { width: state.fullBody.portrait.width, height: state.fullBody.portrait.height } } : {}) };
+    setOpenedLook(null);
+    setActiveHistoryKey(null);
+    lastCompleted.current = null;
 
     try {
       const mode = await checkRuntimeHealth();
@@ -264,13 +320,32 @@ export function App() {
         liveSkinAnalysis: mode.liveSkinAnalysis,
         liveTryOn: mode.liveTryOn,
       });
-      const cached = cacheKey ? readGenerationCache(cacheKey) : null;
+      if (!cacheKey) throw new ApiError('Could not match your photos to saved looks. Use HTTPS or localhost and try again; no new previews were generated.', 'general');
+      const cached = readGenerationCache(cacheKey);
       if (superseded()) return;
+
+      // A failed history read must never silently trigger paid work for an existing look.
+      const saved = !cached ? await readSavedLook(cacheKey).catch(() => {
+        throw new ApiError('Could not check saved looks. Check browser storage and try again before generating.', 'general');
+      }) : undefined;
+      if (superseded()) return;
+      if (saved) {
+        const restored = openSavedLook(saved);
+        setOpenedLook(restored);
+        setActiveHistoryKey(saved.key);
+        setGenerationSource('cache');
+        setSaveStatus('saved');
+        dispatch({ type: 'analysisReady', analysis: saved.analysis });
+        dispatch({ type: 'tryOnReady', tryOn: restored.tryOn });
+        void refreshHistory();
+        return;
+      }
 
       if (cached) {
         setGenerationSource('cache');
         dispatch({ type: 'analysisReady', analysis: cached.analysis });
         dispatch({ type: 'tryOnReady', tryOn: cached.tryOn });
+        saveCompleted(cached, settings);
         return;
       }
 
@@ -309,15 +384,10 @@ export function App() {
       });
       if (superseded()) return;
 
-      if (cacheKey) {
-        writeGenerationCache({
-          key: cacheKey,
-          savedAt: Date.now(),
-          analysis: combinedAnalysis,
-          tryOn,
-        });
-      }
+      const completed = { key: cacheKey, savedAt: Date.now(), analysis: combinedAnalysis, tryOn };
+      writeGenerationCache(completed);
       dispatch({ type: 'tryOnReady', tryOn });
+      saveCompleted(completed, settings);
     } catch (error) {
       // A discarded generation must not raise a banner about itself either.
       if (superseded()) return;
@@ -330,13 +400,86 @@ export function App() {
     } finally {
       if (!superseded()) generationRunning.current = false;
     }
-  }, [imagesLeaveTab, backendReadiness, runtimeMode, state]);
+  }, [imagesLeaveTab, backendReadiness, runtimeMode, state, saveCompleted, setSaveStatus, refreshHistory]);
 
-  const handleClearPortrait = useCallback(() => {
+  const handleClearPortrait = useCallback(async () => {
     voidGeneration();
     setInputSessionId(current => current + 1);
     dispatch({ type: 'clearPortrait' });
-  }, [voidGeneration]);
+    setHistoryBusy(true);
+    setHistoryActionError(null);
+    try { await removeLook(); }
+    catch { setHistoryActionError({ message: 'Your inputs were cleared, but saved looks could not be deleted. Retry removal to finish.', retryRemoval: true }); }
+    finally { setHistoryBusy(false); }
+  }, [voidGeneration, removeLook]);
+
+  const handleOpenLook = useCallback(async (key: string) => {
+    const openingId = ++generationId.current;
+    setHistoryBusy(true);
+    setHistoryActionError(null);
+    try {
+      const look = await readSavedLook(key);
+      if (openingId !== generationId.current) return;
+      if (!look) { await refreshHistory(); throw new Error('This saved look is no longer on this browser.'); }
+      voidGeneration();
+      const restored = openSavedLook(look);
+      // A saved look is not the current demo/live editing session.
+      setEntryMode(null);
+      setOpenedLook(restored);
+      setActiveHistoryKey(key);
+      setGenerationSource('cache');
+      setSaveStatus('saved');
+      dispatch({ type: 'restoreGeneration', analysis: look.analysis, tryOn: restored.tryOn,
+        garmentIds: look.garmentIds, makeupLookId: look.makeupLookId });
+    } catch (error) { if (openingId === generationId.current) setHistoryActionError({ message: error instanceof Error ? error.message : 'Could not open this saved look.' }); }
+    finally { setHistoryBusy(false); }
+  }, [refreshHistory, setSaveStatus, voidGeneration]);
+
+  const handleGenerateVideo = useCallback(async (imageUrl: string) => {
+    if (pendingVideos.current.has(imageUrl) || sessionVideoByImage[imageUrl] || openedLook?.videoByImage[imageUrl]) return;
+    pendingVideos.current.add(imageUrl);
+    const runId = generationId.current;
+    const current = () => generationId.current === runId;
+    const savedImageId = openedLook?.downloads.find(entry => entry.url === imageUrl)?.id ??
+      (lastCompleted.current ? savedImageIdFor(lastCompleted.current.cache.tryOn, imageUrl) : undefined);
+    const saveFinished = pendingSave.current;
+    setVideoStatusByImage(current => ({ ...current, [imageUrl]: 'pending' }));
+    try {
+      const response = await requestVideo(imageUrl);
+      if (!current()) return;
+      if (response.video.result.status !== 'ready') {
+        throw new Error(response.video.result.reason);
+      }
+      const videoUrl = response.video.result.videoUrl;
+      setSessionVideoByImage(current => ({ ...current, [imageUrl]: videoUrl }));
+      setVideoStatusByImage(({ [imageUrl]: _drop, ...rest }) => rest);
+
+      if (savedImageId && activeHistoryKey) {
+        await saveFinished;
+        if (!current()) return;
+        const videoBlob = await fetch(videoUrl).then(response => response.blob());
+        if (!current()) return;
+        await attachVideo(activeHistoryKey, savedImageId, videoBlob, current);
+      }
+    } catch {
+      if (current()) {
+        setVideoStatusByImage(current => ({ ...current, [imageUrl]: 'failed' }));
+        setHistoryActionError({ message: 'Video generation or saving did not complete. Any available clip remains playable in this session; download it before leaving.' });
+      }
+    } finally {
+      pendingVideos.current.delete(imageUrl);
+    }
+  }, [openedLook, activeHistoryKey, attachVideo, sessionVideoByImage]);
+
+  const handleDeleteLook = useCallback(async (key: string) => {
+    setHistoryBusy(true);
+    setHistoryActionError(null);
+    clearGenerationCache();
+    if (activeHistoryKey === key) { voidGeneration(); dispatch({ type: 'startOver' }); }
+    try { await removeLook(key); }
+    catch { /* The history shelf reports the failed deletion. */ }
+    finally { setHistoryBusy(false); }
+  }, [activeHistoryKey, removeLook, voidGeneration]);
 
   const handleStartOver = useCallback(() => {
     voidGeneration();
@@ -401,15 +544,23 @@ export function App() {
       case 'intro':
         return (
           <IntroScreen
-            garmentIds={state.garmentIds}
-            keptGarmentIds={state.keptGarmentIds}
-            keptMakeupWinners={state.keptMakeupWinners}
-            fullBodyKeptGarmentIds={state.fullBodyKeptGarmentIds}
-            fullBodyKeptMakeupWinners={state.fullBodyKeptMakeupWinners}
-            makeupLookId={state.makeupLookId}
+            previousLooks={<PreviousLooks looks={looks} loading={historyLoading} error={historyError}
+              pending={historyBusy} onOpen={handleOpenLook} onDelete={handleDeleteLook}
+              onRetry={() => { void refreshHistory(); }} className="xl:col-start-1 xl:row-start-1" />}
             imagesLeaveTab={imagesLeaveTab}
             resuming={Boolean(state.fullBody.enabled || state.portrait || state.garmentInputs.a || state.garmentInputs.b || state.makeupLookId)}
-            onBegin={() => {
+            onBeginLive={() => {
+              setEntryMode('live');
+              generationId.current += 1;
+              dispatch({ type: 'giveConsent' });
+              dispatch({ type: 'editInputs' });
+            }}
+            onBeginDemo={() => {
+              setEntryMode('demo');
+              // Zero calls to the API server: no health check, no /api route. The demo
+              // must work even while that service is asleep.
+              generationId.current += 1;
+              voidGeneration();
               dispatch({ type: 'giveConsent' });
               dispatch({ type: 'editInputs' });
             }}
@@ -417,6 +568,15 @@ export function App() {
         );
 
       case 'inputs':
+        if (entryMode === 'demo') return <DemoInputsScreen
+          onBack={() => dispatch({ type: 'goTo', step: 'intro' })}
+          onGenerate={() => {
+            const demo = loadDemoLook();
+            dispatch({ type: 'restoreGeneration', analysis: demo.analysis, tryOn: demo.tryOn,
+              garmentIds: demo.garmentIds, makeupLookId: demo.makeupLookId });
+            saveCompleted({ key: 'saved-demo-v2', savedAt: Date.now(), analysis: demo.analysis, tryOn: demo.tryOn },
+              { garmentIds: demo.garmentIds, makeupLookId: demo.makeupLookId });
+          }} />;
         return (
           <InputsScreen
             key={inputSessionId}
@@ -454,8 +614,8 @@ export function App() {
               voidGeneration();
               dispatch({ type: 'setFullBodyInput', slot, image });
             }}
-            estimatedUnits={runtimeMode ? (runtimeMode.liveTryOn ? 6 : 0) +
-              (runtimeMode.liveSkinAnalysis ? 12 : 0) + (state.fullBody.enabled ? 8 : 0) : null}
+            estimatedUnits={runtimeMode ? (runtimeMode.liveTryOn ? (state.fullBody.enabled ? 9 : 7) : 0) +
+              (runtimeMode.liveSkinAnalysis ? 12 : 0) : null}
           />
         );
 
@@ -477,23 +637,23 @@ export function App() {
         return state.analysis && state.tryOn ? (
           <ResultsScreen
             analysis={state.analysis}
-            resultView={state.resultView}
-            onResultView={(view) => dispatch({ type: 'setResultView', view })}
             {...(state.fullBody.portrait ? { fullBodySize: {
               width: state.fullBody.portrait.width, height: state.fullBody.portrait.height,
             } } : {})}
+            videoByImage={{ ...openedLook?.videoByImage, ...sessionVideoByImage }}
+            videoStatusByImage={videoStatusByImage}
+            {...(runtimeMode?.liveVideo && entryMode === 'live' ? { onGenerateVideo: handleGenerateVideo } : {})}
+            motionKindByImage={openedLook?.motionKindByImage}
+            {...(openedLook?.look.portraitSize ? { portraitSize: openedLook.look.portraitSize } : {})}
+            {...(openedLook?.look.fullBodySize ? { fullBodySize: openedLook.look.fullBodySize } : {})}
             tryOn={state.tryOn}
             garmentIds={state.garmentIds}
             makeupLookId={state.makeupLookId}
             axis={state.axis}
-            keptGarmentIds={state.resultView === 'fullBody' ? state.fullBodyKeptGarmentIds : state.keptGarmentIds}
-            keptMakeupWinners={state.resultView === 'fullBody' ? state.fullBodyKeptMakeupWinners : state.keptMakeupWinners}
             {...(state.portrait
               ? { portraitSize: { width: state.portrait.width, height: state.portrait.height } }
               : {})}
             onAxisChange={(axis) => dispatch({ type: 'setAxis', axis })}
-            onToggleGarment={(garmentId) => dispatch({ type: 'toggleGarmentKept', garmentId })}
-            onToggleMakeup={(winner) => dispatch({ type: 'toggleMakeupKept', winner })}
             onEditInputs={() => dispatch({ type: 'editInputs' })}
             onStartOver={handleStartOver}
           />
@@ -521,9 +681,9 @@ export function App() {
               ? { type: 'editInputs' } : { type: 'goTo', step: 'intro' })} />
         </header>
 
-        {SHOWS_PORTRAIT.has(state.step) && state.portrait ? (
+        {SHOWS_PORTRAIT.has(state.step) && (state.portrait || state.tryOn) ? (
           <div className="mb-6">
-            <PrivacyBar onDelete={handleClearPortrait} imagesLeaveTab={imagesLeaveTab} />
+            <PrivacyBar onDelete={handleClearPortrait} imagesLeaveTab={imagesLeaveTab} disabled={historyBusy} />
           </div>
         ) : null}
 
@@ -545,8 +705,30 @@ export function App() {
 
         <main id="main" ref={mainRef} tabIndex={-1}
           aria-label={STAGE_LABELS[state.step]} className="flex-1">
-          <BackendStatus readiness={backendReadiness} onRetry={retryBackend} />
+          {entryMode === 'live' && state.step !== 'results' ? <BackendStatus readiness={backendReadiness} onRetry={retryBackend} /> : null}
+          {entryMode === 'live' ? <p role="status" className="mb-4 text-sm text-ink-soft">{budgetMessage}</p> : null}
+          {historyActionError ? <div role="alert" className="mb-6 rounded-card border border-gold/40 bg-surface p-4">
+            <p>{historyActionError.message}</p>
+            {historyActionError.retryRemoval ? <Button variant="quiet" className="mt-3" disabled={historyBusy} onClick={() => { void handleClearPortrait(); }}>Retry removing all saved data</Button> : null}
+            <Button variant="link" onClick={() => setHistoryActionError(null)}>Dismiss</Button>
+          </div> : null}
+          {state.step === 'results' && activeHistoryKey ? <section aria-label="Result storage" className="mb-6 rounded-card border border-gold/40 bg-surface p-4">
+            <p role="status" className="text-sm text-ink-soft">{activeSavedLook ? 'Saved on this browser. Find this comparison in Previous looks on Start.'
+              : saveStatus === 'failed' ? 'Not saved: browser storage is full, unavailable, or a media download failed. Your current results are still here.'
+              : saveStatus === 'empty' ? 'There are no completed previews to save.' : 'Saving your completed previews on this browser…'}</p>
+            {!activeSavedLook && saveStatus === 'failed' && lastCompleted.current ? <Button variant="quiet" className="mt-3" onClick={() => {
+              const completed = lastCompleted.current;
+              if (completed) saveCompleted(completed.cache, completed.settings);
+            }}>Retry saving — no new generation</Button> : null}
+            {activeSavedLook ? <SavedMediaDownloads look={activeSavedLook} /> : state.tryOn ? <CurrentMediaDownloads generation={state.tryOn} /> : null}
+          </section> : null}
           {screen}
+          {state.step === 'results' && Object.keys(sessionVideoByImage).length > 0 ? <div className="mt-4 space-y-2">
+            {Object.values(sessionVideoByImage).map((url, index) => <a key={`${index}:${url}`} href={url}
+              download={`yincol-video-${index + 1}.mp4`} className="block min-h-[44px] text-sm underline">
+              Download generated video {index + 1}
+            </a>)}
+          </div> : null}
         </main>
       </div>
     </div>

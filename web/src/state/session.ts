@@ -1,9 +1,8 @@
 /**
  * The session state machine.
  *
- * One reducer, one shape. There is no database and no account — source uploads live in
- * memory, while completed generated results may be reused from sessionStorage until the
- * tab closes, which is exactly what the consent panel promises.
+ * Source uploads live in memory. Completed outputs are saved separately in browser
+ * history; opening a saved result never restores source uploads or starts provider work.
  */
 
 import type { AnalyzeResponse, TryOnResponse } from '@yincol/shared';
@@ -36,21 +35,11 @@ export type CapturedPortrait = CapturedImage;
 
 /** Which axis the results workspace is showing. */
 export type CompareAxis = 'garments' | 'makeup';
-export type ResultView = 'closeup' | 'fullBody';
 export interface FullBodyInputs {
   readonly enabled: boolean;
   readonly portrait: CapturedImage | null;
   readonly trousers: CapturedImage | null;
 }
-
-/**
- * The two panels on the makeup axis.
- *
- * Not `bare` and `madeUp` any more: the makeup step now runs on the garment result, so
- * the honest comparison is the same garment with and without it. The bare portrait is
- * still on screen, but it is not one of the two things being compared.
- */
-export type MakeupChoice = 'garmentOnly' | 'completeLook';
 
 export interface SessionState {
   readonly step: Step;
@@ -64,15 +53,9 @@ export interface SessionState {
   readonly garmentIds: readonly string[];
   readonly makeupLookId: string | null;
   readonly fullBody: FullBodyInputs;
-  readonly resultView: ResultView;
-  readonly fullBodyKeptGarmentIds: readonly string[];
-  readonly fullBodyKeptMakeupWinners: readonly MakeupChoice[];
   readonly analysis: AnalyzeResponse | null;
   readonly tryOn: TryOnResponse | null;
   readonly axis: CompareAxis;
-  /** Items the user kept in the current comparison; more than one may be kept. */
-  readonly keptGarmentIds: readonly string[];
-  readonly keptMakeupWinners: readonly MakeupChoice[];
   readonly error: string | null;
   /** Distinguishes "no face" from a generic failure, so the copy can differ. */
   readonly errorCode: 'noFace' | 'general' | null;
@@ -87,24 +70,19 @@ export const initialState: SessionState = {
   garmentIds: [],
   makeupLookId: null,
   fullBody: { enabled: false, portrait: null, trousers: null },
-  resultView: 'closeup',
-  fullBodyKeptGarmentIds: [],
-  fullBodyKeptMakeupWinners: [],
   analysis: null,
   tryOn: null,
   axis: 'garments',
-  keptGarmentIds: [],
-  keptMakeupWinners: [],
   error: null,
   errorCode: null,
   busy: false,
 };
 
 export type SessionAction =
+  | { type: 'restoreGeneration'; analysis: AnalyzeResponse; tryOn: TryOnResponse; garmentIds: readonly string[]; makeupLookId: string | null }
   | { type: 'giveConsent' }
   | { type: 'enableFullBody'; enabled: boolean }
   | { type: 'setFullBodyInput'; slot: 'portrait' | 'trousers'; image: CapturedImage | null }
-  | { type: 'setResultView'; view: ResultView }
   | { type: 'goTo'; step: Step }
   | { type: 'setPortrait'; portrait: CapturedPortrait }
   | { type: 'clearPortrait' }
@@ -116,8 +94,6 @@ export type SessionAction =
   | { type: 'analysisReady'; analysis: AnalyzeResponse }
   | { type: 'tryOnReady'; tryOn: TryOnResponse }
   | { type: 'setAxis'; axis: CompareAxis }
-  | { type: 'toggleGarmentKept'; garmentId: string }
-  | { type: 'toggleMakeupKept'; winner: MakeupChoice }
   | { type: 'failed'; message: string; code?: 'noFace' | 'general' }
   | { type: 'dismissError' }
   | { type: 'startOver' };
@@ -130,14 +106,23 @@ export const inputsComplete = (state: SessionState): boolean =>
   state.makeupLookId !== null &&
   (!state.fullBody.enabled || (state.fullBody.portrait !== null && state.fullBody.trousers !== null));
 
+// Valid only for actions that represent an actual input change (a new portrait, garment,
+// makeup pick, or full-body toggle) — those really do invalidate any previous result.
+// `analysisStarted` must NOT spread this: it fires on every Generate click regardless of
+// whether inputs changed, and wiping the result there discarded it even when a
+// cached/saved result for the same inputs was about to be reused.
 const clearedResults = {
-  analysis: null, tryOn: null, keptGarmentIds: [], keptMakeupWinners: [],
-  fullBodyKeptGarmentIds: [], fullBodyKeptMakeupWinners: [],
-  resultView: 'closeup' as const, error: null, errorCode: null,
+  analysis: null, tryOn: null, error: null, errorCode: null,
 };
 
 export function sessionReducer(state: SessionState, action: SessionAction): SessionState {
   switch (action.type) {
+    case 'restoreGeneration':
+      return { ...initialState, consentGiven: state.consentGiven, step: 'results',
+        analysis: action.analysis, tryOn: action.tryOn, garmentIds: action.garmentIds,
+        makeupLookId: action.makeupLookId,
+        fullBody: { enabled: Boolean(action.tryOn.fullBody), portrait: null, trousers: null } };
+
     case 'giveConsent':
       return { ...state, consentGiven: true };
 
@@ -150,8 +135,6 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         : { enabled: false, portrait: null, trousers: null } };
     case 'setFullBodyInput':
       return { ...state, ...clearedResults, fullBody: { ...state.fullBody, [action.slot]: action.image } };
-    case 'setResultView':
-      return { ...state, resultView: action.view === 'fullBody' && !state.tryOn?.fullBody ? 'closeup' : action.view };
     case 'setPortrait':
       return {
         ...state,
@@ -161,8 +144,8 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
 
     case 'clearPortrait':
       // One-tap delete, as promised on every screen showing the portrait. It clears the
-      // analysis AND any kept options — they were derived from this face, so keeping
-      // either would make the delete a gesture rather than a deletion.
+      // analysis too — it was derived from this face, so keeping it would make the delete
+      // a gesture rather than a deletion.
       return {
         ...initialState,
         consentGiven: state.consentGiven,
@@ -209,52 +192,17 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
       };
 
     case 'analysisStarted':
-      return { ...state, ...clearedResults, busy: true, step: 'generate' };
+      return { ...state, analysis: null, tryOn: null, error: null, errorCode: null,
+        busy: true, step: 'generate' };
 
     case 'analysisReady':
       return { ...state, analysis: action.analysis };
 
     case 'tryOnReady':
-      return { ...state, tryOn: action.tryOn, busy: false, axis: 'garments',
-        resultView: action.tryOn.fullBody ? 'fullBody' : 'closeup' };
+      return { ...state, tryOn: action.tryOn, busy: false, axis: 'garments' };
 
     case 'setAxis':
-      // A comparison opens on the view best suited to its task. Explicit view changes
-      // remain available, and no generated data or kept choices are changed here.
-      return { ...state, axis: action.axis,
-        resultView: action.axis === 'garments' && state.tryOn?.fullBody ? 'fullBody' : 'closeup' };
-
-    case 'toggleGarmentKept': {
-      if (state.resultView === 'fullBody') {
-        const kept = state.fullBodyKeptGarmentIds.includes(action.garmentId);
-        return { ...state, fullBodyKeptGarmentIds: kept
-          ? state.fullBodyKeptGarmentIds.filter(id => id !== action.garmentId)
-          : [...state.fullBodyKeptGarmentIds, action.garmentId] };
-      }
-      const kept = state.keptGarmentIds.includes(action.garmentId);
-      return {
-        ...state,
-        keptGarmentIds: kept
-          ? state.keptGarmentIds.filter((garmentId) => garmentId !== action.garmentId)
-          : [...state.keptGarmentIds, action.garmentId],
-      };
-    }
-
-    case 'toggleMakeupKept': {
-      if (state.resultView === 'fullBody') {
-        const kept = state.fullBodyKeptMakeupWinners.includes(action.winner);
-        return { ...state, fullBodyKeptMakeupWinners: kept
-          ? state.fullBodyKeptMakeupWinners.filter(id => id !== action.winner)
-          : [...state.fullBodyKeptMakeupWinners, action.winner] };
-      }
-      const kept = state.keptMakeupWinners.includes(action.winner);
-      return {
-        ...state,
-        keptMakeupWinners: kept
-          ? state.keptMakeupWinners.filter((winner) => winner !== action.winner)
-          : [...state.keptMakeupWinners, action.winner],
-      };
-    }
+      return { ...state, axis: action.axis };
 
     case 'failed':
       return { ...state, error: action.message, errorCode: action.code ?? 'general', busy: false };
@@ -263,8 +211,8 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
       return { ...state, error: null, errorCode: null };
 
     case 'startOver':
-      // A new look starts a new comparison session. The photograph and kept options do
-      // not cross that boundary.
+      // A new look starts a new comparison session. The photograph does not cross that
+      // boundary.
       return {
         ...initialState,
         consentGiven: state.consentGiven,

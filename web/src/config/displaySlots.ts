@@ -26,6 +26,11 @@ export const DISPLAY_SLOTS: Readonly<Record<DisplaySlotId, DisplaySlotConfig>> =
     caption: 'Portrait',
     emptyAlt: 'Portrait slot, no photograph yet',
   },
+  portraitMadeUp: {
+    id: 'portraitMadeUp',
+    caption: 'Portrait with makeup',
+    emptyAlt: 'Portrait-with-makeup slot, no photograph yet',
+  },
   garmentA: {
     id: 'garmentA',
     caption: 'Garment A',

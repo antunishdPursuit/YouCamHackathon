@@ -15,12 +15,17 @@ import { GARMENTS, MAKEUP_LOOKS } from '@yincol/shared';
 import { loadRootEnv } from './loadEnv.js';
 import { loadConfig, liveWasRequestedWithoutKey, TASK_PATH_VERIFIED } from './youcam/config.js';
 import { createRateLimiter } from './rateLimit.js';
-import { createRequestBodyParser } from './requestBody.js';
+import { createRequestBodyParser, requestBodyLimitBytes } from './requestBody.js';
+import { rejectOversizedContentLength } from './requestGuards.js';
 import { createCorsMiddleware } from './cors.js';
 import { analyzeRouter } from './routes/analyze.js';
 import { skinAnalysisRouter } from './routes/skinAnalysis.js';
 import { tryOnRouter } from './routes/tryOn.js';
+import { videoRouter } from './routes/video.js';
 import { logFailure } from './youcam/publicError.js';
+import { getBudgetStore } from './youcam/budgetStore.js';
+import { browserIdFrom } from './routes/budgetGate.js';
+import { asyncRoute } from './routes/asyncRoute.js';
 
 loadRootEnv();
 
@@ -52,7 +57,8 @@ if ((process.env['YINCOL_TRUST_PROXY'] ?? '').toLowerCase() === 'true') {
  * images become just under 67 MB as base64 JSON, and each is still rejected at or above
  * the provider's 10 MB limit before upload.
  */
-app.use(createRequestBodyParser(startupConfig));
+app.use(rejectOversizedContentLength(requestBodyLimitBytes(startupConfig)));
+
 
 /**
  * Two limits, because the two kinds of request cost different amounts.
@@ -65,6 +71,14 @@ const generalLimit = createRateLimiter({ windowMs: 60_000, max: 120 });
 const generationLimit = createRateLimiter({ windowMs: 60_000, max: 30 });
 
 app.use('/api', generalLimit);
+app.use(['/api/analyze', '/api/skin-analysis', '/api/try-on', '/api/video'], generationLimit);
+app.use(createRequestBodyParser(startupConfig));
+app.get('/api/budget', asyncRoute(async (req, res) => {
+  const store = getBudgetStore();
+  const status = store.availability ? await store.availability(browserIdFrom(req)) :
+    { available: false, siteRemaining: 0, browserRemaining: 0 };
+  res.set('Cache-Control', 'no-store').json(status);
+}));
 
 app.get('/api/health', (_req, res) => {
   const config = loadConfig();
@@ -77,6 +91,7 @@ app.get('/api/health', (_req, res) => {
     mode: config.fixtureMode ? 'fixture' : 'live',
     liveSkinAnalysis: config.liveSkinAnalysis,
     liveTryOn: config.liveTryOn,
+    liveVideo: config.liveVideo && TASK_PATH_VERIFIED.video,
     // Never echo the key itself, only whether one is present.
     hasApiKey: config.apiKey.length > 0,
     verifiedTaskPaths: TASK_PATH_VERIFIED,
@@ -96,11 +111,12 @@ app.get('/api/catalog', (_req, res) => {
  * past on its way to the one that answers, so a `/try-on` call would spend three of its
  * own budget and an unmatched `/api` path would spend three of someone else's.
  */
-app.use(['/api/analyze', '/api/skin-analysis', '/api/try-on'], generationLimit);
+
 
 app.use('/api', analyzeRouter);
 app.use('/api', skinAnalysisRouter);
 app.use('/api', tryOnRouter);
+app.use('/api', videoRouter);
 
 /**
  * The built front end can still be served by this process for local or single-process

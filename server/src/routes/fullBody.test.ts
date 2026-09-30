@@ -5,6 +5,8 @@ import type { AddressInfo } from 'node:net';
 import { findMakeupLook, type TryOnResponse } from '@yincol/shared';
 import { loadConfig } from '../youcam/config.js';
 import { generateFullBodyLooks } from './fullBody.js';
+import { createAlwaysAvailableBudgetStore } from '../youcam/budget.js';
+import { setBudgetStoreForTests, resetBudgetStoreForTests } from '../youcam/budgetStore.js';
 import { tryOnRouter } from './tryOn.js';
 
 const provider = vi.hoisted(() => ({
@@ -45,11 +47,14 @@ beforeEach(() => {
     return { status: 'ready', image: { bytes, contentType: 'image/png' },
       result: { status: 'ready', imageUrl: 'data:image/png;base64,' + bytes.toString('base64'), alt: 'Mock test output' } };
   });
+  // These tests are about the provider call sequence, not the budget gate — force it open.
+  setBudgetStoreForTests(createAlwaysAvailableBudgetStore());
 });
 afterEach(async () => {
   if (server) await new Promise<void>(resolve => server!.close(() => resolve()));
   server = undefined;
   vi.restoreAllMocks(); vi.resetAllMocks(); vi.unstubAllEnvs();
+  resetBudgetStoreForTests();
 });
 async function post(body: unknown) {
   const app = express(); app.use(express.json()); app.use('/api', tryOnRouter);
@@ -106,7 +111,7 @@ describe('uploaded full-body sequence', () => {
   });
 });
 describe('full-body request boundary', () => {
-  it('passes current uploads through the route and retains both views', async () => {
+  it('generates only two full-body outfits and portrait makeup', async () => {
     const input = fullRequest();
     input.portrait.fileName = 'p'.repeat(300);
     const response = await post(input);
@@ -114,19 +119,22 @@ describe('full-body request boundary', () => {
     expect(provider.prepare.mock.calls.some(([source]) => source.fileName === 'p'.repeat(255))).toBe(true);
     expect(provider.prepare.mock.calls.every(([source]) => source.fileName.length <= 255)).toBe(true);
     const body = await response.json() as TryOnResponse;
-    expect(body.completeLooks[ids[0]!]!.stage).toBe('completeLook');
+    expect(body.completeLooks).toEqual({});
+    expect(body.portraitMadeUp?.result.status).toBe('ready');
     expect(body.fullBody!.completeLooks[ids[1]!]!.stage).toBe('completeLook');
-    expect(provider.run).toHaveBeenCalledTimes(9); // 4 close-up + 5 full-body tasks
+    expect(body.portraitMadeUp!.stage).toBe('portraitMakeup');
+    expect(provider.run).toHaveBeenCalledTimes(6); // 5 full-body + 1 portrait-makeup task
     expect(response.headers.get('cache-control')).toBe('private, no-store');
   });
-  it('preserves close-up results when the trousers task fails', async () => {
+  it('preserves portrait makeup when the trousers task fails', async () => {
     provider.run.mockImplementation(async (_c, feature, payload) => {
       if (payload.garment_category === 'lower_body') throw new Error('trousers failed');
       return { taskId: 'test', raw: { feature: feature.id, payload } };
     });
     const response = await post(fullRequest());
     const body = await response.json() as TryOnResponse;
-    expect(body.completeLooks[ids[0]!]!.stage).toBe('completeLook');
+    expect(body.completeLooks).toEqual({});
+    expect(body.portraitMadeUp?.result.status).toBe('ready');
     expect(body.fullBody!.completeLooks[ids[0]!]!.result.status).toBe('failed');
   });
   it.each([null, {}, { portrait: image('full') }, { portrait: image('full'), trousers: { ...image('pants'), contentType: 'image/webp' } }])

@@ -24,6 +24,7 @@ export const FEATURES: Readonly<Record<FeatureId, TaskFeature>> = {
   skinAnalysis: feature('skinAnalysis', 'Skin analysis'),
   clothesVto: feature('clothesVto', 'Clothes try-on'),
   makeupVto: feature('makeupVto', 'Makeup virtual try-on'),
+  video: feature('video', 'Video generation'),
 };
 
 export const isTaskPathVerified = (id: FeatureId): boolean => TASK_PATH_VERIFIED[id];
@@ -86,6 +87,13 @@ export const buildMakeupVtoPayload = (
  * Convert the app's chosen look into the documented Makeup VTO effects shape. The
  * browser still receives only the app-level look and chips; vendor fields stay here.
  */
+/** Official V2 image-to-video contract: five seconds, 720p. See docs/pr15-followup.md. */
+export const buildVideoPayload = (source: ImageReference): unknown => ({
+  ...imageField(source),
+  dst_duration: 5,
+  resolution: '720',
+});
+
 export const makeupEffectsForLook = (
   look: Pick<MakeupLook, 'chips'>,
 ): readonly MakeupEffect[] => [

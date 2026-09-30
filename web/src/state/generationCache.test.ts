@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { generationCacheKey, writeGenerationCache, readGenerationCache, clearGenerationCache, type CachedGeneration } from './generationCache.js';
+import { buildPaletteFromReading, hexToLab } from '@yincol/shared';
 import type { CapturedImage } from './session.js';
 
 const input = (name: string): CapturedImage => ({
@@ -50,4 +51,26 @@ describe('full-body cache ownership', () => {
     clearGenerationCache();
     expect(readGenerationCache('large')).toBeNull();
   });
+});
+
+it('matches actual file bytes rather than file names or file metadata', async () => {
+  const original = { ...images, liveTryOn: true, liveSkinAnalysis: false };
+  const sameBytes = { ...images.portrait, file: new File([await images.portrait.file.arrayBuffer()], 'renamed.png', { type: 'image/png', lastModified: 55 }) };
+  expect(await generationCacheKey({ ...original, portrait: sameBytes })).toBe(await generationCacheKey(original));
+  const changed = { ...images.portrait, file: new File(['changed bytes with same metadata'], images.portrait.file.name, { type: 'image/png', lastModified: 1 }) };
+  expect(await generationCacheKey({ ...original, portrait: changed })).not.toBe(await generationCacheKey(original));
+  vi.stubGlobal('crypto', undefined);
+  expect(await generationCacheKey(original)).toBeNull();
+});
+
+it('never persists an echoed source portrait in the session cache', () => {
+  let stored = '';
+  vi.stubGlobal('sessionStorage', { setItem: (_key: string, value: string) => { stored = value; }, getItem: () => stored, removeItem: vi.fn() });
+  const cache = { key: 'source-privacy', savedAt: 1, analysis: { mode: 'fixture', palette: buildPaletteFromReading({ skin: hexToLab('#e0b492'), hair: hexToLab('#3b2a22') }) }, tryOn: { mode: 'live',
+    portrait: { provenance: 'live', result: { status: 'ready', imageUrl: 'private-source-bytes', alt: 'source' } },
+    garments: {}, completeLooks: { a: { provenance: 'live', result: { status: 'ready', imageUrl: 'generated-output-bytes', alt: 'output' } } },
+  } } as CachedGeneration;
+  expect(writeGenerationCache(cache)).toBe(true);
+  expect(stored).not.toContain('private-source-bytes');
+  expect(stored).toContain('generated-output-bytes');
 });

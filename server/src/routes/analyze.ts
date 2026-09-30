@@ -57,6 +57,10 @@ async function readSkinLive(portraitUrl: string): Promise<SkinAppearance> {
 analyzeRouter.post('/analyze', asyncRoute(async (req, res) => {
   const config = loadConfig();
   if (config.fixtureMode && rejectImageBytesInFixtureMode(req.body, res)) return;
+  if (!config.fixtureMode) {
+    res.status(503).json({ error: 'Live colour analysis is not verified. Use the example palette.' });
+    return;
+  }
   const rawRef = (req.body as { portraitRef?: unknown } | undefined)?.portraitRef;
   const portraitRef = typeof rawRef === 'string' ? rawRef : '';
 

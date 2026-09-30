@@ -3,6 +3,7 @@ import { MAKEUP_LOOKS } from '@yincol/shared';
 import {
   buildClothesVtoPayload,
   buildMakeupVtoPayload,
+  buildVideoPayload,
   makeupEffectsForLook,
 } from './features.js';
 import type { ImageReference } from './imageInput.js';
@@ -49,5 +50,13 @@ describe('current non-Skin YouCam payloads', () => {
       'blush',
       'lip_color',
     ]);
+  });
+
+  it('builds an unverified video payload with the source image field only', () => {
+    expect(buildVideoPayload(portrait)).toEqual({
+      src_file_url: 'https://example.com/portrait.jpg',
+      dst_duration: 5,
+      resolution: '720',
+    });
   });
 });

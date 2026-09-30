@@ -31,7 +31,10 @@ import {
 } from '../youcam/imageInput.js';
 import { logFailure, publicFailureReason } from '../youcam/publicError.js';
 import { tryOnFailure } from '../youcam/adapters/tryOn.js';
-import { fixtureCompleteLook, fixtureDelay, resolveFixtureImage } from '../fixtures/index.js';
+import { fixtureCompleteLook, fixtureDelay, fixturePortraitMakeup, resolveFixtureImage } from '../fixtures/index.js';
+import { runPortraitMakeupSequence } from '../youcam/portraitMakeup.js';
+import { estimateUnits } from '../youcam/budget.js';
+import { browserIdFrom, idempotencyKeyFor, reserveBudget, settleBudget } from './budgetGate.js';
 import { rejectImageBytesInFixtureMode } from './fixtureGuard.js';
 
 export const tryOnRouter = Router();
@@ -82,6 +85,18 @@ const failedOutcome = (reason: unknown): CompleteLookOutcome => ({
   garmentOnly: failedPanel(reason),
   completeLook: failedPanel(reason),
 });
+
+/** Whether at least one generated panel is usable — the budget outcome is 'success' if so,
+ * 'ambiguous' (charged, not refunded) otherwise. See budgetGate.ts for why never
+ * 'definitiveFailure' here. */
+const anyPanelReady = (response: TryOnResponse): boolean => {
+  const panels: (TryOnPanel | undefined)[] = [
+    ...Object.values(response.garments), ...Object.values(response.completeLooks),
+    response.portraitMadeUp,
+    ...(response.fullBody ? [...Object.values(response.fullBody.garments), ...Object.values(response.fullBody.completeLooks)] : []),
+  ];
+  return panels.some(panel => panel?.result.status === 'ready');
+};
 
 tryOnRouter.post('/try-on', asyncRoute(async (req, res) => {
   const config = loadConfig();
@@ -139,6 +154,7 @@ tryOnRouter.post('/try-on', asyncRoute(async (req, res) => {
       garments,
       completeLooks,
       portrait: { result: portraitImage.result, provenance: portraitImage.provenance },
+      portraitMadeUp: fixturePortraitMakeup(look?.name ?? 'chosen'),
       mode: 'fixture',
     };
     res.json(response);
@@ -196,14 +212,29 @@ tryOnRouter.post('/try-on', asyncRoute(async (req, res) => {
     }
   }
 
+  // Reserve the full estimated cost before any provider call — no reservation, no
+  // provider call, in every branch below.
+  const browserId = browserIdFrom(req);
+  const estimatedUnits = estimateUnits({ hasFullBody: Boolean(fullBody), hasSkinAnalysis: false });
+  const idempotencyKey = idempotencyKeyFor([
+    browserId, portrait.bytes, ...garmentIds.map(id => garmentImages[id]?.bytes ?? Buffer.alloc(0)),
+    makeupLookId, ...(fullBody ? [fullBody.portrait.bytes, fullBody.trousers.bytes] : []),
+  ]);
+  const reservationId = await reserveBudget(res, browserId, estimatedUnits, idempotencyKey);
+  if (!reservationId) return; // reserveBudget already wrote the response.
+
   const fullBodyPromise = fullBody ? generateFullBodyLooks({
     config, ...fullBody, garmentIds, garmentImages, look,
   }) : undefined;
 
+  // Runs alongside the garment sequences, not blocking or blocked by them — one more
+  // independent failure mode, isolated the same way a second garment's failure is.
+  const portraitMadeUpPromise = runPortraitMakeupSequence({ config, portrait, look });
+
   // Each garment runs the full sequence on its own. Nothing is shared between them, so
   // one garment's failure cannot reach the other's result.
   const settled = await Promise.allSettled(
-    garmentIds.map(async (garmentId): Promise<CompleteLookOutcome> => {
+    (fullBody ? [] : garmentIds).map(async (garmentId): Promise<CompleteLookOutcome> => {
       const garment = findGarment(garmentId);
       if (!garment) return failedOutcome(new Error(`Unknown garment "${garmentId}".`));
 
@@ -237,7 +268,7 @@ tryOnRouter.post('/try-on', asyncRoute(async (req, res) => {
   const garments: Record<string, TryOnPanel> = {};
   const completeLooks: Record<string, TryOnPanel> = {};
 
-  garmentIds.forEach((garmentId, index) => {
+  (fullBody ? [] : garmentIds).forEach((garmentId, index) => {
     const outcome = settled[index];
     // The only path here that is not already a handled panel: an upload or an unexpected
     // throw. The detail stays on the console; the browser gets the sentence.
@@ -256,8 +287,11 @@ tryOnRouter.post('/try-on', asyncRoute(async (req, res) => {
       result: { status: 'ready', imageUrl: imageDataUrl(portrait), alt: 'Your portrait, bare face' },
       provenance: 'live',
     },
+    portraitMadeUp: await portraitMadeUpPromise,
     mode: 'live',
     ...(fullBodyPromise ? { fullBody: await fullBodyPromise } : {}),
   };
+
+  await settleBudget(reservationId, anyPanelReady(response) ? 'success' : 'ambiguous');
   res.set('Cache-Control', 'private, no-store').json(response);
 }));

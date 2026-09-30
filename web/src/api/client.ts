@@ -18,9 +18,12 @@ import type {
   TryOnImageInput,
   TryOnRequest,
   TryOnResponse,
+  VideoRequest,
+  VideoResponse,
 } from '@yincol/shared';
 import { IMAGE_SPEC } from '@yincol/shared';
 import type { CapturedImage, CapturedPortrait, FullBodyInputs } from '../state/session.js';
+import { getOrCreateBrowserId } from '../state/browserId.js';
 
 /**
  * Static deployments set the API origin at build time. Keeping the default relative
@@ -28,6 +31,13 @@ import type { CapturedImage, CapturedPortrait, FullBodyInputs } from '../state/s
  */
 const API_ORIGIN = (import.meta.env.VITE_API_URL ?? '').trim().replace(/\/+$/, '');
 const API_BASE = API_ORIGIN ? `${API_ORIGIN}/api` : '/api';
+
+export async function requestBudgetAvailability(signal?: AbortSignal): Promise<{ available: boolean; siteRemaining: number; browserRemaining: number }> {
+  const response = await fetch(`${API_BASE}/budget`, { signal, cache: 'no-store',
+    headers: { 'X-Yincol-Browser-Id': getOrCreateBrowserId() } });
+  if (!response.ok) throw new Error('Live availability is unavailable.');
+  return response.json();
+}
 
 /**
  * A failure the UI can branch on.
@@ -49,7 +59,10 @@ export class ApiError extends Error {
 async function post<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    // The browser id is a fairness heuristic for the server's shared unit budget, not a
+    // credential — see browserId.ts. Attaching it on every call (not only the paid ones)
+    // keeps this one call site the single source of truth for the header's name.
+    headers: { 'Content-Type': 'application/json', 'X-Yincol-Browser-Id': getOrCreateBrowserId() },
     body: JSON.stringify(body),
   });
 
@@ -76,6 +89,7 @@ export const requestAnalysis = (portraitRef: string): Promise<AnalyzeResponse> =
  * while a browser tab and its saved results remain open.
  */
 export interface RuntimeMode {
+  readonly liveVideo?: boolean;
   readonly fullBodyTryOn: boolean;
   readonly liveSkinAnalysis: boolean;
   readonly liveTryOn: boolean;
@@ -93,6 +107,7 @@ async function readRuntimeMode(signal?: AbortSignal): Promise<RuntimeMode> {
   const body = (await response.json()) as Partial<RuntimeMode>;
   // Explicit `=== true`, so a missing or malformed field reads as off rather than truthy.
   return {
+    liveVideo: body.liveVideo === true,
     liveSkinAnalysis: body.liveSkinAnalysis === true,
     liveTryOn: body.liveTryOn === true,
     fullBodyTryOn: body.fullBodyTryOn === true,
@@ -226,4 +241,26 @@ export async function requestTryOn({
   };
 
   return post<TryOnResponse>('/try-on', body);
+}
+
+/**
+ * `imageUrl` is the exact `imageUrl` string already on the completed panel (a `data:` URL
+ * or a `/fixtures/...` path) — see shared's `VideoRequest` for why nothing is re-derived.
+ */
+export async function requestVideo(imageUrl: string): Promise<VideoResponse> {
+  if (imageUrl.startsWith('blob:')) {
+    const response = await fetch(imageUrl);
+    if (!response.ok) throw new Error('The saved image is unavailable.');
+    const blob = await response.blob();
+    if (!['image/png', 'image/jpeg'].includes(blob.type) || !blob.size || blob.size >= 10_000_000) {
+      throw new Error('Video requires a saved JPEG or PNG smaller than 10 MB.');
+    }
+    imageUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(new Error('Could not read the saved image.'));
+      reader.readAsDataURL(blob);
+    });
+  }
+  return post<VideoResponse>('/video', { imageUrl } satisfies VideoRequest);
 }

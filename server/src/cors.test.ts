@@ -61,7 +61,7 @@ describe('createCorsMiddleware', () => {
     expect(res.headers).toEqual({
       'Access-Control-Allow-Origin': 'https://static.example',
       'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Headers': 'Content-Type,X-Yincol-Browser-Id',
       'Access-Control-Max-Age': '600',
       Vary: 'Origin',
     });
@@ -73,6 +73,7 @@ describe('createCorsMiddleware', () => {
     expect(next).not.toHaveBeenCalled();
     expect(res.statusCode).toBe(204);
     expect(res.ended).toBe(true);
+    expect(res.headers['Access-Control-Allow-Headers']?.toLowerCase().split(',')).toEqual(['content-type', 'x-yincol-browser-id']);
   });
 
   it('rejects a different browser origin without revealing route details', () => {

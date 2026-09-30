@@ -1,10 +1,12 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
 import type { TryOnResponse } from '@yincol/shared';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { loadConfig } from '../youcam/config.js';
 import { createRequestBodyParser } from '../requestBody.js';
+import { createAlwaysAvailableBudgetStore } from '../youcam/budget.js';
+import { setBudgetStoreForTests, resetBudgetStoreForTests } from '../youcam/budgetStore.js';
 import { tryOnRouter } from './tryOn.js';
 
 const provider = vi.hoisted(() => ({
@@ -13,19 +15,30 @@ const provider = vi.hoisted(() => ({
     garmentOnly: { result: { status: 'ready', imageUrl: 'data:image/png;base64,AAAA', alt: 'Mock garment' }, provenance: 'live', stage: 'garmentOnly' },
     completeLook: { result: { status: 'ready', imageUrl: 'data:image/png;base64,BBBB', alt: 'Mock complete look' }, provenance: 'live', stage: 'completeLook' },
   })),
+  portraitMakeup: vi.fn(async () => ({
+    result: { status: 'ready', imageUrl: 'data:image/png;base64,CCCC', alt: 'Mock portrait makeup' },
+    provenance: 'live', stage: 'portraitMakeup',
+  })),
 }));
 vi.mock('../youcam/imageInput.js', async original => ({
   ...await original<typeof import('../youcam/imageInput.js')>(),
   fileUploadStrategy: { prepare: provider.prepare },
 }));
 vi.mock('../youcam/completeLook.js', () => ({ runCompleteLookSequence: provider.sequence }));
+vi.mock('../youcam/portraitMakeup.js', () => ({ runPortraitMakeupSequence: provider.portraitMakeup }));
 
 let server: Server | undefined;
+beforeEach(() => {
+  // These tests are about upload/sequence wiring, not the budget gate — force it open so
+  // a live request always gets past it. budget.test.ts covers the gate itself.
+  setBudgetStoreForTests(createAlwaysAvailableBudgetStore());
+});
 afterEach(async () => {
   if (server) await new Promise<void>((resolve, reject) => server!.close(e => e ? reject(e) : resolve()));
   server = undefined;
   vi.unstubAllEnvs();
   vi.clearAllMocks();
+  resetBudgetStoreForTests();
 });
 async function start(liveTryOn: boolean, liveSkinAnalysis = false, key = 'test-key') {
   vi.stubEnv('YINCOL_FIXTURE_MODE', 'true');
@@ -61,12 +74,14 @@ describe('live uploads while palette mode remains fixture', () => {
     expect(result.mode).toBe('live');
     expect(provider.prepare).toHaveBeenCalledTimes(4);
     expect(provider.sequence).toHaveBeenCalledTimes(2);
+    expect(provider.portraitMakeup).toHaveBeenCalledTimes(1);
     for (const [request] of provider.sequence.mock.calls) {
       expect(request.look.id).toBe('champagne-halo');
     }
     for (const id of body.garmentIds) {
       expect(result.completeLooks[id]).toMatchObject({ provenance: 'live', stage: 'completeLook', result: { status: 'ready' } });
     }
+    expect(result.portraitMadeUp).toMatchObject({ provenance: 'live', stage: 'portraitMakeup', result: { status: 'ready' } });
   });
   it('keeps the small request limit in fixture-only mode', async () => {
     const origin = await start(false);
@@ -84,3 +99,46 @@ describe('live uploads while palette mode remains fixture', () => {
     expect(provider.prepare).not.toHaveBeenCalled();
   });
 });
+
+describe('the budget gate', () => {
+  it('refuses live work when no budget store is configured, without calling the provider', async () => {
+    resetBudgetStoreForTests(); // undo this file's default always-available override
+    const origin = await start(true);
+    const response = await post(origin + '/api/try-on');
+    expect(response.status).toBe(503);
+    expect(provider.prepare).not.toHaveBeenCalled();
+  });
+
+  it('rejects once the site cap is exhausted, without calling the provider', async () => {
+    const { createBudgetStore } = await import('../youcam/budget.js');
+    setBudgetStoreForTests(createBudgetStore(fakeRedis(), { siteDailyUnitCap: 1, browserWindowUnitCap: 100 }));
+    const origin = await start(true);
+    const response = await post(origin + '/api/try-on');
+    expect(response.status).toBe(429);
+    expect(provider.prepare).not.toHaveBeenCalled();
+  });
+
+  it('rejects an identical resubmission as a duplicate, calling the provider at most once', async () => {
+    const { createBudgetStore } = await import('../youcam/budget.js');
+    setBudgetStoreForTests(createBudgetStore(fakeRedis(), { siteDailyUnitCap: 1000, browserWindowUnitCap: 1000 }));
+    const origin = await start(true);
+    const [first, second] = await Promise.all([post(origin + '/api/try-on'), post(origin + '/api/try-on')]);
+    const statuses = [first.status, second.status].sort();
+    expect(statuses).toEqual([200, 409]);
+    expect(provider.sequence).toHaveBeenCalledTimes(2); // one request's two garments, not four
+  });
+});
+
+/** A minimal, honest in-memory stand-in for the Redis commands `budget.ts` issues — the
+ * same shape `budget.test.ts` exercises in depth; this file only needs it to get a real
+ * `createBudgetStore` past its gate for these route-level tests. */
+function fakeRedis() {
+  let raw: string | null = JSON.stringify({ version: 2, readyAt: 0, charges: [], seen: {} });
+  return {
+    async get() { return raw; },
+    async eval(_script: string, _count: number, ...args: string[]) {
+      if ((raw ?? '') !== args[1]) return 0;
+      raw = args[2]!; return 1;
+    },
+  };
+}

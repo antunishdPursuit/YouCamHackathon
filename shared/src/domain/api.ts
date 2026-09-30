@@ -6,7 +6,7 @@
  * and Perfect Corp's JSON.
  */
 
-import type { Palette, SkinAppearance, TryOnResult } from './types.js';
+import type { Palette, SkinAppearance, TryOnResult, VideoResult } from './types.js';
 
 /** Where an image on screen came from. Rendered as the provenance note. */
 export type Provenance =
@@ -84,8 +84,12 @@ export interface TryOnRequest {
  * point where the makeup task was handed the garment task's returned image — and the UI
  * is only allowed to use the words "complete look" where it is present. Anything else
  * would be describing a picture as something it is not.
+ *
+ * `portraitMakeup` is a third, separate case: the makeup task ran directly on the bare
+ * portrait, with no garment task involved at all. It is neither a garment-only preview nor
+ * a complete look, so it gets its own value rather than being folded into either.
  */
-export type LookStage = 'garmentOnly' | 'completeLook';
+export type LookStage = 'garmentOnly' | 'completeLook' | 'portraitMakeup';
 
 export interface TryOnPanel {
   readonly result: TryOnResult;
@@ -104,6 +108,12 @@ export interface TryOnView {
    */
   readonly completeLooks: Readonly<Record<string, TryOnPanel>>;
   readonly portrait: TryOnPanel;
+  /**
+   * The bare portrait with makeup applied directly, no garment change. Optional because
+   * `fullBody` extends `Omit<TryOnView, 'portrait'>` and the full-body flow has no bare
+   * portrait to run this comparison against.
+   */
+  readonly portraitMadeUp?: TryOnPanel;
   readonly mode: 'fixture' | 'live';
 }
 
@@ -125,4 +135,24 @@ export interface ApiErrorBody {
   readonly error: string;
   /** Lets the browser branch on the one failure that needs its own screen. */
   readonly code?: 'noFace' | 'colorToneFailed' | 'general';
+}
+
+/**
+ * A per-result video request. `imageUrl` is the exact `imageUrl` string of the completed
+ * panel this video is for — either a `/fixtures/...` path (fixture mode, matched against
+ * the one shipped sample) or a `data:` URL (a live or reopened-from-history result). This
+ * reuses the same string the browser already has rather than asking it to re-derive one.
+ */
+export interface VideoRequest {
+  readonly imageUrl: string;
+}
+
+export interface VideoPanel {
+  readonly result: VideoResult;
+  readonly provenance: Provenance;
+}
+
+export interface VideoResponse {
+  readonly video: VideoPanel;
+  readonly mode: 'fixture' | 'live';
 }

@@ -8,92 +8,8 @@
 
 import { SectionHeading, YincolCard } from '../components/ornament.js';
 import { Button } from '../components/controls.js';
-import { findMakeupLook } from '@yincol/shared';
-import type { MakeupChoice } from '../state/session.js';
+import type { ReactNode } from 'react';
 import { storageSentence } from '../config/privacyCopy.js';
-
-/**
- * The kept-options shelf.
- *
- * Empty is the normal state, not a failure — there is no database, so a new visitor
- * always starts here. It stays visible as a compact session shelf so a returning user
- * can find kept options without searching through the page.
- */
-function KeptLooks({
-  garmentIds,
-  keptGarmentIds,
-  keptMakeupWinners,
-  fullBodyKeptGarmentIds,
-  fullBodyKeptMakeupWinners,
-  makeupLookId,
-  className = '',
-}: {
-  garmentIds: readonly string[];
-  keptGarmentIds: readonly string[];
-  keptMakeupWinners: readonly MakeupChoice[];
-  fullBodyKeptGarmentIds: readonly string[];
-  fullBodyKeptMakeupWinners: readonly MakeupChoice[];
-  makeupLookId: string | null;
-  className?: string;
-}) {
-  const keptOptions = [
-    { view: 'Close-up', garmentIds: keptGarmentIds, makeupWinners: keptMakeupWinners },
-    { view: 'Full body', garmentIds: fullBodyKeptGarmentIds, makeupWinners: fullBodyKeptMakeupWinners },
-  ].flatMap(({ view, garmentIds: keptIds, makeupWinners }) => [
-    ...keptIds.map((garmentId) => {
-      const index = garmentIds.indexOf(garmentId);
-      const garment = index === 0 ? 'Garment A' : index === 1 ? 'Garment B' : 'Garment option';
-      return { id: `${view}:garment:${garmentId}`, label: `${view} · ${garment}` };
-    }),
-    ...makeupWinners.map((winner) => ({
-      id: `${view}:makeup:${winner}`,
-      label: `${view} · ${winner === 'garmentOnly'
-        ? 'Garment without makeup'
-        : `Complete look — ${(makeupLookId ? findMakeupLook(makeupLookId)?.name : undefined) ?? 'makeup'}`}`,
-    })),
-  ]);
-
-  return (
-    <YincolCard
-      aria-labelledby="kept-heading"
-      className={`p-6 ${className}`}
-    >
-      <h3 id="kept-heading" className="font-display text-2xl text-ink">
-        Looks kept
-      </h3>
-
-      {keptOptions.length === 0 ? (
-        <div className="mt-6 rounded-card border border-dashed border-gold/50 px-4 py-8 text-center">
-          <svg viewBox="0 0 60 60" aria-hidden="true" className="mx-auto h-10 w-10 text-gold">
-            <path
-              d="M 14 46 L 14 22 a 16 16 0 0 1 32 0 L 46 46 Z"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-            />
-            <circle cx="30" cy="18" r="2.4" fill="currentColor" opacity="0.6" />
-          </svg>
-          <p className="mt-2 text-base text-ink">Nothing kept yet.</p>
-          <p className="mt-1 text-sm text-ink-soft">Keep an option and it will appear here while this tab stays open.</p>
-        </div>
-      ) : (
-        <ul className="mt-5 space-y-3">
-          {keptOptions.map((option) => (
-            <li
-              key={option.id}
-              className="flex items-center gap-3 rounded-card border border-gold/40 bg-surface px-4 py-3"
-            >
-              <span aria-hidden="true" className="text-gold">✓</span>
-              <span className="flex-1 text-sm text-ink">
-                {option.label}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </YincolCard>
-  );
-}
 
 function WhatYouGet() {
   return (
@@ -112,7 +28,7 @@ function WhatYouGet() {
         </li>
         <li className="flex gap-3">
           <span aria-hidden="true" className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gold" />
-          Options you can keep individually for this session.
+          Completed previews saved on this browser to revisit and download.
         </li>
       </ul>
     </YincolCard>
@@ -139,13 +55,13 @@ function ComparisonGuide() {
         </div>
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
           <span className="rounded-card border border-gold/40 px-3 py-3 text-center text-ink">Garment A</span>
-          <span aria-hidden="true" className="text-gold">or both</span>
+          <span aria-hidden="true" className="text-gold">vs</span>
           <span className="rounded-card border border-gold/40 px-3 py-3 text-center text-ink">Garment B</span>
         </div>
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-          <span className="rounded-card border border-gold/40 px-3 py-3 text-center text-ink">Without makeup</span>
-          <span aria-hidden="true" className="text-gold">or both</span>
-          <span className="rounded-card border border-gold/40 px-3 py-3 text-center text-ink">Complete look</span>
+          <span className="rounded-card border border-gold/40 px-3 py-3 text-center text-ink">Original portrait</span>
+          <span aria-hidden="true" className="text-gold">vs</span>
+          <span className="rounded-card border border-gold/40 px-3 py-3 text-center text-ink">With makeup</span>
         </div>
       </div>
 
@@ -154,24 +70,16 @@ function ComparisonGuide() {
 }
 
 export function IntroScreen({
-  onBegin,
+  onBeginDemo,
+  onBeginLive,
   resuming,
-  garmentIds,
-  keptGarmentIds,
-  keptMakeupWinners,
-  fullBodyKeptGarmentIds,
-  fullBodyKeptMakeupWinners,
-  makeupLookId,
+  previousLooks,
   imagesLeaveTab,
 }: {
-  onBegin: () => void;
+  onBeginDemo: () => void;
+  onBeginLive: () => void;
   resuming: boolean;
-  garmentIds: readonly string[];
-  keptGarmentIds: readonly string[];
-  keptMakeupWinners: readonly MakeupChoice[];
-  fullBodyKeptGarmentIds: readonly string[];
-  fullBodyKeptMakeupWinners: readonly MakeupChoice[];
-  makeupLookId: string | null;
+  previousLooks: ReactNode;
   imagesLeaveTab: boolean | null;
 }) {
   return (
@@ -193,9 +101,8 @@ export function IntroScreen({
             Before we begin
           </SectionHeading>
           <p className="mt-3 text-lg text-ink-soft">
-            {imagesLeaveTab === false
-              ? 'Try the comparison with saved demo results.'
-              : 'Add one portrait and two garment references. Each result will identify whether it is a saved demo or generated from your uploads.'}
+            Try the demo for saved example results with no upload, or add your own photos.
+            Each result identifies whether it is a saved demo or generated from your uploads.
           </p>
           <dl className="mt-5 space-y-4 text-base">
             <div>
@@ -215,8 +122,8 @@ export function IntroScreen({
             <div>
               <dt className="font-semibold text-ink">Deleting it</dt>
               <dd className="text-ink-soft">
-                Use “Remove photo and results” wherever your photograph appears to clear
-                it and its results from this session.
+                Use “Remove photos and saved results” wherever your photograph appears to clear
+                your current inputs and all saved looks from this browser. You can also delete individual looks from Previous looks.
               </dd>
             </div>
           </dl>
@@ -226,9 +133,14 @@ export function IntroScreen({
             assessment and makes no claims about your skin.
           </p>
 
-          <Button className="mt-6 w-full" onClick={onBegin}>
-            {resuming ? 'Continue with your inputs' : 'Start with a photo'}
-          </Button>
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <Button variant="quiet" className="w-full sm:w-auto" onClick={onBeginDemo}>
+              Try the demo
+            </Button>
+            <Button className="w-full sm:w-auto" onClick={onBeginLive}>
+              {resuming ? 'Continue with your inputs' : 'Try your photos'}
+            </Button>
+          </div>
     </YincolCard>
 
         <aside
@@ -239,15 +151,7 @@ export function IntroScreen({
           <ComparisonGuide />
         </aside>
 
-        <KeptLooks
-          garmentIds={garmentIds}
-          keptGarmentIds={keptGarmentIds}
-          keptMakeupWinners={keptMakeupWinners}
-          fullBodyKeptGarmentIds={fullBodyKeptGarmentIds}
-          fullBodyKeptMakeupWinners={fullBodyKeptMakeupWinners}
-          makeupLookId={makeupLookId}
-          className="xl:col-start-1 xl:row-start-1"
-        />
+        {previousLooks}
       </div>
     </div>
   );

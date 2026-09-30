@@ -1,5 +1,157 @@
 # Verification record
 
+## September 29, 2026 — PR #15 review fixes
+
+See [follow-up verification](pr15-followup.md#verification--验证) for current evidence and remaining release gates. Earlier sections below record prior trees and are historical, including their former gaps and test totals.
+
+最新验证与发布门槛见上述中英说明；下方旧树记录不代表当前实现。
+
+## Issue #12 — kept-choice fix, portrait makeup, simplified comparisons, demo/live split, unit budget, per-result video — locally verified
+
+Builds on the saved-history work below (PR #13, not yet merged at the time of this
+branch) rather than rebuilding it. Implements issue #12's steps 2–6; step 1
+(review #13) was explicitly not done by owner instruction — the scope
+clarification landed in #14 instead, and this branch proceeded on the
+requester's own decision to skip that review gate.
+
+在下方已合并/待合并的浏览器历史工作（PR #13）基础上继续，未重做。实现 #12 的第 2–6
+步；第 1 步（审核 #13）按仓库所有者的要求未执行——范围澄清改在 #14 完成，本分支按
+请求者自己的决定跳过了这个审核关卡。
+
+- **315 tests passed**: 72 shared, 184 server, 59 web. All three workspace
+  typechecks passed; production build succeeded (JS 226.65 kB / 71.96 kB gzip,
+  Vite 6.4.3 / Vitest 4.1.11 — installing this branch's one new dependency,
+  `ioredis`, incidentally brought `node_modules` in sync with versions
+  `package.json` already declared but the checkout had not actually installed;
+  this also fixed two previously-failing web tests that depended on a Vitest 4
+  matcher, not something this branch changed on purpose).
+- `npm run contrast-audit`: the same 4 documented gaps, no new failures.
+  `npm audit`: 0 vulnerabilities.
+- **Credit safety.** The local machine's root `.env` has a real API key with
+  both live flags on. The dev server for this verification was started with
+  the documented override (`YINCOL_FIXTURE_MODE=true
+  YINCOL_LIVE_SKIN_ANALYSIS=false YINCOL_LIVE_TRY_ON=false YINCOL_LIVE_VIDEO=false
+  YINCOL_API_KEY=`), confirmed via `/api/health`
+  (`"mode":"fixture","hasApiKey":false,"verifiedTaskPaths":{...,"video":false}`)
+  before anything was clicked. The server log was checked afterwards for
+  provider activity and had none. **No API units were spent producing this
+  record.**
+- **Manual browser walkthrough** (fixture mode, no key): Start now offers
+  "Try the demo" and "Try your photos" as separate actions. Demo jumps straight
+  to Results with zero `/api/analyze`/`/api/try-on`/`/api/skin-analysis` calls
+  (confirmed via the network log — only the pre-existing, unrelated background
+  health poll fired). Compare outfits and Compare makeup both render; the new
+  portrait/portrait-with-makeup panels show the designed placeholder, correctly
+  labelled, never claimed as captured. The per-image video action showed all
+  three states live: the Garment A card (the one image the legacy demo sample
+  matches) auto-played the existing clip via "Play motion"; the Garment B card
+  offered "Generate video (10 units)", and clicking it correctly returned
+  "Video failed — retry" rather than fabricating a clip, since fixture mode
+  only ever serves the one real sample. "Try your photos" reached Add inputs
+  without error. Mobile (375×812) showed no horizontal overflow on Start or
+  Results. No console errors on a fresh load (an earlier batch of transient
+  500s/WebSocket failures traced to this session's own dev-server restart, not
+  the application).
+- **Not verified, stated plainly:**
+  - No real paid provider call was made for the portrait-makeup live path or
+    for video, in this branch or ever. The video task path
+    (`VIDEO_GENERATOR_TASK_PATH`) remains an unverified guess; live video
+    cannot currently reach the provider at all regardless of
+    `YINCOL_LIVE_VIDEO`, because `video` has no entry in
+    `DOCUMENTED_FILE_PATHS` — confirmed by a dedicated test
+    (`imageInput.test.ts`), not merely asserted.
+  - `/api/skin-analysis`'s separate live path does not yet reserve budget
+    before its provider call — a real gap, not an oversight; flagged in the
+    commit that wires the budget into `/api/try-on`.
+  - The budget algorithm's Redis client (`redisClient.ts`) has never been
+    exercised against a real connection — nobody working on this has Render
+    access. `budget.ts`'s algorithm itself is thoroughly unit-tested against a
+    plain in-memory fake of the Redis commands it issues.
+  - No automatic refund path is wired yet: outcome reporting only ever
+    classifies a request as `'success'` or `'ambiguous'`, never
+    `'definitiveFailure'` (the only outcome `budget.ts` refunds), because none
+    of the existing sequences distinguish a clean vendor error from a timeout
+    in their return shape.
+  - A video generated for a brand-new, not-yet-reopened result plays for that
+    session but is not yet linked into its own saved-history entry.
+  - Render deployment, GitHub CI (none exists), and Sean/Dennis coordination on
+    the open decisions below were not attempted — this is local, code-side
+    work only, stopping at "ready for owner review."
+
+**Open decisions for the owner, not silently resolved** (full detail in the
+commit messages for the relevant changes):
+1. Eager (every generation) vs. lazy (on-demand) portrait-makeup call —
+   built eager, matching the README's already-documented "9 units" estimate.
+2. Adding `ioredis` as a new server dependency — the only one outside
+   `@yincol/shared`/`express`, in a codebase that has previously chosen to
+   write 30 lines rather than add a dependency for a similar problem
+   (`rateLimit.ts`).
+3. Atomicity is plain `INCRBY`/`DECRBY`, not a Lua script, because Render Key
+   Value's `EVAL` support is unconfirmed from here.
+4. Client-generated `localStorage` browser identity vs. IP, for the per-browser
+   fairness cap (not a security boundary either way).
+5. A fixed-window approximation of "rolling 24h," not a true sliding log.
+6. Whether `/api/skin-analysis` should also reserve budget before its next
+   release (see "not verified" above).
+
+本阶段修复了"复用缓存结果时丢失已保留选择"的回归问题、新增了原始肖像的纯妆容对比
+（复用已验证的 makeupVto 接口，无需新增 provider 集成）、简化了两个对比视图并移除了
+"保留"按钮、拆分了演示/实时两个入口（演示完全零 API 调用，即使 API 服务处于休眠也能
+使用）、新增了基于共享 Redis 风格 KV 存储的额度预留模块（尚未验证真实 Render Key
+Value 连接）、并把额度接入了 `/api/try-on`（`/api/skin-analysis` 尚未接入，是已知缺
+口）、以及一个完全未验证、默认关闭且无法真正调用 provider 的 `/api/video` 接口（作为
+安全网，`video` 特性故意没有在 `DOCUMENTED_FILE_PATHS` 里注册文件上传路径，已有专门
+测试验证这一点）。本地未消耗任何 API 额度。Render 部署、GitHub CI 配置、以及上述未决
+问题与仓库所有者的最终确认均未在本次工作中完成。
+
+## Saved browser history — locally verified
+
+This increment follows merged PR #11. It does not include a Render release,
+new paid generation, daily usage budgets or a live video endpoint.
+
+本阶段基于已合并的 #11，实现浏览器历史保存；未部署 Render、未进行新的付费生成，
+也未实现每日额度或实时视频接口。
+
+- 267 tests passed: 72 shared, 147 server, 48 web. All three workspace typechecks
+  passed; production build passed (JS 217.58 kB / 68.18 kB gzip).
+- A real Chrome persistent profile exercised the app against an isolated
+  fixture-only API with no key and both live flags disabled. The profile was
+  closed and reopened to verify IndexedDB retention, rather than only reloading
+  a page. Existing public fixture files supplied the test uploads and results.
+- Thirteen browser checks passed: empty history/input flow, automatic saving,
+  image links/video-byte download, matching video playback, start-over retention,
+  browser-restart reopening with the API unavailable, phone/keyboard use, exact
+  reuploaded-input reuse, individual deletion/cancel/reload, storage-quota
+  recovery, confirmed all-history deletion/stale writes, deletion during media
+  saving, and unavailable-storage protection before generation.
+- Reopening, matching reuse and save retries added zero generation POSTs.
+  Three intentional fixture runs made nine local generation POSTs in total,
+  with zero provider calls. There were no uncaught app errors on the final run.
+- Desktop 1440 px and phone 390 px screenshots used the existing theme. Images
+  remained uncropped, the saved video played from a Blob after reopening, and
+  the tested phone layout had no horizontal overflow. No design tokens changed.
+- Unit checks cover byte-based matching, source-portrait exclusion from both
+  history and the session cache, partial/full-body result preservation, media
+  provenance, object-URL cleanup, and reopening without source files or consent
+  being manufactured.
+- Source uploads are not persisted. History uses output Blobs and settings,
+  scoped to one browser profile and site address. A deletion revision prevents
+  pending writes in other tabs from restoring deleted media. Already-open
+  results in another tab can remain in that tab's memory until closed/cleared.
+- Natural browser eviction and every private-browser implementation were not
+  tested. Storage-full and unavailable-storage states were injected. Current
+  downloads remain available when saving fails; clearing storage is not a backup.
+- No dependencies or server routes changed. Full-body provider generation,
+  live provider costs, Render deployment and new video generation were not tested.
+
+The saved-history work is implemented. Remaining application work is the separate
+demo/live entry, original-portrait makeup comparison, per-result live video and
+server budget/failure controls in the partner guide.
+
+自动保存、重新打开、下载和删除已完成本地验证。剩余工作包括演示与实时入口分离、
+原始肖像妆容对比、每个结果的实时视频，以及服务端额度和故障保护。
+The dated cleanup and older records below describe their original snapshots.
+
 ## September 21, 2026 cleanup verification
 
 This section records the cleanup increment separately from the historical runs

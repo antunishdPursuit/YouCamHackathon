@@ -14,9 +14,16 @@ combinations are summarized in the [README](../README.md); partner instructions
 are in the [English / 简体中文 guide](partner-guide.md).
 
 The later full-body path adds one trousers task plus two top-and-makeup sequences
-(8 estimated units) to the existing close-up flow. A saved five-second video is
-available, but live video generation, makeup on the unchanged original portrait,
-IndexedDB history and shared daily unit limits are still planned.
+(8 estimated units) to the existing close-up flow. Makeup on the unchanged original
+portrait now runs the same verified `makeupVto` task directly against the portrait
+(no new provider integration — see `server/src/youcam/portraitMakeup.ts`). A saved
+five-second video is available and plays automatically for its one matching
+image; a per-result live video route (`POST /api/video`) exists in code but has
+no verified task path or File API entry — it cannot reach the provider yet, see
+`VIDEO_GENERATOR_TASK_PATH` in `server/src/youcam/config.ts`. A shared
+unit-budget reservation module exists and is wired into `/api/try-on`, but is
+not yet connected to a real Key Value store or wired into `/api/skin-analysis` —
+see `server/src/youcam/budget.ts`.
 
 This file separates what we treat as **documented**, what we have **verified locally**,
 and what remains **open**. Nothing marked open should be repeated as fact in a demo, a

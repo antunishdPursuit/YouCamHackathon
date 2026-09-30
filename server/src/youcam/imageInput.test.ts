@@ -105,6 +105,10 @@ describe('YouCam File API upload', () => {
     expect([...SUPPORTED_IMAGE_TYPES]).toEqual(['image/jpeg', 'image/png']);
   });
 
+  it('uses the documented generic File API for video', () => {
+    expect(filePathFor('video')).toBe('/s2s/v2.0/file');
+  });
+
   it('reports a metadata failure without exposing response contents', async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       new Response('provider secret-shaped body', { status: 401 }),

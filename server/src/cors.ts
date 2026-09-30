@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 
 const ALLOWED_METHODS = 'GET,POST,OPTIONS';
-const ALLOWED_HEADERS = 'Content-Type';
+const ALLOWED_HEADERS = 'Content-Type,X-Yincol-Browser-Id';
 
 function normaliseOrigin(origin: string | undefined): string | undefined {
   const value = origin?.trim().replace(/\/+$/, '');
