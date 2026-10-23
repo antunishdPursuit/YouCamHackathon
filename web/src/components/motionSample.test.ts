@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { TryOnPanel } from '@yincol/shared';
-import { motionSampleKind } from './motionSample.js';
+import { IVORY_BLAZER_MOTION_URL, ROSE_VEIL_MOTION_URL, motionSampleKind, motionSampleUrl } from './motionSample.js';
 
 const captured: TryOnPanel = {
   result: { status: 'ready', imageUrl: '/fixtures/complete-look-a-result.jpg', alt: 'Demo result' },
@@ -11,6 +11,14 @@ const captured: TryOnPanel = {
 describe('captured motion source matching', () => {
   it('offers motion only for the captured red-shirt source', () => {
     expect(motionSampleKind(captured, 'fixture')).toBe('video');
+    expect(motionSampleUrl(captured, 'fixture')).toBe(ROSE_VEIL_MOTION_URL);
+  });
+  it('pairs the ivory blazer video with its exact full-body source', () => {
+    const blazer = { ...captured, result: { status: 'ready' as const,
+      imageUrl: '/fixtures/ivory-blazer-complete-look-peach-ember-20261002.png', alt: 'Ivory blazer' } };
+    expect(motionSampleKind(blazer, 'fixture')).toBe('video');
+    expect(motionSampleUrl(blazer, 'fixture')).toBe(IVORY_BLAZER_MOTION_URL);
+    expect(motionSampleUrl(blazer, 'live')).toBeUndefined();
   });
   it('keeps the blue-shirt source as a still without photo tilt', () => {
     expect(motionSampleKind({ ...captured, result: { status: 'ready',

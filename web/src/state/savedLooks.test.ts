@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TryOnPanel, TryOnResponse } from '@yincol/shared';
 import type { CachedGeneration } from './generationCache.js';
 import { prepareSavedLook, openSavedLook, hasUsablePreviews, readSavedLook, normalizeMotion, savedImageIdFor } from './savedLooks.js';
+import { loadDemoLook } from './demoLook.js';
 
 const panel = (imageUrl: string): TryOnPanel => ({ provenance: 'live', stage: 'completeLook', result: { status: 'ready', imageUrl, alt: 'Outfit preview' } });
 const result: TryOnResponse = { mode: 'live', portrait: panel('data:image/png;base64,cHJpdmF0ZQ=='),
@@ -15,6 +16,38 @@ const settings = { garmentIds: ['a', 'b'], makeupLookId: 'rose-veil', fullBodySi
 
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 describe('saved media boundaries', () => {
+  it('reopens the separate Rose Veil example without attaching its video to Champagne Halo', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(new Response(new Blob(['approved bytes'], { type: url.endsWith('.mp4') ? 'video/mp4' : 'image/png' })))));
+    const demo = loadDemoLook();
+    const saved = await prepareSavedLook({ ...cache, analysis: demo.analysis, tryOn: demo.tryOn }, demo);
+    expect(saved.media).toHaveLength(8);
+    expect(saved.motion).toHaveLength(2);
+    const opened = openSavedLook(saved);
+    expect(opened.tryOn.portrait).toMatchObject({ provenance: 'source', result: { status: 'ready', imageUrl: expect.stringMatching(/^blob:/) } });
+    expect(Object.values(opened.tryOn.fullBody!.completeLooks).every(p => p.result.status === 'ready')).toBe(true);
+    expect(opened.tryOn.portraitMadeUp).toMatchObject({ provenance: 'captured', stage: 'portraitMakeup',
+      result: { status: 'ready', imageUrl: expect.stringMatching(/^blob:/) } });
+    const example = opened.tryOn.demoVideoExample?.result;
+    if (example?.status !== 'ready') throw new Error('Missing video source image');
+    expect(opened.videoByImage[example.imageUrl]).toMatch(/^blob:/);
+    const fullBodyExample = opened.tryOn.demoFullBodyVideoExample?.result;
+    if (fullBodyExample?.status !== 'ready') throw new Error('Missing full-body video source image');
+    expect(Object.keys(opened.videoByImage).sort()).toEqual([example.imageUrl, fullBodyExample.imageUrl].sort());
+    expect(opened.videoByImage[fullBodyExample.imageUrl]).toMatch(/^blob:/);
+    expect(opened.downloads.filter(media => media.kind === 'video')).toHaveLength(2);
+    opened.dispose();
+  });
+  it.each(['data:image/png;base64,cHJpdmF0ZQ==', '/fixtures/unapproved-portrait.png'])(
+    'does not extend public-demo approval to another source: %s', async imageUrl => {
+      const fetcher = vi.fn((url: string) => Promise.resolve(new Response(new Blob(['output'], { type: url.endsWith('.mp4') ? 'video/mp4' : 'image/png' }))));
+      vi.stubGlobal('fetch', fetcher);
+      const demo = loadDemoLook();
+      const saved = await prepareSavedLook({ ...cache, tryOn: { ...demo.tryOn,
+        portrait: { provenance: 'source', result: { status: 'ready', imageUrl, alt: 'Unapproved source' } } } }, demo);
+      expect(saved.tryOn.portrait.result.status).toBe('failed');
+      expect(fetcher.mock.calls.some(([url]) => url === imageUrl)).toBe(false);
+    },
+  );
   it('stores output bytes once, omits source portraits, and preserves partial failures and framing', async () => {
     const fetcher = vi.fn().mockImplementation(() => Promise.resolve(new Response(new Blob(['output bytes'], { type: 'image/png' }))));
     vi.stubGlobal('fetch', fetcher);

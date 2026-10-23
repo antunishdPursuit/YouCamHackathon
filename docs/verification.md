@@ -1,5 +1,73 @@
 # Verification record
 
+## October 22, 2026 — local saved-demo closeout
+
+Scope: fixture-only local saved demo, without a new deployment, paid provider
+call, or live visitor-generation acceptance. The earlier Champagne Halo Outfit A
+video and browser live-video criteria are deferred under this narrower scope.
+
+With live flags false and the API key cleared, `/api/health` on local port 8787
+reported fixture mode, `hasApiKey:false`, `liveVideo:false`, and
+`fullBodyTryOn:false`. The app served the fresh production build at
+`http://127.0.0.1:8787/`. In Chrome, the demo input portrait and both garment
+reference photos loaded. Results opened on Compare makeup with the original
+portrait, captured Champagne Halo makeup result, and separately labelled Rose
+Veil still/video. Compare outfits loaded both captured Champagne Halo full-body
+stills and the separate ivory-blazer/Peach Ember still/video. Both videos decoded
+and played at 5.0625 seconds, at 720 × 896 and 720 × 1072 respectively. After
+reload, Previous looks reopened both comparisons; their images loaded and both
+videos used saved Blob URLs. The browser showed no console warnings or errors,
+and the tested 943-pixel desktop viewport had no horizontal overflow. A fresh
+mobile viewport, download-button transfer, and provider-credit expiry date were
+not verified in this pass.
+
+`npm test` passed 330 tests (72 shared, 187 server, 71 web); one external Valkey
+test was skipped because no dedicated test store was supplied. All workspace
+typechecks and `npm run build` passed. The initial sandboxed test attempt could
+not collect tests because Windows denied temporary-file renames; the same suite
+passed on an unsandboxed rerun. No provider generation or production KV calls
+were made.
+
+The provider account balance was checked read-only and was not expired at the
+time of the check. The balance view did not show an expiry date. The exact
+account balance is omitted from this repository; it is separate from this
+app's budget ledger. No generation was submitted on account of the remaining
+units.
+
+The October 2 local demo additions and these documentation changes are part of
+the local branch checkpoint. No PR, push, or deployment was performed for this closeout.
+
+## October 11, 2026 — local complete-look candidate review
+
+The October 2 bounded provider capture ran Clothes V3 for taupe trousers,
+Clothes V4 `outer` for an ivory blazer, Makeup VTO for Peach Ember, and Image
+to Video V2 from the exact completed still. The downloaded public still is
+1,318,627 bytes at 1024 × 1536, SHA-256
+`6a62102d4256c36914844c3f39ff2576280abeffe37727c86b67ebd608f333fd`.
+The matching video is 1,026,073 bytes at 720 × 1072 and 5.0625 seconds,
+SHA-256 `9de88d2817f1fad8a19f718b3acf2220899cb0cf61c2b5dd2391adb0663627f0`.
+The local files match the [redacted capture record](captured-shapes/ivory-blazer-complete-look-peach-ember-20261002.json).
+The 15-unit chain is an estimate; actual billed units were not separately
+verified. This is a distinct example, not the specified Champagne Halo Outfit A
+video. The V4 path has no production UI caller yet.
+
+On October 11, this uncommitted local candidate passed 330 tests (72 shared,
+187 server, 71 web), all workspace typechecks, production build, and
+`git diff --check`. One real-Valkey integration test was skipped because no
+dedicated `YINCOL_TEST_KV_URL` was supplied. Tests and build needed an
+unsandboxed rerun after a Windows `realpath` permission error in the sandbox.
+No provider calls or production KV changes were made for this review. The
+candidate has no current PR, CI, deployed-origin browser acceptance, or live
+budgeted video-route acceptance. `TASK_PATH_VERIFIED.video` remains false.
+
+The public health endpoint returned fixture mode with all live flags false,
+no API key, and video gate false. A public budget GET without a browser ID
+returned `available:false`, shared-site remaining 0, and anonymous-browser
+remaining 0. This request is blocked, but the response does not diagnose the
+KV/ledger cause or prove an identified browser's allowance. The public site
+root returned HTTP 200; interactive deployed-origin checks were not repeated.
+See [deployment status](deployment.md) for the next release checks.
+
 ## September 29, 2026 — PR #15 review fixes
 
 See [follow-up verification](pr15-followup.md#verification--验证) for current evidence and remaining release gates. Earlier sections below record prior trees and are historical, including their former gaps and test totals.
@@ -687,3 +755,120 @@ paid-provider acceptance.
 集成测试；CI 的真实 Valkey 集成通过，共 323 项。已核对 Render 自动部署关闭及
 Node 配置并合并 #16。免费 KV 已就绪，连接与额度仅保存，未部署、未付费调用或
 捕获素材。实际 KV 连接、恢复行为、当前付费路由及部署验收仍待完成。
+
+## Issue #12 acceptance update — September 30, 2026
+
+**Target-environment verified:** after the earlier configuration snapshot, #17
+was merged and both free Render services deployed `47e8e97` on Node 24.16.0.
+Auto-deploy stayed Off, all live flags stayed false, and the API key stayed unset.
+Final #17 CI run [36790358480](https://github.com/antunishdPursuit/YouCamHackathon/actions/runs/36790358480)
+passed all 323 tests, including real Valkey, plus types, build and contrast checks.
+
+The real API initialized the free KV ledger using GET/EVAL/SET. Recovery timestamp
+`1790896937619` survived a Render-confirmed API restart. A first connection-start
+request failed closed; the next returned that timestamp. This proves initial ledger
+and recovery-state retention, not paid-reservation or KV-restart durability. The
+pause ends October 1, 2026 at 23:22:17 UTC / 7:22:17 p.m. EDT. Natural 100/40
+availability is still pending. Never clear or shorten the production recovery state.
+
+The deployed Rose Veil fixture release passed demo save, reload/reopen, keyboard
+comparison tabs, history-to-input readiness, video playback/download and deletion
+followed by reload. Layouts at 390px and 1440px had no horizontal overflow.
+The 2,077,378-byte video download matched the fixture. Exact-origin CORS preflight
+returned 204; an unrelated origin returned 403.
+
+**Locally verified candidate, not deployed:** Dennis approved public use of one
+exact original portrait and both Champagne Halo full-body final captures. Their
+byte-for-byte copies, provenance and hashes are in [assets/README.md](../assets/README.md).
+Demo history uses a new key, preserves source-versus-result labels, excludes all
+other source portraits and does not borrow the old Rose Veil video. Missing matching
+makeup/video captures remain unavailable. The selected comparison tab now has an
+ink underline in addition to its background, independent of keyboard focus.
+
+- 327 automated tests passed; one optional real-Valkey test was skipped because
+  no dedicated local test store was supplied. Workspace typechecks, production
+  build and contrast audit passed; the audit still reports its four known palette
+  constraints, with no new failures.
+- New tests cover the exact public-source exception, private-source exclusion,
+  three-image save/reopen, no mismatched video, offline demo entry, and the UI's
+  save-failure/download/retry path without regeneration. The history-edit test also
+  checks that a saved full-body look can switch to close-up inputs when full-body
+  generation is unavailable.
+- Dennis Chrome on the local built site passed demo save -> reload -> Previous
+  looks -> reopen, with the API unavailable (local health returned HTTP 500).
+  Both full-body images and the original portrait loaded from saved browser media.
+  The missing makeup label remained visible; no old video appeared.
+- At 390px and 1440px there was no horizontal overflow. Images used `object-fit:
+  contain`; the selected tab retained its underline. ArrowRight selected and focused
+  the makeup tab, whose focus outline was 2px. This is local browser evidence,
+  not a claim that the new candidate passed on the public deployment.
+- No paid calls, new provider captures, live-flag changes or deployment occurred
+  for the candidate. Current browser quota exhaustion and reduced-motion settings,
+  deployed failure cases, the current paid `src_file_id` video path, actual billing,
+  final release approval and partner acceptance remain open under #12.
+
+中文：上述旧配置记录之后，#17 已合并并部署 `47e8e97`，真实 KV 初始化和 API
+重启后的恢复状态保留已验证。首次暂停仍需自然结束，不能修改生产计数。新的获批
+Champagne Halo 演示仅在本地验证：327 项测试通过、一项本地 Valkey 测试跳过，
+类型检查、构建及既有对比度检查通过；浏览器完成离线后端条件下保存、刷新、重开、
+原始肖像标签、手机布局和键盘状态检查。私有上传仍不保存；相配妆容和视频尚缺。
+本次没有付费调用或部署。浏览器配额、减少动态效果、部署故障、真实付费路线及
+最终发布/合作验收仍未完成，#12 保持开启。
+
+### Demo still images completed — September 30 EDT / October 1 UTC
+
+Dennis separately approved public use of both exact garment reference photos.
+The input cards now show their original bytes. One owner-run Makeup VTO task
+applied the existing Champagne Halo effects to the approved original portrait;
+the downloaded PNG is 1122 × 1402 and 1,960,872 bytes. The dashboard balance
+decreased by one unit. No paid retries, additional outfit tasks or video tasks
+were submitted. At most 10 units remain in the 11-unit capture allowance.
+This fixture capture is separate from production budget-route acceptance;
+production configuration, live gates and recovery state were not changed.
+
+The demo now has all four comparison images: two full-body results, the original
+portrait and its matching makeup capture. The new `saved-demo-v4-champagne-halo`
+key avoids reusing the earlier incomplete demo record. Older records remain
+preserved; an unavailable saved-demo panel now uses an availability notice,
+not a claim that a new generation failed. The completed demo has no such notice.
+
+Local verification: all 69 web tests, workspace typechecks and production build
+passed. The real browser loaded both garment references and both portrait panels;
+the new result saved successfully with no generation-error banner. The result
+format was checked by its PNG signature and decoder; the provider's conflicting
+JPEG Content-Type is recorded separately in the redacted capture evidence.
+The matching video, production budget readiness and final release remain pending.
+
+中文：两张服装参考已另获公开许可并接入。一次真实 Champagne Halo 肖像妆容调用
+成功，立即保存 PNG；余额减少 1 单位，无重试，指定视频预算最多余 10 单位。
+演示的四张对比图现已齐全，采用新历史键避免复用缺图记录。69 项前端测试、类型
+检查及构建通过，浏览器显示输入与妆容图，完整演示不再出现生成失败提示。
+本次不改变生产额度暂停或实时开关；视频及最终发布仍待验收。
+
+### Makeup-first results and reused video example — September 30 EDT / October 1 UTC
+
+Dennis approved placing the existing Rose Veil video below Compare makeup and
+making makeup the first tab and default results view. The separate example uses
+the exact earlier red-shirt source image and clip, without new provider calls or
+credits. It is not labelled as Champagne Halo or a full-body result. Demo history
+key `saved-demo-v5-champagne-halo` retains five images and one video; the clip is
+associated only with its own source image. Earlier saved looks remain intact.
+
+Locally verified: the 70-test web suite passed after correcting one test to check
+the comparison panel separately from the global download list (69 passed on the
+first run; the corrected five-test App file passed on rerun). Workspace typechecks
+and production build passed. In Dennis Chrome, demo generation opened makeup first;
+the example appeared below the makeup pair and disappeared on the outfits tab.
+The existing clip decoded and played to completion at 720 × 896 and 5.0625 seconds,
+without autoplay. After reload, Previous looks reopened makeup first with all
+images loaded and the saved Blob video playing to completion. Source-image and
+video download links resolved to saved Blob URLs. ArrowRight moved selection and
+focus from makeup to outfits; ArrowLeft returned. At 390px and 1440px, neither
+view had horizontal overflow. No production settings, paid routes or deployment
+changed. Issue #12's remaining release gates are unchanged.
+
+中文：按获批顺序，结果默认显示妆容对比，服装对比位于第二个标签。旧 Rose Veil
+视频及其准确输入图作为独立示例放在妆容下方，保留原名称，无新调用或费用。
+保存、刷新重开、Blob 视频播放、下载链接、键盘切换及手机/桌面布局已本地验证。
+70 项前端测试（含修正后复测）、类型检查及构建通过。尚未部署，不代表实时视频
+路线或 #12 的剩余发布事项已完成。

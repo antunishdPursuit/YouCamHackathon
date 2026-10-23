@@ -9,7 +9,7 @@
  */
 
 /** Feature identifiers used across the runner, the adapters and the fixture layer. */
-export type FeatureId = 'facialColorTone' | 'skinAnalysis' | 'clothesVto' | 'makeupVto' | 'video';
+export type FeatureId = 'facialColorTone' | 'skinAnalysis' | 'clothesVto' | 'clothesVtoV4' | 'makeupVto' | 'video';
 
 /**
  * API host.
@@ -32,6 +32,9 @@ export const authHeader = (apiKey: string): Record<string, string> => ({
 /** LIVE VERIFIED on August 16, 2026 against the current AI Clothes V3 contract. */
 export const CLOTHES_VTO_TASK_PATH = '/s2s/v2.0/task/cloth-v3';
 
+/** LIVE VERIFIED on October 2, 2026: V4 `outer` layered an ivory blazer in the bounded play test. */
+export const CLOTHES_VTO_V4_TASK_PATH = '/s2s/v2.0/task/cloth-v4';
+
 /** LIVE VERIFIED on August 16, 2026 against the current AI Makeup VTO contract. */
 export const MAKEUP_VTO_TASK_PATH = '/s2s/v2.0/task/makeup-vto';
 
@@ -45,23 +48,26 @@ export const SKIN_ANALYSIS_TASK_PATH = '/s2s/v2.0/task/skin-analysis';
  */
 export const FACIAL_COLOR_TONE_TASK_PATH = '/s2s/v2.0/task/skin-tone-analysis';
 
-/** Documented V2 image-to-video endpoint, checked September 29, 2026.
- * Live release verification remains false until owner-run acceptance. */
+/** LIVE VERIFIED in bounded captures on October 2, 2026.
+ * The separate browser release gate remains false until route acceptance. */
 export const VIDEO_GENERATOR_TASK_PATH = '/s2s/v2.0/task/image-to-video/youcam';
 
 export const TASK_PATHS: Readonly<Record<FeatureId, string>> = {
   facialColorTone: FACIAL_COLOR_TONE_TASK_PATH,
   skinAnalysis: SKIN_ANALYSIS_TASK_PATH,
   clothesVto: CLOTHES_VTO_TASK_PATH,
+  clothesVtoV4: CLOTHES_VTO_V4_TASK_PATH,
   makeupVto: MAKEUP_VTO_TASK_PATH,
   video: VIDEO_GENERATOR_TASK_PATH,
 };
 
-/** Which of the above have live local evidence. Surfaced in the UI's provenance note. */
+/** Live local evidence for each path; video stays false as a release gate until its
+ * browser route passes acceptance. Surfaced in the UI's provenance note. */
 export const TASK_PATH_VERIFIED: Readonly<Record<FeatureId, boolean>> = {
   facialColorTone: false,
   skinAnalysis: true,
   clothesVto: true,
+  clothesVtoV4: true,
   makeupVto: true,
   video: false,
 };
@@ -85,6 +91,7 @@ export const MAKEUP_VTO_FILE_PATH = '/s2s/v2.0/file/makeup-vto';
 /** Video uses the documented generic File API. Live video is explicitly gated in
  * the route before reservation/upload; adding this path does not enable it. */
 const DOCUMENTED_FILE_PATHS: Partial<Record<FeatureId, string>> = {
+  clothesVtoV4: '/s2s/v2.0/file',
   video: '/s2s/v2.0/file',
   skinAnalysis: SKIN_ANALYSIS_FILE_PATH,
   clothesVto: CLOTHES_VTO_FILE_PATH,

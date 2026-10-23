@@ -21,7 +21,7 @@ import { TILT_NONE } from '../components/tiltPreview.js';
 import { PartialResultsNotice } from '../components/StateNotice.js';
 import { PhotoSlot } from '../components/PhotoSlot.js';
 import { MotionPreview } from '../components/MotionPreview.js';
-import { motionSampleKind } from '../components/motionSample.js';
+import { ROSE_VEIL_MOTION_URL, motionSampleKind, motionSampleUrl } from '../components/motionSample.js';
 import { DISPLAY_SLOTS, frameAspectRatio, type DisplaySlotConfig } from '../config/displaySlots.js';
 import { SectionHeading, YincolCard } from '../components/ornament.js';
 import type { CompareAxis } from '../state/session.js';
@@ -61,6 +61,7 @@ function garmentSlotLabel(index: number): string {
  */
 function panelSubtitle(panel: TryOnPanel | undefined, lookName: string): string {
   if (!panel || panel.result.status === 'failed') return 'Not generated';
+  if (panel.provenance === 'source') return 'Original demo portrait';
   if (panel.stage === 'completeLook') return `Garment and ${lookName} makeup`;
   if (panel.stage === 'garmentOnly') return 'Garment only, no makeup';
   if (panel.stage === 'portraitMakeup') return `${lookName} makeup, no garment change`;
@@ -167,6 +168,14 @@ export function ResultsScreen({
   const fullBodyFrame = frameAspectRatio(fullBodySize?.width, fullBodySize?.height);
   const motionForPanel = (panel: TryOnPanel | undefined, mode: TryOnResponse['mode']) =>
     panel?.result.status === 'ready' ? motionKindByImage[panel.result.imageUrl] ?? motionSampleKind(panel, mode) : undefined;
+  const example = generation.mode === 'fixture' ? generation.demoVideoExample : undefined;
+  const exampleImage = example?.result.status === 'ready' ? example.result : undefined;
+  const exampleVideo = exampleImage ? videoByImage[exampleImage.imageUrl] ??
+    (motionSampleKind(example, generation.mode) === 'video' ? ROSE_VEIL_MOTION_URL : undefined) : undefined;
+  const outfitExample = generation.mode === 'fixture' ? generation.demoFullBodyVideoExample : undefined;
+  const outfitExampleImage = outfitExample?.result.status === 'ready' ? outfitExample.result : undefined;
+  const outfitExampleVideo = outfitExampleImage ? videoByImage[outfitExampleImage.imageUrl] ??
+    motionSampleUrl(outfitExample, generation.mode) : undefined;
 
   /**
    * One angle per card, keyed by the card, and nothing shared between them.
@@ -192,9 +201,8 @@ export function ResultsScreen({
     }));
 
   /**
-   * Axis 1 — the two outfits, side by side. Close-up always renders; full body adds a
-   * second, separately labelled section when the request generated one — it is additional
-   * data, not an alternate view of the same section.
+   * Axis 1 — the two outfits, side by side. Full-body results take this section
+   * when present; otherwise show the legacy close-up comparison.
    */
   const sections: ResultSection[] = axis === 'garments'
     ? [
@@ -256,8 +264,8 @@ export function ResultsScreen({
         <Segmented id="comparison" controls="comparison-panel" label="What to compare"
           value={axis} onChange={onAxisChange}
           options={[
-            { value: 'garments', label: 'Compare outfits' },
             { value: 'makeup', label: 'Compare makeup' },
+            { value: 'garments', label: 'Compare outfits' },
           ]} />
       </header>
 
@@ -267,7 +275,7 @@ export function ResultsScreen({
         {generation.mode === 'fixture' ? (
           <p className="text-sm text-ink-soft">Saved demo results · your photos were not used to generate these previews.</p>
         ) : null}
-        <PartialResultsNotice failedLabels={failedLabels} />
+        <PartialResultsNotice failedLabels={failedLabels} savedDemo={generation.mode === 'fixture'} />
 
         {sections.map((section) => {
           const hasTiltableCard = section.showsTilt && section.panels.some(
@@ -288,14 +296,15 @@ export function ResultsScreen({
                   const motionKind = savedVideo ? 'video' : (section.showsTilt ? motionForPanel(entry.panel, generation.mode) : undefined);
                   const canTiltThisCard = section.showsTilt && !motionKind && entry.panel?.provenance !== 'placeholder' && entry.panel?.result.status === 'ready';
                   const titleId = `result-${section.key}-${entry.key}`;
-                  const videoRequestable = entry.key !== 'portrait' && Boolean(imageUrl) && entry.panel?.provenance !== 'placeholder' && motionKind !== 'video';
+                  const videoRequestable = generation.mode === 'live' && Boolean(onGenerateVideo) &&
+                    entry.key !== 'portrait' && Boolean(imageUrl) && entry.panel?.provenance !== 'placeholder' && motionKind !== 'video';
                   const videoPending = imageUrl ? videoStatusByImage[imageUrl] === 'pending' : false;
                   const videoFailed = imageUrl ? videoStatusByImage[imageUrl] === 'failed' : false;
                   const actions = (
                     <div className="mt-3 flex flex-col items-start gap-2">
                       {videoRequestable ? (
                         <Button variant="quiet" className="!px-4 text-sm"
-                          disabled={!onGenerateVideo || videoPending}
+                          disabled={videoPending}
                           onClick={() => imageUrl && onGenerateVideo?.(imageUrl)}>
                           {/* 10 units — server/src/youcam/budget.ts's VIDEO_UNIT_COST */}
                           {videoPending ? 'Generating video…' : videoFailed ? 'Video failed — retry' : 'Generate video (10 units)'}
@@ -321,7 +330,7 @@ export function ResultsScreen({
                       ) : <>
                         <PhotoSlot slot={entry.slot} aspectRatio={section.frame}
                           className={section.fullBody ? "[&>div]:max-h-portrait [&>div]:w-full" : ""}
-                          showProvenance={generation.mode !== 'fixture' || entry.panel?.provenance === 'placeholder'}
+                          showProvenance={generation.mode !== 'fixture' || entry.panel?.provenance === 'placeholder' || entry.panel?.provenance === 'source'}
                           {...(canTiltThisCard ? { tiltDegrees: tiltFor(entry.key) } : {})}
                           {...(entry.panel ? {
                             result: entry.panel.result,
@@ -337,6 +346,44 @@ export function ResultsScreen({
             </div>
           );
         })}
+        {axis === 'makeup' && exampleImage && exampleVideo ? (
+          <YincolCard aria-labelledby="video-example-heading" className="p-5 sm:p-6">
+            <h3 id="video-example-heading" className="text-lg font-semibold text-ink">Rose Veil video example</h3>
+            <p className="mt-2 text-sm text-ink-soft">
+              An earlier saved red-shirt close-up, generated with Rose Veil makeup.
+              Its source image is shown below; the Champagne Halo comparison above is separate.
+            </p>
+            <div className="mt-4 max-w-reading">
+              <MotionPreview key={exampleImage.imageUrl} imageUrl={exampleImage.imageUrl}
+                videoUrl={exampleVideo} alt={exampleImage.alt} slot={DISPLAY_SLOTS.completeLookA}
+                aspectRatio={frameAspectRatio(720, 896)}>
+                <a href={exampleVideo} download="yincol-rose-veil-video.mp4"
+                  className="mt-3 inline-flex min-h-[44px] items-center text-sm font-semibold text-ink underline underline-offset-4">
+                  Download Rose Veil video
+                </a>
+              </MotionPreview>
+            </div>
+          </YincolCard>
+        ) : null}
+        {axis === 'garments' && outfitExampleImage && outfitExampleVideo ? (
+          <YincolCard aria-labelledby="outfit-video-example-heading" className="p-5 sm:p-6">
+            <h3 id="outfit-video-example-heading" className="text-lg font-semibold text-ink">Ivory blazer complete-look video</h3>
+            <p className="mt-2 text-sm text-ink-soft">
+              A separate full-body capture with an ivory blazer, taupe tank and trousers, and Peach Ember makeup.
+              The two outfit comparisons above use Champagne Halo makeup.
+            </p>
+            <div className="mt-4 max-w-reading">
+              <MotionPreview key={outfitExampleImage.imageUrl} imageUrl={outfitExampleImage.imageUrl}
+                videoUrl={outfitExampleVideo} alt={outfitExampleImage.alt} slot={DISPLAY_SLOTS.completeLookA}
+                aspectRatio={frameAspectRatio(1024, 1536)}>
+                <a href={outfitExampleVideo} download="yincol-ivory-blazer-complete-look.mp4"
+                  className="mt-3 inline-flex min-h-[44px] items-center text-sm font-semibold text-ink underline underline-offset-4">
+                  Download ivory blazer video
+                </a>
+              </MotionPreview>
+            </div>
+          </YincolCard>
+        ) : null}
       </section>
 
       <details className="rounded-card border border-gold/40 bg-surface p-4">

@@ -10,6 +10,8 @@ import type { Palette, SkinAppearance, TryOnResult, VideoResult } from './types.
 
 /** Where an image on screen came from. Rendered as the provenance note. */
 export type Provenance =
+  /** An explicitly approved public demo input, not a generated result. */
+  | 'source'
   /** A real API result, captured earlier and committed as bytes. */
   | 'captured'
   /** A designed stand-in shipped with the repo. Never presented as an API result. */
@@ -118,6 +120,10 @@ export interface TryOnView {
 }
 
 export interface TryOnResponse extends TryOnView {
+  /** Separate saved-demo example, never a video source for the current comparison. */
+  readonly demoVideoExample?: TryOnPanel;
+  /** Separate full-body video example with its own captured source and makeup. */
+  readonly demoFullBodyVideoExample?: TryOnPanel;
   /** Present only when the current request includes full-body inputs. */
   readonly fullBody?: Omit<TryOnView, 'portrait'>;
 }

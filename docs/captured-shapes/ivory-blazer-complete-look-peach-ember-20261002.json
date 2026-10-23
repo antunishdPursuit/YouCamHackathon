@@ -1,0 +1,65 @@
+{
+  "recordedAt": "2026-10-02",
+  "provider": "YouCam Clothes V3, Clothes V4, Makeup VTO, and Image to Video V2",
+  "provenance": "Captured API results from ignored local source inputs; no image or video was substituted for a provider result.",
+  "sourceChain": [
+    {
+      "stage": "full-body taupe trousers",
+      "endpoint": "/s2s/v2.0/task/cloth-v3",
+      "taskId": "[redacted task ID]",
+      "outputSha256": "4dfa6846309f81bf92025561a6e3fe3ce8464dd5799e9844dcba0a8f9e431ae7",
+      "expectedUnits": 2
+    },
+    {
+      "stage": "ivory blazer outerwear",
+      "endpoint": "/s2s/v2.0/task/cloth-v4",
+      "taskId": "[redacted task ID]",
+      "outputSha256": "3fee6210a2552257622b150647cbfa65ceeda67bffede8ea5756e0492593837f",
+      "expectedUnits": 2
+    },
+    {
+      "stage": "Peach Ember makeup",
+      "endpoint": "/s2s/v2.0/task/makeup-vto",
+      "taskId": "[redacted task ID]",
+      "outputSha256": "6a62102d4256c36914844c3f39ff2576280abeffe37727c86b67ebd608f333fd",
+      "expectedUnits": 1
+    },
+    {
+      "stage": "five-second full-body video",
+      "endpoint": "/s2s/v2.0/task/image-to-video/youcam",
+      "taskId": "[redacted task ID]",
+      "inputSha256": "6a62102d4256c36914844c3f39ff2576280abeffe37727c86b67ebd608f333fd",
+      "outputSha256": "9de88d2817f1fad8a19f718b3acf2220899cb0cf61c2b5dd2391adb0663627f0",
+      "expectedUnits": 10,
+      "request": {
+        "src_file_id": "[private uploaded file ID]",
+        "resolution": "720",
+        "dst_duration": 5,
+        "model": "youcam-video-v2",
+        "prompt": "The woman smiles softly and makes a small natural turn, keeping her full body visible. Preserve her ivory blazer, taupe trousers, hairstyle, face, and studio background."
+      },
+      "resultShape": {
+        "status": 200,
+        "data": { "error": null, "results": { "url": "[URL redacted]" }, "task_status": "success" }
+      }
+    }
+  ],
+  "publicStill": {
+    "file": "web/public/fixtures/ivory-blazer-complete-look-peach-ember-20261002.png",
+    "bytes": 1318627,
+    "sha256": "6a62102d4256c36914844c3f39ff2576280abeffe37727c86b67ebd608f333fd",
+    "width": 1024,
+    "height": 1536
+  },
+  "publicVideo": {
+    "file": "web/public/fixtures/ivory-blazer-complete-look-peach-ember-20261002.mp4",
+    "bytes": 1026073,
+    "sha256": "9de88d2817f1fad8a19f718b3acf2220899cb0cf61c2b5dd2391adb0663627f0",
+    "width": 720,
+    "height": 1072,
+    "encodedDurationSeconds": 5.0625
+  },
+  "expectedUnitsForThisChain": 15,
+  "actualBilledUnits": "not separately verified",
+  "visualInspection": "The full-body still and sampled video frames retain the ivory blazer over the taupe tank and the taupe trousers. Generated expressions and fine details may change in motion."
+}

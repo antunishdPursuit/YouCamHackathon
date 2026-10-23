@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { MAKEUP_LOOKS } from '@yincol/shared';
 import {
   buildClothesVtoPayload,
+  buildClothesV4Payload,
   buildMakeupVtoPayload,
   buildVideoPayload,
   makeupEffectsForLook,
 } from './features.js';
 import type { ImageReference } from './imageInput.js';
+import { CLOTHES_VTO_V4_TASK_PATH, filePathFor } from './config.js';
 
 const portrait: ImageReference = { kind: 'publicUrl', url: 'https://example.com/portrait.jpg' };
 const garment: ImageReference = { kind: 'fileId', fileId: 'garment-file-123' };
@@ -34,6 +36,16 @@ describe('current non-Skin YouCam payloads', () => {
     });
   });
 
+  it('uses the documented V4 outerwear path and generic file upload', () => {
+    expect(CLOTHES_VTO_V4_TASK_PATH).toBe('/s2s/v2.0/task/cloth-v4');
+    expect(filePathFor('clothesVtoV4')).toBe('/s2s/v2.0/file');
+    expect(buildClothesV4Payload(portrait, garment, 'outer')).toEqual({
+      src_file_url: 'https://example.com/portrait.jpg',
+      ref_file_id: 'garment-file-123',
+      garment_category: 'outer',
+    });
+  });
+
   it('uses the Makeup VTO effects contract and does not add a reference image', () => {
     const effects = makeupEffectsForLook(MAKEUP_LOOKS[0]!);
     const payload = buildMakeupVtoPayload(portrait, effects) as Record<string, unknown>;
@@ -52,11 +64,13 @@ describe('current non-Skin YouCam payloads', () => {
     ]);
   });
 
-  it('builds an unverified video payload with the source image field only', () => {
+  it('builds the documented video payload with a motion prompt', () => {
     expect(buildVideoPayload(portrait)).toEqual({
       src_file_url: 'https://example.com/portrait.jpg',
       dst_duration: 5,
       resolution: '720',
+      prompt: 'The person smiles softly and makes a small natural movement while keeping the outfit visible.',
+      model: 'youcam-video-v2',
     });
   });
 });

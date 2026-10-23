@@ -2,10 +2,10 @@ import { useId, useRef, useState, type ReactNode } from 'react';
 import type { DisplaySlotConfig } from '../config/displaySlots.js';
 import { Button } from './controls.js';
 import { PhotoSlot } from './PhotoSlot.js';
-import { GARMENT_A_MOTION_URL } from './motionSample.js';
+import { ROSE_VEIL_MOTION_URL } from './motionSample.js';
 
 /** A captured, silent video. Playback always requires an explicit user action. */
-export function MotionPreview({ imageUrl, alt, slot, aspectRatio, children, videoUrl = GARMENT_A_MOTION_URL }: {
+export function MotionPreview({ imageUrl, alt, slot, aspectRatio, children, videoUrl = ROSE_VEIL_MOTION_URL }: {
   imageUrl: string;
   videoUrl?: string;
   alt: string;
@@ -65,8 +65,8 @@ export function MotionPreview({ imageUrl, alt, slot, aspectRatio, children, vide
       </div>
       {children}
       <p id={descriptionId} className="mt-2 text-center text-sm text-ink-soft">
-        A five-second, 720p clip generated from this exact image — not a 3D model, and it
-        does not show the back or sides. Use the original still to compare colour and detail.
+        A five-second, 720p clip generated from this exact image. Motion can change fine details;
+        use the original still to compare colour and detail.
       </p>
       {failed ? (
         <p role="status" className="mt-2 text-center text-sm text-ink-soft">

@@ -56,7 +56,7 @@ export function StateNotice({
  * The point is reassurance: one failure out of four does not invalidate the other
  * three, and the shopper should not be left wondering whether to start again.
  */
-export function PartialResultsNotice({ failedLabels }: { failedLabels: readonly string[] }) {
+export function PartialResultsNotice({ failedLabels, savedDemo = false }: { failedLabels: readonly string[]; savedDemo?: boolean }) {
   if (failedLabels.length === 0) return null;
 
   const list =
@@ -69,8 +69,9 @@ export function PartialResultsNotice({ failedLabels }: { failedLabels: readonly 
       role="status"
       className="rounded-card border border-gold/50 bg-surface px-5 py-4 text-base text-ink"
     >
-      We could not generate {list}. Everything else on this screen is ready, and your
-      palette is unaffected — you can carry on comparing what did come back.
+      {savedDemo
+        ? `This saved demo does not yet include ${list}. The available previews and example palette remain ready to view.`
+        : `We could not generate ${list}. Everything else on this screen is ready, and your palette is unaffected — you can carry on comparing what did come back.`}
     </p>
   );
 }

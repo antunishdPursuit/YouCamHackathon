@@ -19,7 +19,8 @@ used separate approved procedures. File presence alone does not establish proven
 ## SOURCE — standard image capture inputs
 
 These live in `assets/source/`, which is **gitignored**. They are read by the capture
-script and never committed. The current documented Makeup VTO endpoint does not take a
+script and remain private except for the exact public-demo approvals recorded
+below. The current documented Makeup VTO endpoint does not take a
 makeup reference image; it takes an effects configuration. Do not add a makeup reference
 file unless a separate provider endpoint is verified and approved.
 
@@ -99,7 +100,7 @@ not a broken image. Nothing here blocks development, and the whole four-stage fl
 Start, Add inputs, Generate, Results — is demonstrable before a single source photograph
 exists.
 
-## Local motion sample — September 20, 2026
+## Local motion captures — September 20 and October 2, 2026
 
 `web/public/fixtures/garment-a-motion-sample.mp4` is a captured YouCam Image to
 Video V2 result generated from `complete-look-a-result.jpg`. One five-second,
@@ -110,12 +111,28 @@ The source/output hashes, request, and redacted result shape are recorded in
 `docs/captured-shapes/garment-a-motion-sample.json`. This was a separate bounded
 capture, not a change to the ordinary fixture-generation or browser API flow.
 
-The Garments comparison offers playback only for the matching captured
-red-shirt complete-look fixture. It never substitutes the clip for a live
+On October 2, a separate approved play test captured a full-body ivory blazer
+look with taupe trousers and Peach Ember makeup, followed by a five-second
+720p video from that exact still. The still and video are in `web/public/fixtures/`
+with the `ivory-blazer-complete-look-peach-ember-20261002` stem. Their source
+chain, hashes, redacted response, and encoded properties are in
+`docs/captured-shapes/ivory-blazer-complete-look-peach-ember-20261002.json`.
+The documented task cost for the trousers, blazer, makeup, and video chain is
+15 units; the billed balance was not separately checked. A second red-top
+video was also captured privately during the play test, but the September
+Rose Veil clip remains the chosen demo version.
+
+The demo places the September Rose Veil video below Compare makeup, with its
+matching captured red-top source image. Legacy Garments comparisons also offer
+playback for that exact fixture. It never substitutes the clip for a live
 visitor result, another makeup preset, or a placeholder. The original still
 remains available. Expressions and fine details can change in generated motion;
 the video does not establish garment fit and is not a rotatable 3D model.
 Garment B remains a still. The release does not include a 3D model or reconstruction.
+
+Compare outfits places the ivory blazer complete-look video in a separately
+labelled example below the Champagne Halo outfit comparison. Its Peach Ember
+source still remains visible. Neither video is shown as a visitor's live result.
 
 ## Private full-body captures — September 21, 2026
 
@@ -126,11 +143,54 @@ then each top independently; Makeup VTO received each clothed result. All five
 tasks succeeded with no generation retries. Expected usage was 8 units; the
 billing balance was not checked. The final PNGs are 1002 × 1568 pixels.
 
-These captured bytes and their private evidence are kept in ignored
-`assets/private-results/full-body/`, separate from source inputs and public
-fixtures. These are private test evidence; no captures, manifests, or
-intermediate files are served or substituted for a visitor's results.
+The original captured files and their private evidence remain in ignored
+`assets/private-results/full-body/`. The two final results were subsequently approved
+for the public demo, as recorded below. Private manifests and intermediate files
+remain excluded. These results are never substituted for a visitor's live results.
 This batch used a bounded local capture script, rather than the normal
 fixture script, to preserve existing head-and-shoulders captures and skip skin
 analysis. Both final images were visually reviewed for outfit changes and
 uncropped framing. Fine facial and clothing details remain AI interpretations.
+
+## Approved Champagne Halo demo assets — September 30, 2026
+
+Dennis explicitly approved public site and GitHub use of the original portrait,
+both garment reference photos and two final full-body results below. The two
+garment JPEGs have camera metadata removed without changing their encoded image
+scans; the other public assets preserve their original bytes. No new provider
+task was used for those copies. The full-body
+source portrait, trousers reference, intermediate captures and private manifests
+stay private. One separately approved makeup task produced the matching portrait result.
+
+| Public fixture | Provenance | SHA-256 |
+| --- | --- | --- |
+| `demo-original-portrait.png` | Approved source, 1122 × 1402; not an API result | `6a6c1301f97c51deb7932561e2cdc6a2ab82a7619e6c116c4c7f01f9a066c117` |
+| `demo-full-body-a.png` | September 21 complete A result, 1002 × 1568 | `36f024b53e3abdb7b2fceb9aa53a19eca2344e0b7e551222e3187bf6e686c0be` |
+| `demo-full-body-b.png` | September 21 complete B result, 1002 × 1568 | `114fb8df6d62a089fa4607ef11416f3ce596b950dcde8ee076b1b9960900e7da` |
+| `demo-garment-a.jpg` | Approved garment reference, 2171 × 2119; camera metadata removed without changing the encoded image; not an API result | `957c565d7135c604875cae66dd69acd8e7b26520472e3a5c03007f31edb4de84` |
+| `demo-garment-b.jpg` | Approved garment reference, 2124 × 1392; camera metadata removed without changing the encoded image; not an API result | `db6edf63f2ec001f6d90c9595dbdca4f00b72a8858d52abf7e79c1fea609cb1f` |
+| `demo-portrait-champagne-halo.png` | Matching portrait Makeup VTO result, 1122 × 1402 | `d84933ad06a4f910731d9358e53f2f2276bbbf0addaad1f9ad45736f2f216b68` |
+
+The matching portrait-makeup task succeeded at 2026-10-01 00:02 UTC (September 30
+EDT). The owner dashboard showed a one-unit decrease after this single submission;
+there were no paid retries. The returned bytes were saved immediately. The provider
+declared JPEG, but the signature and image decoder identify PNG; the bytes are
+preserved as PNG. [Capture evidence](../docs/captured-shapes/demo-portrait-champagne-halo.json).
+
+The specified Champagne Halo Outfit A video remains pending. The earlier
+11-unit allowance covered its exact capture plus the completed portrait makeup
+task; its old “at most 10 remain” figure is not a current account balance or
+authorization for another paid call. The separate October 2 ivory-blazer video
+above has a 15-unit estimated capture chain with actual billing unverified.
+The old Rose Veil
+image and video are reused unchanged as a separate example under Compare makeup,
+with their own label and source image. Reuse spends no credits and does not complete
+the Champagne Halo video capture or live-route acceptance. This candidate is locally
+verified, not deployed or release verified.
+
+中文：负责人已明确批准上述原始肖像、两张服装参考及两张真实全身结果公开使用。
+相配的 Champagne Halo 肖像妆容已通过一次真实调用生成，余额减少 1 单位，没有重试。
+全身原照、裤装参考、中间结果及私有记录仍不公开。指定的 Champagne Halo A 套装视频
+尚缺；旧文“最多余 10 单位”不是当前余额，也不授权新调用。10 月 2 日另有象牙色西装
+视频捕获，预计 15 单位，实际扣费未单独核实。旧 Rose Veil 视频及其原始输入图作为独立示例放在妆容对比下方，保留原名称，
+不消耗新额度，也不替代 Champagne Halo 视频。本地候选版尚未部署。

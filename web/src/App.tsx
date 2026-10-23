@@ -27,6 +27,7 @@ import { PreviousLooks, SavedMediaDownloads, CurrentMediaDownloads } from './com
 import { useSavedLooks } from './state/useSavedLooks.js';
 import { readSavedLook, openSavedLook, savedImageIdFor, type LookSettings, type OpenedLook } from './state/savedLooks.js';
 import { loadDemoLook } from './state/demoLook.js';
+import { DEMO_LOOK_KEY } from './state/demoAssets.js';
 import type { CachedGeneration } from './state/generationCache.js';
 import { IntroScreen } from './screens/IntroScreen.js';
 import { InputsScreen } from './screens/InputsScreen.js';
@@ -574,7 +575,7 @@ export function App() {
             const demo = loadDemoLook();
             dispatch({ type: 'restoreGeneration', analysis: demo.analysis, tryOn: demo.tryOn,
               garmentIds: demo.garmentIds, makeupLookId: demo.makeupLookId });
-            saveCompleted({ key: 'saved-demo-v2', savedAt: Date.now(), analysis: demo.analysis, tryOn: demo.tryOn },
+            saveCompleted({ key: DEMO_LOOK_KEY, savedAt: Date.now(), analysis: demo.analysis, tryOn: demo.tryOn },
               { garmentIds: demo.garmentIds, makeupLookId: demo.makeupLookId });
           }} />;
         return (

@@ -128,7 +128,7 @@ export function Segmented<T extends string>({
             tabIndex={selected ? 0 : -1}
             onClick={() => onChange(option.value)}
             className={`min-h-[44px] min-w-0 flex-auto rounded-full px-3 py-2 text-sm sm:flex-none sm:whitespace-nowrap sm:px-5 font-semibold transition-shadow duration-200 ${
-              selected ? 'bg-powder text-ink shadow-emboss' : 'bg-transparent text-ink'
+              selected ? 'bg-powder text-ink shadow-emboss underline decoration-2 underline-offset-4' : 'bg-transparent text-ink'
             }`}
           >
             {option.label}

@@ -1,0 +1,82 @@
+{
+  "capturedAt": "2026-10-01T00:02:25.382Z",
+  "provider": "YouCam AI Makeup Virtual Try-On",
+  "endpoint": "/s2s/v2.0/task/makeup-vto",
+  "taskId": "[redacted task ID]",
+  "sourceImage": "web/public/fixtures/demo-original-portrait.png",
+  "sourceSha256": "6a6c1301f97c51deb7932561e2cdc6a2ab82a7619e6c116c4c7f01f9a066c117",
+  "makeupLookId": "champagne-halo",
+  "request": {
+    "src_file_id": "[uploaded approved portrait]",
+    "effects": [
+      {
+        "category": "skin_smooth",
+        "skinSmoothStrength": 50,
+        "skinSmoothColorIntensity": 50
+      },
+      {
+        "category": "blush",
+        "pattern": {
+          "name": "2colors1"
+        },
+        "palettes": [
+          {
+            "color": "#e0b09c",
+            "texture": "matte",
+            "colorIntensity": 60
+          },
+          {
+            "color": "#e0b09c",
+            "texture": "satin",
+            "colorIntensity": 45,
+            "glowStrength": 25
+          }
+        ]
+      },
+      {
+        "category": "lip_color",
+        "shape": {
+          "name": "plump"
+        },
+        "style": {
+          "type": "full"
+        },
+        "palettes": [
+          {
+            "color": "#c08a72",
+            "texture": "gloss",
+            "colorIntensity": 75,
+            "gloss": 50,
+            "transparencyIntensity": 50
+          }
+        ]
+      }
+    ],
+    "version": "1.0"
+  },
+  "expectedUnits": 1,
+  "actualBilledUnits": 1,
+  "billingEvidence": "Owner dashboard balance decreased by one unit after this single task.",
+  "tasksSubmitted": 1,
+  "automaticTaskRetries": 0,
+  "output": {
+    "file": "web/public/fixtures/demo-portrait-champagne-halo.png",
+    "bytes": 1960872,
+    "sha256": "d84933ad06a4f910731d9358e53f2f2276bbbf0addaad1f9ad45736f2f216b68",
+    "contentType": "image/png",
+    "providerReportedContentType": "image/jpeg",
+    "formatVerifiedBy": "PNG byte signature and decoded image format",
+    "width": 1122,
+    "height": 1402
+  },
+  "resultShape": {
+    "status": 200,
+    "data": {
+      "error": null,
+      "results": {
+        "url": "[url redacted]"
+      },
+      "task_status": "success"
+    }
+  }
+}

@@ -137,6 +137,8 @@ function provenanceNote(provenance?: Provenance, stage?: LookStage): string | nu
     stage === 'completeLook' ? ' The makeup effects were applied to the garment result.' : '';
 
   switch (provenance) {
+    case 'source':
+      return 'Original demo portrait — not an API result.';
     case 'placeholder':
       return 'Placeholder image — not an API result.';
     case 'captured':

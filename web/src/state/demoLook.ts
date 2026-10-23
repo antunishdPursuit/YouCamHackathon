@@ -8,13 +8,13 @@
  * after 15 minutes and can take about a minute to wake), so it cannot depend on that
  * service being reachable at all.
  *
- * The colour reading mirrors `server/src/fixtures/index.ts`'s `FIXTURE_COLOR_TONE` and the
- * garment/look ids mirror its `CAPTURE_TARGETS` / `CAPTURED_MAKEUP_LOOK_ID` — duplicated
- * rather than imported, since that file is server-only. If those values change, update the
- * matching ones here.
+ * The colour reading is illustrative, not an analysis of the public portrait. The
+ * approved full-body captures use Champagne Halo. The server's older close-up
+ * fixtures use Rose Veil and must not be substituted into this comparison.
  */
 
 import { buildPaletteFromReading, hexToLab, type AnalyzeResponse, type TryOnPanel, type TryOnResponse } from '@yincol/shared';
+import { DEMO_PORTRAIT_URL } from './demoAssets.js';
 
 const DEMO_READING = {
   skin: hexToLab('#e0b492'),
@@ -25,13 +25,10 @@ const DEMO_READING = {
 };
 
 export const DEMO_GARMENT_IDS = ['rosewater-cardigan', 'sage-linen-shirt'] as const;
-export const DEMO_MAKEUP_LOOK_ID = 'rose-veil';
+export const DEMO_MAKEUP_LOOK_ID = 'champagne-halo';
 
-const captured = (imageUrl: string, alt: string, stage: 'garmentOnly' | 'completeLook'): TryOnPanel => ({
+const captured = (imageUrl: string, alt: string, stage: 'garmentOnly' | 'completeLook' | 'portraitMakeup'): TryOnPanel => ({
   result: { status: 'ready', imageUrl, alt }, provenance: 'captured', stage,
-});
-const placeholder = (imageUrl: string, alt: string): TryOnPanel => ({
-  result: { status: 'ready', imageUrl, alt }, provenance: 'placeholder',
 });
 
 export interface DemoLook {
@@ -49,19 +46,25 @@ export function loadDemoLook(): DemoLook {
   const palette = buildPaletteFromReading(DEMO_READING);
   const analysis: AnalyzeResponse = { palette, mode: 'fixture' };
 
-  // The portrait is never a real captured photo of anyone — same rule fixture mode
-  // follows server-side — so it is always the designed placeholder, never "captured".
+  // Dennis approved this exact public source and the two existing full-body captures.
+  // The matching portrait makeup was captured separately with the same preset.
   const tryOn: TryOnResponse = {
     mode: 'fixture',
-    portrait: placeholder('/fixtures/placeholder-portrait.svg', 'Designed stand-in for the portrait'),
-    portraitMadeUp: placeholder('/fixtures/placeholder-portrait-makeup.svg', 'Designed stand-in for the portrait with Rose Veil makeup'),
-    garments: {
-      'rosewater-cardigan': captured('/fixtures/garment-a-result.jpg', 'The demo portrait wearing the rosewater cardigan', 'garmentOnly'),
-      'sage-linen-shirt': captured('/fixtures/garment-b-result.jpg', 'The demo portrait wearing the sage linen shirt', 'garmentOnly'),
-    },
-    completeLooks: {
-      'rosewater-cardigan': captured('/fixtures/complete-look-a-result.jpg', 'The demo portrait wearing the rosewater cardigan, with the Rose Veil makeup look', 'completeLook'),
-      'sage-linen-shirt': captured('/fixtures/complete-look-b-result.jpg', 'The demo portrait wearing the sage linen shirt, with the Rose Veil makeup look', 'completeLook'),
+    portrait: { provenance: 'source', result: {
+      status: 'ready', imageUrl: DEMO_PORTRAIT_URL, alt: 'Original portrait used for the demo makeup comparison',
+    } },
+    portraitMadeUp: captured('/fixtures/demo-portrait-champagne-halo.png', 'Original demo portrait with Champagne Halo makeup, clothing unchanged', 'portraitMakeup'),
+    demoVideoExample: captured('/fixtures/complete-look-a-result.jpg', 'Earlier red-shirt close-up with Rose Veil makeup', 'completeLook'),
+    demoFullBodyVideoExample: captured('/fixtures/ivory-blazer-complete-look-peach-ember-20261002.png', 'Full-body ivory blazer, taupe trousers, and Peach Ember makeup', 'completeLook'),
+    garments: {},
+    completeLooks: {},
+    fullBody: {
+      mode: 'fixture',
+      garments: {},
+      completeLooks: {
+        'rosewater-cardigan': captured('/fixtures/demo-full-body-a.png', 'Saved full-body Outfit A with cream trousers and Champagne Halo makeup', 'completeLook'),
+        'sage-linen-shirt': captured('/fixtures/demo-full-body-b.png', 'Saved full-body Outfit B with cream trousers and Champagne Halo makeup', 'completeLook'),
+      },
     },
   };
 

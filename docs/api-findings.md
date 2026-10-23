@@ -13,17 +13,19 @@ not a fresh provider test or an account-balance check. Current behavior and cost
 combinations are summarized in the [README](../README.md); partner instructions
 are in the [English / 简体中文 guide](partner-guide.md).
 
-The later full-body path adds one trousers task plus two top-and-makeup sequences
-(8 estimated units) to the existing close-up flow. Makeup on the unchanged original
+The full-body path replaces the close-up flow with one trousers task plus two
+top-and-makeup sequences and portrait-only makeup (9 estimated units total).
+Makeup on the unchanged original
 portrait now runs the same verified `makeupVto` task directly against the portrait
-(no new provider integration — see `server/src/youcam/portraitMakeup.ts`). A saved
-five-second video is available and plays automatically for its one matching
-image; a per-result live video route (`POST /api/video`) exists in code but has
-no verified task path or File API entry — it cannot reach the provider yet, see
-`VIDEO_GENERATOR_TASK_PATH` in `server/src/youcam/config.ts`. A shared
-unit-budget reservation module exists and is wired into `/api/try-on`, but is
-not yet connected to a real Key Value store or wired into `/api/skin-analysis` —
-see `server/src/youcam/budget.ts`.
+(no new provider integration — see `server/src/youcam/portraitMakeup.ts`). Saved
+five-second video examples are available for their matching captured images. October 2 bounded
+captures verified the V4 `outer` blazer path and the V2 video task, generic File
+API upload, result shape, and download. The per-result browser video route
+(`POST /api/video`) remains gated and has not passed live browser acceptance.
+The shared reservation module is wired into try-on, skin analysis, and video.
+Its real Render Key Value connection passed initialization and API-restart checks
+on September 30; current public budget availability and paid-route acceptance
+require separate checks. See [deployment evidence](deployment.md).
 
 This file separates what we treat as **documented**, what we have **verified locally**,
 and what remains **open**. Nothing marked open should be repeated as fact in a demo, a

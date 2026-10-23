@@ -1,5 +1,5 @@
-/** Five-second video from a completed image. Official contract is documented;
- * TASK_PATH_VERIFIED.video gates paid work pending owner release acceptance. */
+/** Five-second video from a completed image. The provider contract was verified
+ * in bounded captures; TASK_PATH_VERIFIED.video gates browser release acceptance. */
 
 import { Router, type Response } from 'express';
 import type { ApiErrorBody, VideoRequest, VideoResponse } from '@yincol/shared';
@@ -59,7 +59,7 @@ videoRouter.post('/video', asyncRoute(async (req, res) => {
     return;
   }
 
-  // ── Live — see the file header: this cannot actually reach the provider yet ────
+  // ── Live remains gated until the browser route passes release acceptance. ────
   if (!TASK_PATH_VERIFIED.video) {
     res.status(503).json({ error: 'Live video is awaiting release verification. Saved clips remain available.' });
     return;

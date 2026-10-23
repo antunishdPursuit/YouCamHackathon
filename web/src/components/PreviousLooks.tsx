@@ -43,7 +43,7 @@ export function PreviousLooks({ looks, loading, error, pending, onOpen, onDelete
           <LookThumbnail look={look} />
           <div className="min-w-0 flex-1">
             <h3 className="text-base font-semibold">{findMakeupLook(look.makeupLookId ?? '')?.name ?? 'Saved comparison'}</h3>
-            <p className="mt-1 text-sm text-ink-soft">{look.tryOn.mode === 'fixture' ? 'Saved demo' : 'Your generated previews'}{look.tryOn.fullBody ? ' · Full body included' : ''}</p>
+            <p className="mt-1 text-sm text-ink-soft">{look.tryOn.mode === 'fixture' ? 'Saved demo' : 'Your generated previews'}{look.tryOn.fullBody ? ' · Full body included' : ''}{look.tryOn.demoFullBodyVideoExample ? ' · Ivory blazer video' : ''}</p>
             <time className="mt-1 block text-xs text-ink-soft" dateTime={new Date(look.savedAt).toISOString()}>{new Date(look.savedAt).toLocaleString()}</time>
           </div>
         </div>

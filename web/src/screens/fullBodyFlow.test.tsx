@@ -5,6 +5,7 @@ import { ResultsScreen } from './ResultsScreen.js';
 import { AnalysisScreen } from './AnalysisScreen.js';
 import { IntroScreen } from './IntroScreen.js';
 import { PreviousLooks } from '../components/PreviousLooks.js';
+import { loadDemoLook } from '../state/demoLook.js';
 const panel = (url: string, stage: 'completeLook' | 'garmentOnly' | 'portraitMakeup' = 'completeLook'): TryOnPanel => ({
   result: { status: 'ready', imageUrl: url, alt: 'Test-only response' }, provenance: 'live', stage,
 });
@@ -29,6 +30,24 @@ const props = { analysis, tryOn, garmentIds: ['a', 'b'], makeupLookId: 'champagn
   onAxisChange: noop, onEditInputs: noop, onStartOver: noop,
 };
 describe('full-body rendering contract', () => {
+  it('places the separately labelled video under makeup and never on outfits or live results', () => {
+    const demo = loadDemoLook();
+    const html = renderToStaticMarkup(<ResultsScreen {...props} {...demo} axis="makeup" />);
+    expect(html.indexOf('With Champagne Halo makeup')).toBeLessThan(html.indexOf('Rose Veil video example'));
+    expect(html).toContain('poster="/fixtures/complete-look-a-result.jpg"');
+    expect(html).toContain('src="/fixtures/garment-a-motion-sample.mp4"');
+    expect(html).toContain('Download Rose Veil video');
+    expect(html).not.toMatch(/autoplay/i);
+    expect(renderToStaticMarkup(<ResultsScreen {...props} {...demo} axis="garments" />)).not.toContain('Rose Veil video example');
+    const outfitsHtml = renderToStaticMarkup(<ResultsScreen {...props} {...demo} axis="garments" />);
+    expect(outfitsHtml).toContain('Ivory blazer complete-look video');
+    expect(outfitsHtml).toContain('poster="/fixtures/ivory-blazer-complete-look-peach-ember-20261002.png"');
+    expect(outfitsHtml).toContain('src="/fixtures/ivory-blazer-complete-look-peach-ember-20261002.mp4"');
+    expect(outfitsHtml).not.toContain('Generate video (10 units)');
+    expect(html).not.toContain('Ivory blazer complete-look video');
+    expect(renderToStaticMarkup(<ResultsScreen {...props} {...demo} tryOn={{ ...demo.tryOn, mode: 'live' }} axis="makeup" />)).not.toContain('Rose Veil video example');
+    expect(renderToStaticMarkup(<ResultsScreen {...props} {...demo} tryOn={{ ...demo.tryOn, mode: 'live' }} axis="garments" />)).not.toContain('Ivory blazer complete-look video');
+  });
   it('shows the two full-body outfits without an additional close-up comparison', () => {
     const html = renderToStaticMarkup(<ResultsScreen {...props} />);
     expect(html).not.toContain('src="/close-a"'); expect(html).toContain('src="/full-a"');
@@ -71,7 +90,7 @@ describe('full-body rendering contract', () => {
 
 describe('per-image video action', () => {
   it('offers a Generate video button for a ready, non-placeholder panel', () => {
-    const html = renderToStaticMarkup(<ResultsScreen {...props} />);
+    const html = renderToStaticMarkup(<ResultsScreen {...props} onGenerateVideo={noop} />);
     expect(html).toContain('Generate video (10 units)');
   });
 

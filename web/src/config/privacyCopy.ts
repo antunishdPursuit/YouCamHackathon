@@ -43,6 +43,6 @@ export function duringGenerationSentence(imagesLeaveTab: boolean | null): string
 /** The "Where it is stored" row of the intro's plain-language privacy table. */
 export function storageSentence(imagesLeaveTab: boolean | null): string {
   return (imagesLeaveTab ? 'Uploads are sent to the preview service when you generate. ' : '') +
-    'Source uploads stay in memory. Completed previews and the matching demo video save automatically on this browser. ' +
+    'Source uploads stay in memory. Completed previews and matching demo videos save automatically on this browser. ' +
     'Closing the browser does not normally remove saved looks. Clearing browser data or storage eviction can remove them; download a backup.';
 }

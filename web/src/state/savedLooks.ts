@@ -1,6 +1,7 @@
 import type { AnalyzeResponse, TryOnPanel, TryOnResponse } from '@yincol/shared';
 import type { CachedGeneration } from './generationCache.js';
-import { GARMENT_A_MOTION_URL, motionSampleKind } from '../components/motionSample.js';
+import { ROSE_VEIL_MOTION_URL, motionSampleKind, motionSampleUrl } from '../components/motionSample.js';
+import { DEMO_PORTRAIT_URL } from './demoAssets.js';
 
 export interface LookSettings {
   readonly garmentIds: readonly string[];
@@ -147,18 +148,27 @@ function mapPanels(response: TryOnResponse, convert: (panel: TryOnPanel, label: 
       return [key, convert(panel, `${view} garment ${index === 0 ? 'A' : 'B'} ${stage}`)];
     }));
   return { ...response, garments: map(response.garments, 'Close-up'), completeLooks: map(response.completeLooks, 'Close-up'),
-    // The API echoes the source portrait. It is not a generated output and is never persisted.
-    portrait: { provenance: response.portrait.provenance, result: { status: 'failed', reason: 'Source photos are not saved.' } },
+    // The public demo portrait is explicitly approved. This exception never accepts
+    // an upload, provider URL, arbitrary fixture or live-response source portrait.
+    portrait: response.mode === 'fixture' && response.portrait.provenance === 'source' &&
+      response.portrait.result.status === 'ready' &&
+      (response.portrait.result.imageUrl === DEMO_PORTRAIT_URL || /^saved:image-\d+$/.test(response.portrait.result.imageUrl))
+      ? convert(response.portrait, 'Original public demo portrait')
+      : { provenance: response.portrait.provenance, result: { status: 'failed', reason: 'Source photos are not saved.' } },
     // Unlike the bare portrait, this IS a generated output — the makeup task's own result —
     // so it is saved/restored the same way garments and complete looks are.
     ...(response.portraitMadeUp ? { portraitMadeUp: convert(response.portraitMadeUp, 'Portrait with makeup') } : {}),
+    ...(response.mode === 'fixture' && response.demoVideoExample
+      ? { demoVideoExample: convert(response.demoVideoExample, 'Rose Veil video source image') } : {}),
+    ...(response.mode === 'fixture' && response.demoFullBodyVideoExample
+      ? { demoFullBodyVideoExample: convert(response.demoFullBodyVideoExample, 'Ivory blazer complete-look video source image') } : {}),
     ...(response.fullBody ? { fullBody: { ...response.fullBody,
       garments: map(response.fullBody.garments, 'Full-body'), completeLooks: map(response.fullBody.completeLooks, 'Full-body') } } : {}) };
 }
 export function hasUsablePreviews(response: TryOnResponse): boolean {
   let usable = false;
   mapPanels(response, panel => {
-    if (panel.result.status === 'ready' && panel.provenance !== 'placeholder') usable = true;
+    if (panel.result.status === 'ready' && panel.provenance !== 'placeholder' && panel.provenance !== 'source') usable = true;
     return panel;
   });
   return usable;
@@ -190,9 +200,12 @@ export async function prepareSavedLook(cache: CachedGeneration, settings: LookSe
       ids.set(source, id);
       const imageId = id;
       tasks.push(mediaBytes(source, 'image').then(blob => ({ id: imageId, blob, label, kind: 'image', motionKind: motionSampleKind(panel, cache.tryOn.mode) })));
-      if (motionSampleKind(panel, cache.tryOn.mode) === 'video') {
-        motion.push({ imageId, videoId: 'motion-sample' });
-        tasks.push(mediaBytes(GARMENT_A_MOTION_URL, 'video').then(blob => ({ id: 'motion-sample', blob, label: 'Saved Garment A motion sample', kind: 'video' })));
+      const videoSource = motionSampleUrl(panel, cache.tryOn.mode);
+      if (videoSource) {
+        const videoId = videoSource === ROSE_VEIL_MOTION_URL ? 'motion-sample' : 'ivory-blazer-motion';
+        const videoLabel = videoSource === ROSE_VEIL_MOTION_URL ? 'Rose Veil video example' : 'Ivory blazer complete-look video';
+        motion.push({ imageId, videoId });
+        tasks.push(mediaBytes(videoSource, 'video').then(blob => ({ id: videoId, blob, label: videoLabel, kind: 'video' })));
       }
     }
     return { ...panel, result: { ...panel.result, imageUrl: `saved:${id}` } };
@@ -270,7 +283,9 @@ export function currentMediaLinks(response: TryOnResponse): { url: string; label
     if (panel.result.status !== 'ready' || panel.provenance === 'placeholder' || seen.has(panel.result.imageUrl)) return panel;
     seen.add(panel.result.imageUrl);
     links.push({ url: panel.result.imageUrl, label, kind: 'image' });
-    if (motionSampleKind(panel, response.mode) === 'video') links.push({ url: GARMENT_A_MOTION_URL, label: 'Garment A motion sample', kind: 'video' });
+    const videoSource = motionSampleUrl(panel, response.mode);
+    if (videoSource) links.push({ url: videoSource,
+      label: videoSource === ROSE_VEIL_MOTION_URL ? 'Rose Veil video example' : 'Ivory blazer complete-look video', kind: 'video' });
     return panel;
   });
   return links;

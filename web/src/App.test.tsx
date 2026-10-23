@@ -10,9 +10,10 @@ import { checkRuntimeHealth, requestAnalysis, requestTryOn, requestBudgetAvailab
 const mocks = vi.hoisted(() => ({
   read: vi.fn(), save: vi.fn(), refresh: vi.fn(), remove: vi.fn(),
   setSaveStatus: vi.fn(), attachVideo: vi.fn(), looks: [] as SavedLook[],
+  saveStatus: 'saved' as 'saved' | 'failed',
 }));
 vi.mock('./state/useSavedLooks.js', () => ({ useSavedLooks: () => ({
-  ...mocks, loading: false, error: null, saveStatus: 'saved',
+  ...mocks, loading: false, error: null,
 }) }));
 vi.mock('./state/savedLooks.js', async importOriginal => ({
   ...await importOriginal<typeof import('./state/savedLooks.js')>(),
@@ -54,6 +55,7 @@ beforeEach(async () => {
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
   vi.stubGlobal('URL', Object.assign(URL, { revokeObjectURL: vi.fn() }));
   mocks.looks = [saved];
+  mocks.saveStatus = 'saved';
   mocks.read.mockImplementation(async key => key === saved.key ? saved : undefined);
   mocks.save.mockResolvedValue(undefined);
   vi.mocked(checkRuntimeHealth).mockResolvedValue({
@@ -75,6 +77,41 @@ afterEach(async () => {
 });
 
 describe('editing saved history', () => {
+  it('opens the saved demo even when every API readiness request would fail', async () => {
+    vi.mocked(checkRuntimeHealth).mockRejectedValue(new Error('API offline'));
+    vi.mocked(requestBudgetAvailability).mockRejectedValue(new Error('API offline'));
+    await click('Try the demo');
+    expect([...container.querySelectorAll('img')].map(image => image.getAttribute('src'))).toEqual([
+      '/fixtures/demo-original-portrait.png', '/fixtures/demo-garment-a.jpg', '/fixtures/demo-garment-b.jpg',
+    ]);
+    await click('Generate demo previews');
+    expect([...container.querySelectorAll('[role="tab"]')].map(tab => tab.textContent)).toEqual(['Compare makeup', 'Compare outfits']);
+    expect(container.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe('Compare makeup');
+    expect(container.textContent).toContain('Rose Veil video example');
+    expect(container.querySelector('img[src="/fixtures/demo-portrait-champagne-halo.png"]')).not.toBeNull();
+    expect(container.textContent).not.toContain('could not generate');
+    expect(container.textContent).not.toContain('does not yet include');
+    await click('Compare outfits');
+    expect(container.textContent).toContain('Full body — shared trousers and makeup');
+    expect(container.querySelector('#video-example-heading')).toBeNull();
+    expect(checkRuntimeHealth).not.toHaveBeenCalled();
+    expect(requestBudgetAvailability).not.toHaveBeenCalled();
+    expect(requestTryOn).not.toHaveBeenCalled();
+  });
+
+  it('keeps results and downloads after a save failure and retries storage without generating', async () => {
+    mocks.looks = [];
+    mocks.saveStatus = 'failed';
+    await click('Try the demo');
+    await click('Generate demo previews');
+    expect(container.textContent).toContain('Not saved: browser storage is full, unavailable, or a media download failed.');
+    expect(container.textContent).toContain('With Champagne Halo makeup');
+    expect(container.textContent).toContain('Download your current results');
+    await click('Retry saving — no new generation');
+    expect(mocks.save).toHaveBeenCalledTimes(2);
+    expect(requestAnalysis).not.toHaveBeenCalled();
+    expect(requestTryOn).not.toHaveBeenCalled();
+  });
   it('opens history without the API, then checks readiness and generates from new inputs', async () => {
     await click('Open look');
     expect(checkRuntimeHealth).not.toHaveBeenCalled();
@@ -82,6 +119,12 @@ describe('editing saved history', () => {
     await click('Back to inputs');
     expect(checkRuntimeHealth).toHaveBeenCalledTimes(1);
     expect(button('Generate previews').disabled).toBe(true);
+    // A saved full-body comparison must remain editable when that live feature is
+    // unavailable: the user can turn it off and continue with close-up inputs.
+    const fullBody = container.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+    expect(fullBody.checked).toBe(true);
+    expect(fullBody.disabled).toBe(false);
+    await act(async () => fullBody.click());
     const files = [...container.querySelectorAll<HTMLInputElement>('input[type="file"]')];
     expect(files).toHaveLength(3);
     for (const [index, input] of files.entries()) {

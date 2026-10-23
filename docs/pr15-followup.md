@@ -1,5 +1,9 @@
 # PR #15 follow-up — September 29, 2026
 
+This is a dated PR follow-up. For the October 2 media capture and October 11
+local/public status, see the [current verification record](verification.md) and
+[deployment status](deployment.md).
+
 ## Current status — September 30, 2026
 
 PR #15 was approved at `87f6f99` and merged as `42b59fb`. PR #13 was closed
@@ -79,6 +83,18 @@ Sources: [Video OpenAPI](https://docs.perfectcorp.com/_bundle/reference/ai_video
 中文：本地 319 项测试、类型检查、构建及对比度检查通过。独立 Edge 浏览器验证了演示、对比、手机布局、历史重开/下载、旧数据兼容、并发视频保存、图片字节转换、删除保护和完整新视频保存流程；实际跨域请求也通过。视频使用模拟响应，未花额度。新增 Valkey 8 CI 集成测试，本地无测试 KV 地址时跳过；CI 和真实 Render 验证必须分别记录。
 
 ## Remaining acceptance / 剩余验收
+
+**September 30 update:** the numbered list below is the historical pre-deployment
+handoff. #15–#17 are now merged and `47e8e97` is deployed. Real KV initialization
+and API-restart survival passed. Dennis approved the exact public demo portrait
+and two Champagne Halo full-body results; their local integration is verified.
+Missing makeup/video captures, natural recovery after October 1 at 23:22:17 UTC,
+remaining target-environment checks and final release acceptance are still open.
+Use [deployment.md](deployment.md) and issue #12 for the current checklist.
+
+中文：下方清单为部署前的历史交接。#15 至 #17 已合并并部署 `47e8e97`；真实 KV
+初始化及 API 重启后的状态保留已验证。明确获批的公开肖像与两张全身结果已在本地
+接入。妆容/视频捕获、10 月 1 日 23:22:17 UTC 后自然恢复及最终验收仍未完成。
 
 1. Verify CI and the actual Render Key Value connection, EVAL permissions, noeviction policy, recovery pause and auto-deploy configuration.
 2. Owner supplies/approves missing original sample inputs and captured portrait-makeup/full-body assets. The demo currently uses labelled stand-ins where these are missing.

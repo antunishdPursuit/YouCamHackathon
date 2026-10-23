@@ -1,52 +1,21 @@
 # YINCOL
 
 A small YouCam showcase for comparing garments and makeup, with optional full-body
-previews and a saved motion sample. The colour palette uses an explainable local
+previews and two saved video examples. The colour palette uses an explainable local
 rule; its current input is an example reading, not a live analysis of the visitor.
 
+**Local closeout, October 22, 2026:** The saved demo is the finished scope for
+this project. The source branch is published for review, but the app is not
+deployed and no separate backup was made. The demo runs in fixture mode without
+YouCam calls or a provider key.
+The local browser check loaded the source photos, both Champagne Halo comparison
+views, the separately labelled Rose Veil and ivory-blazer videos, and reopened
+the saved look after a reload. No new server deployment or public live generation
+is planned. The provider-backed visitor video path and V4 blazer selection remain
+disabled; their former release criteria are deferred, not claims of completion.
+See the [dated verification record](docs/verification.md).
+
 [Partner guide / 合作开发指南（English + 简体中文）](docs/partner-guide.md)
-
-## Current application
-
-| Stage | Behavior implemented in this repository |
-| --- | --- |
-| Start | Product introduction, mode-aware privacy information, automatically saved Previous looks, and a choice between the saved demo and your own photos. |
-| Add inputs | Portrait, two garment references, a makeup preset, and optional full-body portrait plus trousers reference. |
-| Generate | Explicit generation with progress, input checks, and reuse of a matching result from this browser's saved history. |
-| Results | Compare the two full-body outfits when requested, or legacy close-up results or compare the original portrait against that same portrait with makeup. Saved clips play beside their images; live video remains gated pending release verification. |
-
-Each garment passes through Clothes VTO, then Makeup VTO receives that garment
-result — that pairing is what Compare outfits shows. The makeup task also runs
-directly on the bare portrait, with no garment change, for Compare makeup: the
-original portrait against that same portrait with makeup. Full-body generation
-first applies trousers once, then runs each top and its makeup independently. A
-failed branch does not discard the other usable result.
-
-The saved five-second video plays only for its matching red-shirt / Rose Veil
-fixture. A per-image "Generate video" action exists on any other completed
-result, budget-permitting, but remains disabled pending live-route acceptance — see the video row
-below. Neither is a rotatable 3D model or a view of the back. A click starts
-playback; the original still remains available.
-
-### Demo and live entry
-
-Start offers "Try the demo" (preselected illustrated inputs, then saved comparisons; no upload, no
-YouCam call, and no dependency on the API service being awake — it can sleep on
-the free tier) and "Try your photos" (the existing Add-inputs flow). Both label
-every result as a saved demo or as generated from your uploads.
-
-### Server budgets and video
-
-Try-on, skin analysis and video reserve units before provider work. The persistent
-Key Value ledger enforces 100 units per UTC site day and 40 per browser over a true
-rolling 24 hours. Atomic compare-and-set commits both limits and duplicate protection.
-Missing state pauses live work for 24 hours, including first provisioning. There are
-no automatic refunds, paid retries or expiring duplicate locks. Real Render connection
-verification remains pending. See [follow-up evidence and release gates](docs/pr15-followup.md).
-
-Video's documented V2 task and upload contract are implemented, but real output and
-release acceptance remain unverified. An explicit code gate keeps live video disabled
-before reservation/upload; the saved sample remains available. No visitor accounts.
 
 ## Run locally without using credits
 
@@ -85,6 +54,74 @@ The selected uploads do not replace the saved demo person's face or garments.
 `completeLookFailure`, or `skinUnavailable` to exercise the corresponding fixture
 state. Restart the API after changing its configuration.
 
+## Try the saved demo
+
+1. Open the local website and select **Try the demo**.
+2. Review the three sample photos, then select **Generate demo previews**. This
+   opens saved results without spending YouCam credits.
+3. Compare makeup and outfits, then play either labelled video beside its source
+   image. Return to **Previous looks** to reopen the saved comparison.
+
+## Current application
+
+| Stage | Behavior implemented in this repository |
+| --- | --- |
+| Start | Product introduction, mode-aware privacy information, automatically saved Previous looks, and a choice between the saved demo and your own photos. |
+| Add inputs | Portrait, two garment references, a makeup preset, and optional full-body portrait plus trousers reference. |
+| Generate | Explicit generation with progress, input checks, and reuse of a matching result from this browser's saved history. |
+| Results | Opens on Compare makeup: the original portrait beside that same portrait with makeup. Compare outfits follows, with full-body or legacy close-up results. Saved clips play beside their source images; live video remains gated pending release verification. |
+
+Each garment passes through Clothes VTO, then Makeup VTO receives that garment
+result — that pairing is what Compare outfits shows. The makeup task also runs
+directly on the bare portrait, with no garment change, for Compare makeup: the
+original portrait against that same portrait with makeup. Full-body generation
+first applies trousers once, then runs each top and its makeup independently. A
+failed branch does not discard the other usable result.
+
+The saved video examples play only beside the exact captured images used to
+generate them: the Rose Veil close-up and a separate ivory blazer full-body look.
+A per-image "Generate video" action appears for completed live results only
+after the paid browser route passes acceptance. Neither example is a rotatable
+3D model or a view of the back. A click starts
+playback; the original still remains available.
+
+### Demo and live entry
+
+Start offers "Try the demo" (an approved public portrait and both real garment references,
+then saved Champagne Halo makeup and full-body comparisons, with makeup first; no upload, no
+YouCam call, and no dependency on the API service being awake — it can sleep on
+the free tier) and "Try your photos" (the existing Add-inputs flow). Both label
+every result as a saved demo or as generated from your uploads.
+
+The completed local Champagne Halo demo has genuine full-body and
+same-portrait makeup captures. Below Compare makeup, a separate Rose Veil video
+example uses the earlier captured clip with its original source image and label.
+Compare outfits also offers the October 2 ivory blazer, taupe trousers, and Peach
+Ember complete-look video as a separate example. Both examples save and reopen
+with the current demo, and their stills and videos can be downloaded. The two
+Champagne Halo outfit comparisons remain separate. Existing saved Rose Veil
+looks remain supported. The visitor live route still uses Clothes V3 for tops;
+the captured V4 outerwear blazer is a saved demo example, not a blazer option
+that visitors can currently reproduce through the live UI.
+
+### Server budgets and video
+
+Try-on, skin analysis and video reserve units before provider work. The persistent
+Key Value ledger enforces 100 units per UTC site day and 40 per browser over a true
+rolling 24 hours. Atomic compare-and-set commits both limits and duplicate protection.
+Missing state pauses live work for 24 hours, including first provisioning. There are
+no automatic refunds, paid retries or expiring duplicate locks. Real Render connection
+verification passed for ledger initialization and API-restart survival. The
+recorded initial recovery deadline has passed, but an October 11 public budget
+request without a browser ID returned unavailable with zero shared-site units.
+Its cause needs checking in Render/KV before any live trial. See
+[current release evidence](docs/deployment.md).
+
+Video's V2 task, upload, and result download were verified in bounded local
+captures on October 2. The browser route and release acceptance remain unverified.
+An explicit code gate keeps live video disabled
+before reservation/upload; the saved sample remains available. No visitor accounts.
+
 ## Opt-in live images
 
 Copy `.env.example` to `.env` and enter the key privately on the API server.
@@ -104,7 +141,9 @@ Successful output bytes are downloaded immediately; signed provider URLs do not
 reach the browser. Source uploads remain in memory. Completed output images and the matching saved
 demo video are copied into IndexedDB as bytes, with their settings and colour
 context. The API-echoed source portrait is omitted from both persistent history
-and the session cache. Starting a new look preserves history.
+and the session cache. The one explicitly approved public demo portrait is an exception:
+it saves with that demo and is labelled as a source, never an API result. Other source
+uploads remain excluded. Starting a new look preserves history.
 Already-submitted provider work may still finish and consume units after deletion.
 
 ### Saved results on this browser
@@ -128,8 +167,8 @@ data clearing can prevent saving or remove history. A failed save leaves current
 results and downloads available, with a save-only retry that does not call YouCam.
 The first valid older session cache may be imported once without regeneration.
 Source uploads are not restored; reselect them to change or generate a look.
-`POST /api/video` exists but has no verified live path — see "Live video
-generation" above.
+`POST /api/video` exists but its live browser flow is gated — see "Server
+budgets and video" above.
 
 ### Recorded unit estimates
 
@@ -139,7 +178,7 @@ generation" above.
 | Full-body: shared trousers + two tops with makeup + portrait-only makeup (replaces close-up) | 9 |
 | Optional five-action Skin Analysis | +12 |
 | Full-body flow + Skin Analysis | 21 |
-| Planned five-second, 720p video (unverified — no live path yet) | +10 each |
+| Five-second, 720p video (provider capture verified; browser route gated) | +10 each |
 
 The original uploaded portrait requires no generation. Estimates exclude retries
 and are not a balance check. Verify current rates before approved paid work:
@@ -182,7 +221,7 @@ and historical provider evidence.
 
 - [Partner guide / 合作开发指南](docs/partner-guide.md): current state, planned work,
   verification and ownership in English and Simplified Chinese.
-- [Deployment](docs/deployment.md): the current split, fixture-only Render release.
+- [Deployment](docs/deployment.md): local closeout and historical Render release evidence.
 - [Assets](assets/README.md): source rights and result provenance.
 - [Verification](docs/verification.md): dated local evidence and remaining limits.
 

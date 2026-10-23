@@ -24,7 +24,7 @@ function WhatYouGet() {
         </li>
         <li className="flex gap-3">
           <span aria-hidden="true" className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gold" />
-          Two garment previews, with and without makeup.
+          Two outfits with the same makeup direction.
         </li>
         <li className="flex gap-3">
           <span aria-hidden="true" className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gold" />

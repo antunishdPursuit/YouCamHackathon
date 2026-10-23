@@ -23,6 +23,7 @@ export const FEATURES: Readonly<Record<FeatureId, TaskFeature>> = {
   facialColorTone: feature('facialColorTone', 'Facial colour tone'),
   skinAnalysis: feature('skinAnalysis', 'Skin analysis'),
   clothesVto: feature('clothesVto', 'Clothes try-on'),
+  clothesVtoV4: feature('clothesVtoV4', 'Clothes V4 try-on'),
   makeupVto: feature('makeupVto', 'Makeup virtual try-on'),
   video: feature('video', 'Video generation'),
 };
@@ -67,6 +68,20 @@ export const buildClothesVtoPayload = (
   garment_category: garmentCategory,
 });
 
+/** V4 retains the image fields and adds a dedicated outerwear category. */
+export const buildClothesV4Payload = (
+  portrait: ImageReference,
+  garment: ImageReference,
+  garmentCategory: GarmentCategoryValue | 'outer',
+): unknown => ({
+  ...imageField(portrait),
+  ...(garment.kind === 'publicUrl'
+    ? { ref_file_url: garment.url }
+    : { ref_file_id: garment.fileId }),
+  garment_category: garmentCategory,
+  ...(garmentCategory === 'lower_body' ? { change_shoes: false } : {}),
+});
+
 /** The documented effect object is intentionally kept behind the server boundary. */
 export type MakeupEffect = Readonly<{
   category: string;
@@ -83,17 +98,16 @@ export const buildMakeupVtoPayload = (
   version: '1.0',
 });
 
-/**
- * Convert the app's chosen look into the documented Makeup VTO effects shape. The
- * browser still receives only the app-level look and chips; vendor fields stay here.
- */
-/** Official V2 image-to-video contract: five seconds, 720p. See docs/pr15-followup.md. */
-export const buildVideoPayload = (source: ImageReference): unknown => ({
+/** Official V2 image-to-video contract: five seconds, 720p, with a motion prompt. */
+export const buildVideoPayload = (source: ImageReference, prompt = 'The person smiles softly and makes a small natural movement while keeping the outfit visible.'): unknown => ({
   ...imageField(source),
   dst_duration: 5,
   resolution: '720',
+  prompt,
+  model: 'youcam-video-v2',
 });
 
+/** Convert the chosen look into documented Makeup VTO effects behind the server boundary. */
 export const makeupEffectsForLook = (
   look: Pick<MakeupLook, 'chips'>,
 ): readonly MakeupEffect[] => [

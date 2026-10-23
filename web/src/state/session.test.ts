@@ -53,9 +53,9 @@ describe('guided comparison navigation', () => {
     mode: 'live' as const, portrait: { provenance: 'live' as const, result: { status: 'ready' as const, imageUrl: '/test-only', alt: 'Test portrait' } }, garments: {}, completeLooks: {},
     fullBody: { mode: 'live' as const, garments: {}, completeLooks: {} },
   };
-  it('opens on the outfits axis and switches on request, without touching the result', () => {
+  it('opens on makeup and switches on request, without touching the result', () => {
     let state = sessionReducer(ready, { type: 'tryOnReady', tryOn: generated });
-    expect(state.axis).toBe('garments');
+    expect(state.axis).toBe('makeup');
     expect(state.busy).toBe(false);
     state = sessionReducer(state, { type: 'setAxis', axis: 'makeup' });
     expect(state.axis).toBe('makeup');
@@ -101,6 +101,7 @@ it('opens saved comparisons without restoring uploads or starting generation', (
     tryOn: { fullBody: {} } as NonNullable<SessionState['tryOn']>, garmentIds: ['a', 'b'], makeupLookId: 'rose-veil',
   });
   expect(restored.step).toBe('results');
+  expect(restored.axis).toBe('makeup');
   expect(restored.fullBody).toEqual({ enabled: true, portrait: null, trousers: null });
   expect(restored.busy).toBe(false);
   expect(restored.consentGiven).toBe(false);

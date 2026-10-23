@@ -72,7 +72,7 @@ export const initialState: SessionState = {
   fullBody: { enabled: false, portrait: null, trousers: null },
   analysis: null,
   tryOn: null,
-  axis: 'garments',
+  axis: 'makeup',
   error: null,
   errorCode: null,
   busy: false,
@@ -177,7 +177,7 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         step: 'inputs',
         analysis: null,
         tryOn: null,
-        axis: 'garments',
+        axis: 'makeup',
         error: null,
         errorCode: null,
         busy: false,
@@ -199,7 +199,7 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
       return { ...state, analysis: action.analysis };
 
     case 'tryOnReady':
-      return { ...state, tryOn: action.tryOn, busy: false, axis: 'garments' };
+      return { ...state, tryOn: action.tryOn, busy: false, axis: 'makeup' };
 
     case 'setAxis':
       return { ...state, axis: action.axis };

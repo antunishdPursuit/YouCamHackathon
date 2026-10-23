@@ -4,9 +4,8 @@
  * report either a `ready` result or a `failed` one — a discriminated union so a caller
  * cannot read `videoUrl` without first proving the result succeeded.
  *
- * Entirely unverified against the real API (see `VIDEO_GENERATOR_TASK_PATH` in config.ts);
- * this exists so the route above it can be built and tested against a mocked provider
- * before any real verification happens.
+ * The V2 result URL and download shape were verified in bounded local captures on
+ * October 2, 2026. The browser route remains gated pending live acceptance.
  */
 
 import type { VideoResult } from '@yincol/shared';
